@@ -333,17 +333,22 @@ const App: React.FC = () => {
   };
 
   const handleUpdateOrders = async (updatedOrders: Order[]) => {
-    if (user) {
-      setUser({ ...user, orders: updatedOrders });
-      const currentFirebaseUser = auth.currentUser;
-      if (currentFirebaseUser) {
-        try {
-          await updateDoc(doc(db, 'users', currentFirebaseUser.uid), {
-            orders: updatedOrders
-          });
-        } catch (e) {
-          console.warn('Notice: Firestore order update operated offline:', e);
-        }
+    const updatedUser = user ? { ...user, orders: updatedOrders } : null;
+    if (updatedUser) {
+      setUser(updatedUser);
+      localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
+    }
+    localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+    const currentFirebaseUser = auth.currentUser;
+    if (currentFirebaseUser) {
+      localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
+      try {
+        await updateDoc(doc(db, 'users', currentFirebaseUser.uid), {
+          orders: updatedOrders
+        });
+      } catch (e) {
+        console.warn('Notice: Firestore order update operated offline:', e);
       }
     }
   };

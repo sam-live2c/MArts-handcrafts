@@ -4,7 +4,7 @@ import { handleGoBack } from '../utils/navigation';
 import { 
   ArrowLeft, Search, MoreVertical, X, Package, 
   AlertCircle, Headphones, CheckCircle2, Download, HelpCircle, Check,
-  ChevronRight
+  ChevronRight, Truck
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
 import { PRODUCTS } from '../constants';
@@ -25,7 +25,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
-  const [activeProductMenuKey, setActiveProductMenuKey] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -87,6 +86,24 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     setActiveMenuOrderId(null);
     setCancellingOrderId(null);
 
+    // Persist immediately in localStorage
+    try {
+      localStorage.setItem('melody_orders', JSON.stringify(updated));
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        localStorage.setItem(`melody_orders_${currentUser.uid}`, JSON.stringify(updated));
+      }
+      const savedProfile = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+      if (savedProfile) {
+        const parsed = JSON.parse(savedProfile);
+        parsed.orders = updated;
+        localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
+        localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
+      }
+    } catch (e) {
+      console.warn('Local order persistence notice:', e);
+    }
+
     const currentUser = auth.currentUser;
     await updateOrderStatusInFirestore(currentUser ? currentUser.uid : null, orderId, 'Cancelled');
     showToast('Order Cancelled', 'You will get your refund after verification under 24 hours.', 'success', 5000);
@@ -95,7 +112,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
 
   const handleDownloadReceipt = (order: Order, specificItem?: CartItem) => {
     setActiveMenuOrderId(null);
-    setActiveProductMenuKey(null);
 
     const isItemSpecific = !!specificItem;
     const items = isItemSpecific ? [specificItem] : order.items;
@@ -360,11 +376,12 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
 
     if (!matchesSearch) return false;
 
-    // Horizontal category filter
+    // Horizontal category filter (case-insensitive)
+    const st = (ord.status || '').toLowerCase();
     if (activeFilter === 'delivered') {
-      return ord.status === 'Delivered';
+      return st === 'delivered';
     } else if (activeFilter === 'cancelled') {
-      return ord.status === 'Cancelled';
+      return st === 'cancelled';
     }
     return true;
   });
@@ -377,14 +394,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           {showSearchInput ? (
             <div className="flex items-center gap-2 w-full h-full">
               <button
+                type="button"
                 onClick={() => {
                   setShowSearchInput(false);
                   setSearchQuery('');
                 }}
-                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-800 transition-colors cursor-pointer shrink-0"
+                className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
                 aria-label="Close search"
               >
-                <ArrowLeft size={20} />
+                <ArrowLeft size={22} strokeWidth={2.5} />
               </button>
               <input
                 type="text"
@@ -393,12 +411,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search by Order ID or Product name..."
                 autoFocus
-                className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none px-1 h-full"
+                className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none px-2 h-full"
               />
               {searchQuery ? (
                 <button 
+                  type="button"
                   onClick={() => setSearchQuery('')}
-                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0 cursor-pointer"
+                  className="p-1 -mr-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-800 transition-colors shrink-0 cursor-pointer"
                   aria-label="Clear search"
                 >
                   <X size={18} />
@@ -407,22 +426,25 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
             </div>
           ) : (
             <div className="flex items-center justify-between w-full h-full">
-              <div className="flex items-center gap-2">
+              {/* Left Side: Back button and Title aligned with profile page reference */}
+              <div className="flex items-center gap-3">
                 <button 
                   type="button"
                   onClick={() => handleGoBack(navigate, '/account')} 
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-800 transition-colors cursor-pointer shrink-0"
+                  className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
                   aria-label="Go back"
                 >
-                  <ArrowLeft size={20} />
+                  <ArrowLeft size={22} strokeWidth={2.5} />
                 </button>
-                <h1 className="text-lg font-bold text-gray-900">My Orders</h1>
+                <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Orders</h1>
               </div>
-              <div className="flex items-center gap-1 relative">
+
+              {/* Right Side: Search and Menu button relatively positioned to the opposite side */}
+              <div className="flex items-center gap-1 -mr-1 relative">
                 <button
                   type="button"
                   onClick={() => setShowSearchInput(true)}
-                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
                   aria-label="Search orders"
                 >
                   <Search size={20} />
@@ -430,7 +452,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 <button
                   type="button"
                   onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
                   aria-label="More options"
                 >
                   <MoreVertical size={20} />
@@ -442,7 +464,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       className="fixed inset-0 z-40" 
                       onClick={() => setShowHeaderMenu(false)} 
                     />
-                    <div className="absolute right-0 top-11 sm:top-12 z-50 w-[160px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
+                    <div className="absolute right-0 top-11 sm:top-12 z-50 w-[160px] bg-white border border-gray-200 rounded-lg py-1 shadow-md">
                       <button
                         type="button"
                         onClick={() => {
@@ -509,52 +531,57 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           ) : (
             <div className="divide-y divide-gray-100">
               {filteredOrders.map((order, orderIdx) => {
-                const isActiveOrder = order.status === 'Processing' || order.status === 'Shipped';
+                const statusLower = (order.status || 'processing').toLowerCase();
+                const isDelivered = statusLower === 'delivered';
+                const isCancelled = statusLower === 'cancelled';
+                const isProcessing = statusLower === 'processing';
+                const isShipped = statusLower === 'shipped';
+                const isFailed = statusLower === 'failed';
+                const isActiveOrder = isProcessing || isShipped;
                 const isMenuOpen = activeMenuOrderId === order.id;
 
                 const mrp = order.items.reduce((acc, item) => acc + ((item.oldPrice || (item.price + 10)) * item.quantity), 0);
                 const discount = Math.max(0, mrp - order.total);
 
-                const isCancelled = order.status === 'Cancelled';
-                const isFailed = order.status === 'Failed';
-
-                const deliveryDateText = order.status === 'Delivered'
+                const deliveryDateText = isDelivered
                   ? `Delivered on ${order.date}`
                   : isCancelled
                   ? `Cancelled on ${order.date}`
                   : isFailed
                   ? `Payment Failed on ${order.date}`
+                  : isShipped
+                  ? `Shipped on ${order.date}`
                   : `Delivery by ${order.date === 'Aug 09, 2026' ? 'Aug 12, Wed' : 'Aug 14, Fri'}`;
 
                 return (
                   <div key={`${order.id}-${orderIdx}`} className="py-5 first:pt-1 last:pb-1 space-y-4">
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <span className="text-sm font-bold text-gray-900">Order #{order.id}</span>
-                          {order.status === 'Delivered' && (
-                            <span className="bg-green-50 text-green-700 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                          {isDelivered && (
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
                             </span>
                           )}
-                          {order.status === 'Processing' && (
-                            <span className="bg-[#FAF0E6] text-[#8C3F1E] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                          {isProcessing && (
+                            <span className="bg-[#FAF0E6] text-[#8C3F1E] border border-[#EADBCC] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               Processing
                             </span>
                           )}
-                          {order.status === 'Shipped' && (
-                            <span className="bg-[#FAF0E6] text-[#8C3F1E] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                              Shipped
+                          {isShipped && (
+                            <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                              <Truck size={12} /> Shipped
                             </span>
                           )}
-                          {order.status === 'Cancelled' && (
-                            <span className="bg-gray-100 text-gray-600 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                          {isCancelled && (
+                            <span className="bg-gray-100 text-gray-600 border border-gray-200 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               Cancelled
                             </span>
                           )}
-                          {order.status === 'Failed' && (
-                            <span className="bg-red-50 text-red-700 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                          {isFailed && (
+                            <span className="bg-red-50 text-red-700 border border-red-200 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               Failed
                             </span>
                           )}
@@ -562,159 +589,108 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                         <p className="text-xs text-gray-500 mt-0.5">Placed on {order.date}</p>
                       </div>
 
-                      {/* Header Actions */}
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Single Menu Button - Positioned on right side with -mr-1 */}
+                      <div className="relative shrink-0 -mr-1">
                         <button
                           type="button"
-                          onClick={() => handleDownloadReceipt(order)}
-                          className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[#C85A32] hover:text-[#A04724] px-2.5 py-1 rounded hover:bg-[#FAF0E6] transition-colors cursor-pointer"
+                          onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
+                          className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
+                          aria-label="Order Options"
                         >
-                          <Download size={13} />
-                          <span>Receipt</span>
+                          <MoreVertical size={20} />
                         </button>
 
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
-                            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
-                            aria-label="Order Options"
-                          >
-                            <MoreVertical size={20} />
-                          </button>
-
-                          {/* Dropdown Menu */}
-                          {isMenuOpen && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-40" 
-                                onClick={() => setActiveMenuOrderId(null)} 
-                              />
-                              <div className="absolute right-0 top-10 sm:top-11 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
+                        {/* Dropdown Menu: Download receipt & Cancel order */}
+                        {isMenuOpen && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setActiveMenuOrderId(null)} 
+                            />
+                            <div className="absolute right-0 top-10 sm:top-11 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-md">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadReceipt(order)}
+                                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                              >
+                                <span>Download receipt</span>
+                                <Download size={14} className="text-[#C85A32] shrink-0" />
+                              </button>
+                              {isActiveOrder && (
                                 <button
                                   type="button"
-                                  onClick={() => handleDownloadReceipt(order)}
-                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                  onClick={() => {
+                                    setActiveMenuOrderId(null);
+                                    setCancellingOrderId(order.id);
+                                  }}
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer border-t border-gray-100"
                                 >
-                                  <span>Download Full Receipt</span>
-                                  <Download size={14} className="text-[#C85A32] shrink-0" />
+                                  <span>Cancel order</span>
+                                  <X size={14} className="shrink-0" />
                                 </button>
-                                {isActiveOrder && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveMenuOrderId(null);
-                                      setCancellingOrderId(order.id);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
-                                  >
-                                    <span>Cancel Order</span>
-                                    <X size={14} className="shrink-0" />
-                                  </button>
-                                )}
-                              </div>
-                            </>
-                          )}
-                        </div>
+                              )}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Products List */}
+                    {/* Products List - Clickable product card to view product details */}
                     <div className="divide-y divide-gray-100">
-                      {order.items.map((item, idx) => {
-                        const productMenuKey = `${order.id}-${item.id}-${idx}`;
-                        const isProductMenuOpen = activeProductMenuKey === productMenuKey;
-
-                        return (
-                          <div key={idx} className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4">
-                            <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
-                              <div className="w-[76px] h-[76px] bg-white border border-gray-100 rounded-sm p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
-                                <img 
-                                  src={item.image} 
-                                  alt={item.name} 
-                                  referrerPolicy="no-referrer"
-                                  className="w-full h-full object-contain" 
-                                />
-                              </div>
-                              <div className="flex-1 min-w-0 pr-1">
-                                <h4 className="text-[15px] font-medium text-gray-900 line-clamp-1 leading-tight mb-1">
-                                  {item.name}
-                                </h4>
-                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                  <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
-                                  <span>•</span>
-                                  <span className="font-semibold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
-                                </div>
-                                <div className="mt-2 text-xs text-gray-600">
-                                  {deliveryDateText.startsWith('Delivery by') ? (
-                                    <>
-                                      Delivery by <span className="font-semibold text-gray-900">{deliveryDateText.replace('Delivery by ', '')}</span>
-                                    </>
-                                  ) : (
-                                    <span className="font-semibold text-gray-900">{deliveryDateText}</span>
-                                  )}
-                                </div>
-                              </div>
+                      {order.items.map((item, idx) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => navigate(item.id ? `/product/${item.id}` : '/')}
+                          className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:bg-gray-50/70 p-2 -mx-2 rounded-xl transition-colors group"
+                          title="Click to view product details"
+                        >
+                          <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
+                            <div className="w-[76px] h-[76px] bg-white border border-gray-100 rounded-sm p-1.5 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-102 transition-transform">
+                              <img 
+                                src={item.image} 
+                                alt={item.name} 
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-contain" 
+                              />
                             </div>
-
-                            {/* Product Item Actions & Menu Button - Aligned on identical vertical axis */}
-                            <div className="flex items-center gap-1.5 shrink-0 self-center">
-                              <button
-                                type="button"
-                                onClick={() => handleDownloadReceipt(order, item)}
-                                className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-[#C85A32] hover:text-[#A04724] px-2.5 py-1 rounded hover:bg-[#FAF0E6] transition-colors cursor-pointer"
-                                title={`Download item receipt for ${item.name}`}
-                              >
-                                <Download size={13} />
-                                <span>Receipt</span>
-                              </button>
-
-                              <div className="relative">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveProductMenuKey(isProductMenuOpen ? null : productMenuKey)}
-                                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
-                                  aria-label="Product Options"
-                                  title="Product options"
-                                >
-                                  <MoreVertical size={20} />
-                                </button>
-
-                                {/* Product Options Dropdown */}
-                                {isProductMenuOpen && (
+                            <div className="flex-1 min-w-0 pr-1">
+                              <h4 className="text-[15px] font-medium text-gray-900 group-hover:text-[#C85A32] transition-colors line-clamp-1 leading-tight mb-1">
+                                {item.name}
+                              </h4>
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
+                                <span>•</span>
+                                <span className="font-semibold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
+                              </div>
+                              <div className="mt-2 text-xs text-gray-600">
+                                {isDelivered ? (
+                                  <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                                    <CheckCircle2 size={13} strokeWidth={2.5} />
+                                    Delivered on {order.date}
+                                  </span>
+                                ) : isCancelled ? (
+                                  <span className="font-semibold text-gray-500">
+                                    Cancelled on {order.date}
+                                  </span>
+                                ) : isFailed ? (
+                                  <span className="font-semibold text-red-600">
+                                    Payment Failed on {order.date}
+                                  </span>
+                                ) : isShipped ? (
+                                  <span className="font-semibold text-blue-700 flex items-center gap-1">
+                                    <Truck size={13} />
+                                    Shipped • On the way
+                                  </span>
+                                ) : (
                                   <>
-                                    <div 
-                                      className="fixed inset-0 z-40" 
-                                      onClick={() => setActiveProductMenuKey(null)} 
-                                    />
-                                    <div className="absolute right-0 top-10 sm:top-11 z-50 w-[185px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDownloadReceipt(order, item)}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
-                                      >
-                                        <span>Download Item Receipt</span>
-                                        <Download size={14} className="text-[#C85A32] shrink-0" />
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActiveProductMenuKey(null);
-                                          navigate(`/product/${item.id}`);
-                                        }}
-                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
-                                      >
-                                        <span>View Product Details</span>
-                                        <ChevronRight size={14} className="text-gray-400 shrink-0" />
-                                      </button>
-                                    </div>
+                                    Delivery by <span className="font-semibold text-gray-900">{deliveryDateText.replace('Delivery by ', '')}</span>
                                   </>
                                 )}
                               </div>
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
 
                     {/* Price Details Breakdown - Clean dividers matching Checkout */}
