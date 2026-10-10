@@ -599,7 +599,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
       </div>
 
       <div className="w-full px-4 sm:px-8 lg:px-12 py-6 pb-20">
-        <div className="w-full bg-white min-h-[600px] animate-in fade-in duration-500">
+        <div className="w-full bg-white min-h-[600px]">
         {type === 'addresses' && renderAddresses()}
         {type === 'payments' && renderPayments()}
         {type === 'edit' && renderEdit()}

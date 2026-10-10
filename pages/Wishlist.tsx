@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
-  ShoppingCart,
   ChevronRight,
   Star
 } from 'lucide-react';
@@ -25,8 +24,6 @@ const Wishlist: React.FC<WishlistProps> = ({
   user,
   wishlist,
   onRemoveFromWishlist,
-  onMoveToCart,
-  onMoveAllToCart,
   cartCount
 }) => {
   const navigate = useNavigate();
@@ -54,19 +51,6 @@ const Wishlist: React.FC<WishlistProps> = ({
   const wishlistProducts = useMemo(() => {
     return allProducts.filter((product) => wishlist.includes(product.id));
   }, [allProducts, wishlist]);
-
-
-  const handleMoveAll = () => {
-    const inStockItems = wishlistProducts.filter((p) => p.stock > 0);
-    if (inStockItems.length === 0) return;
-    if (onMoveAllToCart) {
-      onMoveAllToCart(inStockItems);
-    } else {
-      inStockItems.forEach((p) => onMoveToCart(p));
-    }
-  };
-
-  const totalPrice = wishlistProducts.reduce((sum, p) => sum + p.price, 0);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans flex flex-col selection:bg-[#EBDCCB]">
@@ -190,38 +174,6 @@ const Wishlist: React.FC<WishlistProps> = ({
                   </div>
                 );
               })}
-            </div>
-
-            {/* Bottom summary card */}
-            <div className="bg-[#FAF5EE] rounded-2xl border border-[#EADBCC] p-4 sm:p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="text-center sm:text-left">
-                <p className="text-xs text-[#8C6D58] uppercase font-semibold tracking-wider">
-                  Wishlist Total Value
-                </p>
-                <p className="text-lg sm:text-xl font-serif font-bold text-[#2B221B]">
-                  ₹{totalPrice.toLocaleString()}{' '}
-                  <span className="text-xs font-normal text-[#735A4C]">
-                    ({wishlistProducts.length} pieces)
-                  </span>
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <Link
-                  to="/products"
-                  className="flex-1 sm:flex-initial text-center px-4 py-2.5 text-xs sm:text-sm font-semibold text-[#5E473A] hover:text-[#2B221B] border border-[#EADBCC] hover:border-[#C85A32] bg-white rounded-lg transition-colors"
-                >
-                  Continue Browsing
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleMoveAll}
-                  className="flex-1 sm:flex-initial px-5 py-2.5 bg-[#C85A32] hover:bg-[#B34D27] text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer"
-                >
-                  <ShoppingCart size={16} />
-                  <span>Move All to Cart</span>
-                </button>
-              </div>
             </div>
           </div>
         ) : (
