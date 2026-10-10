@@ -4,7 +4,10 @@ import { PRODUCTS } from '../constants';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { Star, ShoppingCart, Check, ShoppingBag } from 'lucide-react';
-import { ProductListingSkeleton } from '../components/Skeleton';
+import { FullScreenCircleLoader } from '../components/CircleLoader';
+
+// In-memory cache for AllProducts page
+let isAllProductsLoadedCache = false;
 
 interface AllProductsProps {
   user: User | null;
@@ -22,7 +25,7 @@ const AllProducts: React.FC<AllProductsProps> = ({
   onToggleWishlist
 }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !isAllProductsLoadedCache);
 
   // Track touch/scroll movement so scrolling doesn't trigger card navigation
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -58,10 +61,13 @@ const AllProducts: React.FC<AllProductsProps> = ({
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 200);
-    return () => clearTimeout(timer);
+    if (!isAllProductsLoadedCache) {
+      const timer = setTimeout(() => {
+        isAllProductsLoadedCache = true;
+        setIsLoading(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const handleQuickAdd = (product: Product, customTitle?: string, customPrice?: number) => {
@@ -100,7 +106,7 @@ const AllProducts: React.FC<AllProductsProps> = ({
       />
       
       {isLoading ? (
-        <ProductListingSkeleton count={8} />
+        <FullScreenCircleLoader />
       ) : (
         <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8">
           <div className="mb-8">

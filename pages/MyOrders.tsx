@@ -10,12 +10,15 @@ import { User, Order, CartItem } from '../types';
 import { PRODUCTS } from '../constants';
 import { auth } from '../firebase';
 import { updateOrderStatusInFirestore } from '../services/dbService';
-import { OrderHistorySkeleton } from '../components/Skeleton';
+import { FullScreenCircleLoader } from '../components/CircleLoader';
 
 interface MyOrdersProps {
   user: User | null;
   onUpdateOrders: (orders: Order[]) => void;
 }
+
+// In-memory cache for MyOrders page
+let isOrdersLoadedCache = false;
 
 const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const navigate = useNavigate();
@@ -25,13 +28,16 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !isOrdersLoadedCache);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 220);
-    return () => clearTimeout(timer);
+    if (!isOrdersLoadedCache) {
+      const timer = setTimeout(() => {
+        isOrdersLoadedCache = true;
+        setIsLoading(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const [toast, setToast] = useState<{
@@ -480,10 +486,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Orders List or Skeleton on load/refresh */}
+        {/* Orders List or Full Screen Circle Loader on load/refresh */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4 pb-28 md:pb-8">
           {isLoading ? (
-            <OrderHistorySkeleton count={3} />
+            <FullScreenCircleLoader />
           ) : filteredOrders.length === 0 ? (
             <div className="py-12 text-center my-2">
               <Package size={48} className="text-gray-300 mx-auto mb-3" />

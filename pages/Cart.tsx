@@ -6,6 +6,7 @@ import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
 import { fetchUserAddresses } from '../services/dbService';
 import { CustomizationModal } from '../components/CustomizationModal';
+import { FullScreenCircleLoader } from '../components/CircleLoader';
 
 interface CartProps {
   cart: CartItem[];
@@ -13,11 +14,14 @@ interface CartProps {
   user?: User | null;
 }
 
+// In-memory cache for Cart page
+let isCartLoadedCache = false;
+
 const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
   const navigate = useNavigate();
   
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !isCartLoadedCache);
   const [addressInfo, setAddressInfo] = useState<{ name?: string; phone?: string; formatted?: string }>({
     name: user?.name || '',
     phone: user?.phone || '',
@@ -67,10 +71,13 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
   };
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
+    if (!isCartLoadedCache) {
+      const timer = setTimeout(() => {
+        isCartLoadedCache = true;
+        setIsLoading(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   useEffect(() => {
@@ -138,54 +145,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
   const finalAmount = currentTotal + delivery;
 
   if (isLoading) {
-    return (
-      <div className="w-full bg-gray-50 min-h-screen font-sans relative">
-        <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm pb-16 md:pb-6">
-          <div className="bg-white py-3 sm:py-3.5 px-4 sm:px-8 lg:px-12 flex items-center gap-4 sticky top-0 z-[100] border-b border-gray-100 shadow-xs min-h-[56px] sm:min-h-[64px]">
-            <button className="p-1 -ml-1 text-gray-800 rounded-full transition-colors cursor-pointer">
-              <ArrowLeft strokeWidth={2.5} size={22} />
-            </button>
-            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Cart</h1>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4">
-            {/* Address skeleton */}
-            <div className="pb-4 mb-4 border-b border-gray-100 flex justify-between items-start animate-pulse">
-              <div className="space-y-1.5 w-3/4">
-                <div className="h-3 w-20 bg-gray-200 rounded"></div>
-                <div className="h-4 w-48 bg-gray-200 rounded"></div>
-                <div className="h-3 w-64 bg-gray-200 rounded"></div>
-              </div>
-              <div className="h-7 w-16 bg-gray-200 rounded"></div>
-            </div>
-
-            <div className="flex flex-col lg:flex-row gap-8 items-start">
-              <div className="flex-1 w-full divide-y divide-gray-100">
-                {[1, 2].map(i => (
-                  <div key={i} className="py-4 first:pt-0 last:pb-0 flex gap-4 animate-pulse">
-                    <div className="w-[84px] h-[84px] bg-gray-200 rounded-sm shrink-0"></div>
-                    <div className="flex-1 space-y-2 pt-1">
-                      <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-                      <div className="h-3 bg-gray-200 rounded w-1/3"></div>
-                      <div className="h-5 bg-gray-200 rounded w-1/4 mt-2"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="w-full lg:w-[320px] shrink-0 border-t lg:border-t-0 lg:border-l lg:border-gray-100 pt-6 lg:pt-0 lg:pl-8">
-                <div className="h-5 w-28 bg-gray-200 rounded mb-4"></div>
-                <div className="space-y-3">
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-8 bg-gray-200 rounded mt-4"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <FullScreenCircleLoader />;
   }
 
   return (

@@ -2,14 +2,8 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import Footer from './components/Footer';
-import CircleLoader from './components/CircleLoader';
-import {
-  ProductListingSkeleton,
-  ProductDetailSkeleton,
-  WishlistSkeleton,
-  OrderHistorySkeleton,
-  CartSkeleton
-} from './components/Skeleton';
+import { FullScreenCircleLoader } from './components/CircleLoader';
+import { HomeScreenSkeleton } from './components/Skeleton';
 
 const Home = lazy(() => import('./pages/Home'));
 const ProductDetail = lazy(() => import('./pages/ProductDetail'));
@@ -109,6 +103,41 @@ const InitialRedirectHandler = () => {
       }
     }
   }, [navigate, location.pathname]);
+
+  return null;
+};
+
+// Global in-memory cache of loaded routes to prevent re-triggering loader on back/forward or repeat visits
+const loadedRoutesCache = new Set<string>();
+
+const NavigationCircleLoaderHandler = () => {
+  const location = useLocation();
+  const [isNavigating, setIsNavigating] = useState(false);
+  const prevPathRef = React.useRef(location.pathname);
+
+  useEffect(() => {
+    if (prevPathRef.current !== location.pathname) {
+      const targetPath = location.pathname;
+      prevPathRef.current = targetPath;
+
+      // Home ('/') uses its own cached full-screen skeleton
+      if (targetPath === '/') return;
+
+      // Only show loader if this route has NOT yet been visited/cached
+      if (!loadedRoutesCache.has(targetPath)) {
+        loadedRoutesCache.add(targetPath);
+        setIsNavigating(true);
+        const timer = setTimeout(() => {
+          setIsNavigating(false);
+        }, 220);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [location.pathname]);
+
+  if (isNavigating) {
+    return <FullScreenCircleLoader overlay={true} />;
+  }
 
   return null;
 };
@@ -378,13 +407,14 @@ const App: React.FC = () => {
   return (
     <Router>
       <InitialRedirectHandler />
+      <NavigationCircleLoaderHandler />
       <div className="min-h-screen w-full flex flex-col bg-white">
         <main className="flex-1 w-full">
           <Routes>
             <Route 
               path="/" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                <Suspense fallback={<HomeScreenSkeleton />}>
                   <Home user={user} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} cartCount={cartTotalQuantity} />
                 </Suspense>
               } 
@@ -392,7 +422,7 @@ const App: React.FC = () => {
             <Route 
               path="/products" 
               element={
-                <Suspense fallback={<ProductListingSkeleton />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <AllProducts user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
                 </Suspense>
               } 
@@ -400,7 +430,7 @@ const App: React.FC = () => {
             <Route 
               path="/product/:id" 
               element={
-                <Suspense fallback={<ProductDetailSkeleton />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <ProductDetail user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
                 </Suspense>
               } 
@@ -408,7 +438,7 @@ const App: React.FC = () => {
             <Route 
               path="/cart" 
               element={
-                <Suspense fallback={<CartSkeleton />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <Cart cart={cart} setCart={setCart} user={user} />
                 </Suspense>
               } 
@@ -416,7 +446,7 @@ const App: React.FC = () => {
             <Route
               path="/wishlist"
               element={
-                <Suspense fallback={<WishlistSkeleton />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <Wishlist
                     user={user}
                     wishlist={wishlist}
@@ -449,7 +479,7 @@ const App: React.FC = () => {
             <Route 
               path="/checkout" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <Checkout cart={cart} setCart={setCart} clearCart={clearCart} user={user} onOrderSuccess={handleAddOrder} />
                 </Suspense>
               } 
@@ -458,7 +488,7 @@ const App: React.FC = () => {
               path="/login" 
               element={
                 user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                  <Suspense fallback={<FullScreenCircleLoader />}>
                     <Login onLogin={setUser} />
                   </Suspense>
                 )
@@ -468,7 +498,7 @@ const App: React.FC = () => {
               path="/signup" 
               element={
                 user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                  <Suspense fallback={<FullScreenCircleLoader />}>
                     <Signup onSignup={setUser} />
                   </Suspense>
                 )
@@ -478,7 +508,7 @@ const App: React.FC = () => {
             <Route 
               path="/account" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading profile..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <Account user={user} onLogout={handleLogout} />
                 </Suspense>
               } 
@@ -486,7 +516,7 @@ const App: React.FC = () => {
             <Route 
               path="/orders" 
               element={
-                <Suspense fallback={<OrderHistorySkeleton />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <MyOrders user={user} onUpdateOrders={handleUpdateOrders} />
                 </Suspense>
               } 
@@ -495,7 +525,7 @@ const App: React.FC = () => {
             <Route 
               path="/help" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading help..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -503,7 +533,7 @@ const App: React.FC = () => {
             <Route 
               path="/support" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading support..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -511,7 +541,7 @@ const App: React.FC = () => {
             <Route 
               path="/contact" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading contact..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -519,7 +549,7 @@ const App: React.FC = () => {
             <Route 
               path="/about" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <About />
                 </Suspense>
               } 
@@ -529,7 +559,7 @@ const App: React.FC = () => {
             <Route 
               path="/addresses" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading addresses..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -537,7 +567,7 @@ const App: React.FC = () => {
             <Route 
               path="/address" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading addresses..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -545,7 +575,7 @@ const App: React.FC = () => {
             <Route 
               path="/add-address" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -553,7 +583,7 @@ const App: React.FC = () => {
             <Route 
               path="/payments" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading payments..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <ProfileSubPages type="payments" user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -561,7 +591,7 @@ const App: React.FC = () => {
             <Route 
               path="/profile/edit" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading profile..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <ProfileSubPages type="edit" user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -569,7 +599,7 @@ const App: React.FC = () => {
             <Route 
               path="/privacy-policy" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <PolicyPage type="privacy" />
                 </Suspense>
               } 
@@ -577,7 +607,7 @@ const App: React.FC = () => {
             <Route 
               path="/refund-policy" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <PolicyPage type="refunds" />
                 </Suspense>
               } 
@@ -585,7 +615,7 @@ const App: React.FC = () => {
             <Route 
               path="/terms-and-conditions" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading terms..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <PolicyPage type="terms" />
                 </Suspense>
               } 
@@ -593,7 +623,7 @@ const App: React.FC = () => {
             <Route 
               path="/shipping-policy" 
               element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
+                <Suspense fallback={<FullScreenCircleLoader />}>
                   <PolicyPage type="shipping" />
                 </Suspense>
               } 

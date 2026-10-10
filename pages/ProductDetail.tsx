@@ -29,7 +29,7 @@ import {
 import { CartItem, User, Review, Order } from "../types";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
-import { ProductDetailSkeleton } from "../components/Skeleton";
+import { FullScreenCircleLoader } from "../components/CircleLoader";
 
 interface ProductDetailProps {
   onAddToCart: (item: CartItem, silent?: boolean) => void;
@@ -72,6 +72,9 @@ const INITIAL_REVIEWS: Review[] = [
   },
 ];
 
+// In-memory cache for visited product details
+const visitedProductsCache = new Set<string>();
+
 const ProductDetail: React.FC<ProductDetailProps> = ({
   onAddToCart,
   wishlist,
@@ -82,14 +85,19 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const product = PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => (id ? !visitedProductsCache.has(id) : false));
 
   useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
+    if (id && !visitedProductsCache.has(id)) {
+      setIsLoading(true);
+      const timer = setTimeout(() => {
+        visitedProductsCache.add(id);
+        setIsLoading(false);
+      }, 180);
+      return () => clearTimeout(timer);
+    } else {
       setIsLoading(false);
-    }, 180);
-    return () => clearTimeout(timer);
+    }
   }, [id]);
 
   const [selectedImg, setSelectedImg] = useState(0);
@@ -416,6 +424,10 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     }
   };
 
+  if (isLoading) {
+    return <FullScreenCircleLoader />;
+  }
+
   return (
     <div className="w-full min-h-screen bg-white font-sans selection:bg-purple-100 text-[#1F1F1F] flex flex-col">
       {/* Top Minimalist Bar: Edge-to-edge across devices with proper outer edge positioning */}
@@ -489,12 +501,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           </div>
         </div>
 
-        {isLoading ? (
-          <ProductDetailSkeleton />
-        ) : (
-          <>
-            {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
+        {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
           
           {/* Left Column: Product Gallery */}
           <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">
@@ -1111,8 +1119,6 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           </button>
         </div>
       </div>
-      </>
-      )}
 
     </div>
   );

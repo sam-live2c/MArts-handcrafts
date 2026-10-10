@@ -262,3 +262,118 @@ export const CartSkeleton: React.FC = () => {
     </div>
   );
 };
+
+/**
+ * Full Screen Skeleton UI for Home Page
+ * Renders full screen covering all home page sections: Header, Hero Carousel, Catalog header, and Product Cards Grid
+ */
+export const HomeScreenSkeleton: React.FC = () => {
+  return (
+    <div className="min-h-screen w-full bg-[#FAF8F5] text-[#2B221B] font-sans pb-16 animate-pulse select-none">
+      {/* Top Header Skeleton Bar */}
+      <div className="w-full bg-[#FAF8F5] border-b border-[#E8DFD8] px-3 sm:px-6 lg:px-12 py-3 sm:py-3.5 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 sm:gap-4">
+          {/* Brand Logo Placeholder */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-[#E5DDD4]"></div>
+            <div className="h-6 w-24 bg-[#E5DDD4] rounded-md"></div>
+          </div>
+
+          {/* Search Input Bar Placeholder */}
+          <div className="flex-1 max-w-lg hidden sm:block">
+            <div className="h-9 w-full bg-[#EFE9E2] rounded-full border border-[#E3D9CE]"></div>
+          </div>
+
+          {/* Header Action Icons */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#E5DDD4]"></div>
+            <div className="w-8 h-8 rounded-full bg-[#E5DDD4]"></div>
+            <div className="w-8 h-8 rounded-full bg-[#E5DDD4]"></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hero Banner Carousel Skeleton - YouTube Style Thumbnail Skeleton (Light, Clean, Neutral) */}
+      <section className="w-full relative overflow-hidden bg-[#FAF8F5]">
+        <div className="w-full aspect-[16/9] sm:aspect-[16/8] md:aspect-[16/7] lg:aspect-[16/6.5] max-h-[520px] bg-[#E8E8E8] relative flex flex-col justify-between p-4 sm:p-8 md:p-12 overflow-hidden border-b border-[#E8DFD8]">
+          {/* YouTube-style top tag badge & duration chip placeholder */}
+          <div className="flex items-center justify-between w-full">
+            <div className="h-6 w-36 bg-[#D8D8D8] rounded-full"></div>
+            <div className="h-5 w-14 bg-[#D8D8D8] rounded-md"></div>
+          </div>
+
+          {/* YouTube-style thumbnail content info overlay */}
+          <div className="max-w-xl space-y-2.5 sm:space-y-3">
+            <div className="h-4 sm:h-5 w-44 bg-[#D8D8D8] rounded-full"></div>
+            <div className="h-7 sm:h-10 w-80 sm:w-[440px] max-w-[85%] bg-[#D0D0D0] rounded-lg"></div>
+            <div className="h-3.5 sm:h-4 w-56 sm:w-80 max-w-[70%] bg-[#D8D8D8] rounded"></div>
+            <div className="h-8 sm:h-9 w-32 bg-[#D0D0D0] rounded-lg mt-1"></div>
+          </div>
+
+          {/* YouTube-style Carousel Pagination Dots */}
+          <div className="absolute bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 sm:gap-2">
+            <div className="w-6 sm:w-8 h-1.5 sm:h-2 bg-gray-500 rounded-full"></div>
+            <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-[#D0D0D0] rounded-full"></div>
+            <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-[#D0D0D0] rounded-full"></div>
+            <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 bg-[#D0D0D0] rounded-full"></div>
+          </div>
+        </div>
+      </section>
+
+      {/* Catalog & Products Showcase Section Skeleton */}
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-8 sm:py-10 w-full">
+        {/* Section Header Placeholder */}
+        <div className="mb-6 border-b border-[#E8DFD8] pb-4 space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="space-y-1.5">
+              <div className="h-3 w-28 bg-[#E5DDD4] rounded-full"></div>
+              <div className="h-7 sm:h-8 w-60 sm:w-72 bg-[#DFD6CB] rounded-md"></div>
+            </div>
+            <div className="h-4 w-28 bg-[#E5DDD4] rounded-md"></div>
+          </div>
+          <div className="h-3.5 w-80 max-w-full bg-[#ECE4DB] rounded"></div>
+        </div>
+
+        {/* 8 Product Cards Grid Skeleton (2 cols mobile, 4 cols tablet/desktop) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+          {Array.from({ length: 8 }).map((_, idx) => (
+            <div key={idx} className="flex flex-col justify-between">
+              <div>
+                {/* Product Image Frame */}
+                <div className="relative bg-[#ECE5DC] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3">
+                  <div className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/80"></div>
+                </div>
+
+                {/* Rating */}
+                <div className="h-3 w-16 bg-[#E5DDD4] rounded mb-2"></div>
+
+                {/* Title */}
+                <div className="space-y-1.5 mb-2">
+                  <div className="h-4 w-4/5 bg-[#DFD6CB] rounded"></div>
+                  <div className="h-4 w-3/5 bg-[#DFD6CB] rounded"></div>
+                </div>
+
+                {/* Description snippet */}
+                <div className="h-3 w-full bg-[#EAE2D8] rounded mb-3"></div>
+              </div>
+
+              <div>
+                {/* Price line */}
+                <div className="flex items-center gap-2 mb-2.5 pt-1.5 border-t border-[#F0E6DC]">
+                  <div className="h-5 w-20 bg-[#DFD6CB] rounded"></div>
+                  <div className="h-3.5 w-12 bg-[#EAE2D8] rounded"></div>
+                </div>
+
+                {/* Dual buttons */}
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="flex-[1] h-8 bg-[#E8DFD5] rounded-lg"></div>
+                  <div className="flex-[1.3] h-8 bg-[#DFD4C8] rounded-lg"></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+};

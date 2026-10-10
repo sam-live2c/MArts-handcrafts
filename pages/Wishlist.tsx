@@ -8,7 +8,7 @@ import {
 import { Product, User } from '../types';
 import { PRODUCTS } from '../constants';
 import Header from '../components/Header';
-import { WishlistSkeleton } from '../components/Skeleton';
+import { FullScreenCircleLoader } from '../components/CircleLoader';
 
 interface WishlistProps {
   user: User | null;
@@ -21,6 +21,9 @@ interface WishlistProps {
   cartCount: number;
 }
 
+// In-memory cache for Wishlist page
+let isWishlistLoadedCache = false;
+
 const Wishlist: React.FC<WishlistProps> = ({
   user,
   wishlist,
@@ -28,13 +31,16 @@ const Wishlist: React.FC<WishlistProps> = ({
   cartCount
 }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !isWishlistLoadedCache);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 200);
-    return () => clearTimeout(timer);
+    if (!isWishlistLoadedCache) {
+      const timer = setTimeout(() => {
+        isWishlistLoadedCache = true;
+        setIsLoading(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   // Combine products from catalog and local cache
@@ -73,7 +79,7 @@ const Wishlist: React.FC<WishlistProps> = ({
       />
 
       {isLoading ? (
-        <WishlistSkeleton count={4} />
+        <FullScreenCircleLoader />
       ) : (
         <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
           {/* Breadcrumb Navigation */}

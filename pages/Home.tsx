@@ -14,6 +14,7 @@ import { PRODUCTS } from '../constants';
 import { CartItem, Product, User } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
+import { HomeScreenSkeleton } from '../components/Skeleton';
 import terracottaBanner from '../src/assets/images/marts_terracotta_banner_1791637410497.jpg';
 import stoneStatuesBanner from '../src/assets/images/marts_stone_statues_banner_1791637432558.jpg';
 import ceramicVasesBanner from '../src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg';
@@ -81,6 +82,9 @@ const BANNER_SLIDES: BannerSlide[] = [
   }
 ];
 
+// In-memory cache to ensure Home page only shows skeleton on initial load, not on every return
+let isHomeLoadedCache = false;
+
 export const Home: React.FC<HomeProps> = ({
   user,
   onAddToCart,
@@ -92,6 +96,18 @@ export const Home: React.FC<HomeProps> = ({
   const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(() => !isHomeLoadedCache);
+
+  // Initial mount transition to show full screen skeleton (cached on first visit)
+  useEffect(() => {
+    if (!isHomeLoadedCache) {
+      const timer = setTimeout(() => {
+        isHomeLoadedCache = true;
+        setIsLoading(false);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Handle initial search from navigation state
   useEffect(() => {
@@ -217,6 +233,10 @@ export const Home: React.FC<HomeProps> = ({
 
     return list;
   }, [searchQuery]);
+
+  if (isLoading) {
+    return <HomeScreenSkeleton />;
+  }
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans selection:bg-[#EBDCCB] pb-16">
