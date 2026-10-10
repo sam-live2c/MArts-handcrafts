@@ -14,6 +14,7 @@ import {
   AddressItem,
   deduplicateAddresses
 } from '../services/dbService';
+import CircleLoader from '../components/CircleLoader';
 
 interface ProfileSubPagesProps {
   type: 'addresses' | 'payments' | 'edit';
@@ -24,8 +25,16 @@ interface ProfileSubPagesProps {
 const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateUser }) => {
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [fullName, setFullName] = useState(user?.name || '');
   const [phoneNum, setPhoneNum] = useState(user?.phone || '');
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [type]);
   
   // Detailed address state for Profile Details edit
   const [houseNo, setHouseNo] = useState('');
@@ -600,9 +609,17 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
 
       <div className="w-full px-4 sm:px-8 lg:px-12 py-6 pb-20">
         <div className="w-full bg-white min-h-[600px]">
-        {type === 'addresses' && renderAddresses()}
-        {type === 'payments' && renderPayments()}
-        {type === 'edit' && renderEdit()}
+        {isLoading ? (
+          <div className="py-24 flex items-center justify-center">
+            <CircleLoader size="lg" label="Loading profile details..." />
+          </div>
+        ) : (
+          <>
+            {type === 'addresses' && renderAddresses()}
+            {type === 'payments' && renderPayments()}
+            {type === 'edit' && renderEdit()}
+          </>
+        )}
         </div>
       </div>
     </div>

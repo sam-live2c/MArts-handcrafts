@@ -806,14 +806,10 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                         )}
                       </p>
 
-                      {/* Display verified account email */}
+                      {/* Display account email */}
                       {(addr.email || loggedInEmail) && (
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-1.5 flex-wrap">
+                        <div className="text-xs text-gray-500 mb-1.5">
                           <span className="font-medium text-gray-700">{addr.email || loggedInEmail}</span>
-                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded">
-                            <ShieldCheck size={11} className="text-emerald-600" />
-                            <span>Verified</span>
-                          </span>
                         </div>
                       )}
 
