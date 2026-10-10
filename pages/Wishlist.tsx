@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
@@ -8,6 +8,7 @@ import {
 import { Product, User } from '../types';
 import { PRODUCTS } from '../constants';
 import Header from '../components/Header';
+import { WishlistSkeleton } from '../components/Skeleton';
 
 interface WishlistProps {
   user: User | null;
@@ -27,6 +28,14 @@ const Wishlist: React.FC<WishlistProps> = ({
   cartCount
 }) => {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Combine products from catalog and local cache
   const allProducts = useMemo(() => {
@@ -63,9 +72,12 @@ const Wishlist: React.FC<WishlistProps> = ({
         showBack={true}
       />
 
-      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-1.5 text-xs text-[#8C6D58] mb-4 sm:mb-6">
+      {isLoading ? (
+        <WishlistSkeleton count={4} />
+      ) : (
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
+          {/* Breadcrumb Navigation */}
+          <nav className="flex items-center gap-1.5 text-xs text-[#8C6D58] mb-4 sm:mb-6">
           <Link to="/" className="hover:text-[#C85A32] transition-colors">
             Home
           </Link>
@@ -107,6 +119,8 @@ const Wishlist: React.FC<WishlistProps> = ({
                         <img
                           src={prod.image}
                           alt={prod.name}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                           referrerPolicy="no-referrer"
                         />
@@ -207,6 +221,7 @@ const Wishlist: React.FC<WishlistProps> = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };
