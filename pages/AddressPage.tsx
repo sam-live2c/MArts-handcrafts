@@ -11,7 +11,6 @@ import {
   deleteUserAddress,
   deduplicateAddresses
 } from '../services/dbService';
-import CircleLoader from '../components/CircleLoader';
 
 export type { AddressItem };
 
@@ -426,11 +425,9 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 pt-0 pb-4">
-          {isLoading ? (
-            <div className="py-24 flex items-center justify-center">
-              <CircleLoader size="lg" label="Loading addresses..." />
-            </div>
-          ) : showForm ? (
+
+          {/* Form Modal / Inline View */}
+          {showForm ? (
             <div className="pt-3 w-full max-w-2xl">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-base font-bold text-gray-900 tracking-tight">

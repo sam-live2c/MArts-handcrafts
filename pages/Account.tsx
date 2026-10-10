@@ -10,7 +10,6 @@ import {
 import { User } from '../types';
 import { auth } from '../firebase';
 import { fetchUserAddresses } from '../services/dbService';
-import CircleLoader from '../components/CircleLoader';
 
 interface AccountProps {
   user: User | null;
@@ -19,7 +18,6 @@ interface AccountProps {
 
 const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
   const [displayAddress, setDisplayAddress] = useState<string>(() => {
     return localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address || '';
   });
@@ -75,36 +73,6 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
       window.removeEventListener('melody_user_updated', handleUpdate);
     };
   }, [user]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 180);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (isLoading) {
-    return (
-      <div className="w-full bg-white min-h-screen font-sans relative">
-        <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto pb-24 md:pb-8">
-          <div className="bg-white py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] px-4 sm:px-8 lg:px-12 flex items-center gap-4 sticky top-0 z-[100] border-b border-gray-100 shadow-xs">
-            <button 
-              type="button"
-              onClick={() => handleGoBack(navigate, '/')} 
-              className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer"
-              aria-label="Go back"
-            >
-              <ArrowLeft size={22} strokeWidth={2.5} />
-            </button>
-            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Profile</h1>
-          </div>
-          <div className="flex-1 flex items-center justify-center p-12">
-            <CircleLoader size="lg" label="Loading profile..." />
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (

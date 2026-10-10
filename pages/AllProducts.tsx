@@ -4,7 +4,6 @@ import { PRODUCTS } from '../constants';
 import Header from '../components/Header';
 import { useNavigate } from 'react-router-dom';
 import { Star, ShoppingCart, Check, ShoppingBag } from 'lucide-react';
-import { ProductListingSkeleton } from '../components/Skeleton';
 
 interface AllProductsProps {
   user: User | null;
@@ -22,7 +21,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
   onToggleWishlist
 }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
 
   // Track touch/scroll movement so scrolling doesn't trigger card navigation
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
@@ -58,10 +56,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 200);
-    return () => clearTimeout(timer);
   }, []);
 
   const handleQuickAdd = (product: Product, customTitle?: string, customPrice?: number) => {
@@ -99,40 +93,35 @@ const AllProducts: React.FC<AllProductsProps> = ({
         showBack={true}
       />
       
-      {isLoading ? (
-        <ProductListingSkeleton count={8} />
-      ) : (
-        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8">
-          <div className="mb-8">
-            <p className="text-sm sm:text-base text-[#5F6368]">
-              Explore our complete collection of handcrafted terracotta pottery, stone sculptures, and artisan creations.
-            </p>
-          </div>
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8">
+        <div className="mb-8">
+          <p className="text-sm sm:text-base text-[#5F6368]">
+            Explore our complete collection of handcrafted terracotta pottery, stone sculptures, and artisan creations.
+          </p>
+        </div>
 
-          {/* 4-Card Hardware / Pottery Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {PRODUCTS.map((prod) => (
-              <div
-                key={prod.id}
-                onClick={() => handleCardClick(prod.id)}
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                className="bg-transparent rounded-none border-0 p-0 flex flex-col justify-between group cursor-pointer"
-              >
-                <div>
-                  {/* Image Container directly on surface */}
-                  <div className="relative bg-transparent rounded-none p-0 aspect-square flex items-center justify-center overflow-hidden mb-4">
-                    <img
-                      src={prod.image}
-                      alt={prod.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-cover rounded-xl"
-                    />
-                    <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-[#8C3F1E] border border-[#DADCE0]">
-                      {prod.subCategory}
-                    </div>
+        {/* 4-Card Hardware / Pottery Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {PRODUCTS.map((prod) => (
+            <div
+              key={prod.id}
+              onClick={() => handleCardClick(prod.id)}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              className="bg-transparent rounded-none border-0 p-0 flex flex-col justify-between group cursor-pointer"
+            >
+              <div>
+                {/* Image Container directly on surface */}
+                <div className="relative bg-transparent rounded-none p-0 aspect-square flex items-center justify-center overflow-hidden mb-4">
+                  <img
+                    src={prod.image}
+                    alt={prod.name}
+                    className="w-full h-full object-cover rounded-xl"
+                  />
+                  <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-[#8C3F1E] border border-[#DADCE0]">
+                    {prod.subCategory}
                   </div>
+                </div>
 
                 {/* Rating */}
                 {(() => {
@@ -225,7 +214,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
           ))}
         </div>
       </div>
-      )}
     </div>
   );
 };

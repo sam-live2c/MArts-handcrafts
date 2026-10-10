@@ -29,7 +29,6 @@ import {
 import { CartItem, User, Review, Order } from "../types";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
-import { ProductDetailSkeleton } from "../components/Skeleton";
 
 interface ProductDetailProps {
   onAddToCart: (item: CartItem, silent?: boolean) => void;
@@ -82,15 +81,6 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const product = PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    setIsLoading(true);
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [id]);
 
   const [selectedImg, setSelectedImg] = useState(0);
   const [selectedQty, setSelectedQty] = useState(1);
@@ -489,12 +479,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           </div>
         </div>
 
-        {isLoading ? (
-          <ProductDetailSkeleton />
-        ) : (
-          <>
-            {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
+        {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
           
           {/* Left Column: Product Gallery */}
           <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">
@@ -1111,8 +1097,6 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           </button>
         </div>
       </div>
-      </>
-      )}
 
     </div>
   );

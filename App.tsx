@@ -1,32 +1,23 @@
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import Home from './pages/Home';
 import Footer from './components/Footer';
-import CircleLoader from './components/CircleLoader';
-import {
-  ProductListingSkeleton,
-  ProductDetailSkeleton,
-  WishlistSkeleton,
-  OrderHistorySkeleton,
-  CartSkeleton
-} from './components/Skeleton';
-
-const Home = lazy(() => import('./pages/Home'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const AllProducts = lazy(() => import('./pages/AllProducts'));
-const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/Checkout'));
-const Login = lazy(() => import('./pages/Login'));
-const Signup = lazy(() => import('./pages/Signup'));
-const Account = lazy(() => import('./pages/Account'));
-const HelpCenter = lazy(() => import('./pages/HelpCenter'));
-const Contact = lazy(() => import('./pages/Contact'));
-const ProfileSubPages = lazy(() => import('./pages/ProfileSubPages'));
-const AddressPage = lazy(() => import('./pages/AddressPage'));
-const PolicyPage = lazy(() => import('./pages/PolicyPage'));
-const MyOrders = lazy(() => import('./pages/MyOrders'));
-const About = lazy(() => import('./pages/About'));
-const Wishlist = lazy(() => import('./pages/Wishlist'));
+import ProductDetail from './pages/ProductDetail';
+import AllProducts from './pages/AllProducts';
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Account from './pages/Account';
+import HelpCenter from './pages/HelpCenter';
+import Contact from './pages/Contact';
+import ProfileSubPages from './pages/ProfileSubPages';
+import AddressPage from './pages/AddressPage';
+import PolicyPage from './pages/PolicyPage';
+import MyOrders from './pages/MyOrders';
+import About from './pages/About';
+import Wishlist from './pages/Wishlist';
 import { CartItem, User, Order, Product } from './types';
 import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
 import { PRODUCTS } from './constants';
@@ -381,223 +372,63 @@ const App: React.FC = () => {
       <div className="min-h-screen w-full flex flex-col bg-white">
         <main className="flex-1 w-full">
           <Routes>
-            <Route 
-              path="/" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                  <Home user={user} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} cartCount={cartTotalQuantity} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/products" 
-              element={
-                <Suspense fallback={<ProductListingSkeleton />}>
-                  <AllProducts user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/product/:id" 
-              element={
-                <Suspense fallback={<ProductDetailSkeleton />}>
-                  <ProductDetail user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/cart" 
-              element={
-                <Suspense fallback={<CartSkeleton />}>
-                  <Cart cart={cart} setCart={setCart} user={user} />
-                </Suspense>
-              } 
-            />
+            <Route path="/" element={<Home user={user} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} cartCount={cartTotalQuantity} />} />
+            <Route path="/products" element={<AllProducts user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />} />
+            <Route path="/product/:id" element={<ProductDetail user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />} />
+            <Route path="/cart" element={<Cart cart={cart} setCart={setCart} user={user} />} />
             <Route
               path="/wishlist"
               element={
-                <Suspense fallback={<WishlistSkeleton />}>
-                  <Wishlist
-                    user={user}
-                    wishlist={wishlist}
-                    onToggleWishlist={toggleWishlist}
-                    onRemoveFromWishlist={(id) => {
-                      setWishlist(prev => prev.filter(item => item !== id));
-                      const p = PRODUCTS.find(prod => prod.id === id);
-                      showToast(p ? `${p.name} removed from wishlist` : 'Removed from wishlist', 'wishlist');
-                    }}
-                    onMoveToCart={(product) => {
-                      addToCart({ ...product, quantity: 1 });
-                      setWishlist(prev => prev.filter(id => id !== product.id));
-                      showToast(`${product.name} moved to cart!`, 'cart', product);
-                    }}
-                    onMoveAllToCart={(products) => {
-                      products.forEach(p => addToCart({ ...p, quantity: 1 }));
-                      const movedIds = new Set(products.map(p => p.id));
-                      setWishlist(prev => prev.filter(id => !movedIds.has(id)));
-                      showToast(`Moved ${products.length} items to your cart!`, 'cart');
-                    }}
-                    onClearWishlist={() => {
-                      setWishlist([]);
-                      showToast('Wishlist cleared', 'wishlist');
-                    }}
-                    cartCount={cartTotalQuantity}
-                  />
-                </Suspense>
+                <Wishlist
+                  user={user}
+                  wishlist={wishlist}
+                  onToggleWishlist={toggleWishlist}
+                  onRemoveFromWishlist={(id) => {
+                    setWishlist(prev => prev.filter(item => item !== id));
+                    const p = PRODUCTS.find(prod => prod.id === id);
+                    showToast(p ? `${p.name} removed from wishlist` : 'Removed from wishlist', 'wishlist');
+                  }}
+                  onMoveToCart={(product) => {
+                    addToCart({ ...product, quantity: 1 });
+                    setWishlist(prev => prev.filter(id => id !== product.id));
+                    showToast(`${product.name} moved to cart!`, 'cart', product);
+                  }}
+                  onMoveAllToCart={(products) => {
+                    products.forEach(p => addToCart({ ...p, quantity: 1 }));
+                    const movedIds = new Set(products.map(p => p.id));
+                    setWishlist(prev => prev.filter(id => !movedIds.has(id)));
+                    showToast(`Moved ${products.length} items to your cart!`, 'cart');
+                  }}
+                  onClearWishlist={() => {
+                    setWishlist([]);
+                    showToast('Wishlist cleared', 'wishlist');
+                  }}
+                  cartCount={cartTotalQuantity}
+                />
               }
             />
-            <Route 
-              path="/checkout" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                  <Checkout cart={cart} setCart={setCart} clearCart={clearCart} user={user} onOrderSuccess={handleAddOrder} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/login" 
-              element={
-                user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                    <Login onLogin={setUser} />
-                  </Suspense>
-                )
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                    <Signup onSignup={setUser} />
-                  </Suspense>
-                )
-              } 
-            />
+            <Route path="/checkout" element={<Checkout cart={cart} setCart={setCart} clearCart={clearCart} user={user} onOrderSuccess={handleAddOrder} />} />
+            <Route path="/login" element={user ? <Navigate to="/" /> : <Login onLogin={setUser} />} />
+            <Route path="/signup" element={user ? <Navigate to="/" /> : <Signup onSignup={setUser} />} />
             <Route path="/order-success" element={<Navigate to="/orders" replace />} />
-            <Route 
-              path="/account" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading profile..." />}>
-                  <Account user={user} onLogout={handleLogout} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/orders" 
-              element={
-                <Suspense fallback={<OrderHistorySkeleton />}>
-                  <MyOrders user={user} onUpdateOrders={handleUpdateOrders} />
-                </Suspense>
-              } 
-            />
+            <Route path="/account" element={<Account user={user} onLogout={handleLogout} />} />
+            <Route path="/orders" element={<MyOrders user={user} onUpdateOrders={handleUpdateOrders} />} />
             
-            <Route 
-              path="/help" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading help..." />}>
-                  <HelpCenter />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/support" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading support..." />}>
-                  <HelpCenter />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/contact" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading contact..." />}>
-                  <HelpCenter />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/about" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                  <About />
-                </Suspense>
-              } 
-            />
+            <Route path="/help" element={<HelpCenter />} />
+            <Route path="/support" element={<HelpCenter />} />
+            <Route path="/contact" element={<HelpCenter />} />
+            <Route path="/about" element={<About />} />
             <Route path="/location" element={<Navigate to="/" replace />} />
             
-            <Route 
-              path="/addresses" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading addresses..." />}>
-                  <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/address" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading addresses..." />}>
-                  <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/add-address" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading..." />}>
-                  <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/payments" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading payments..." />}>
-                  <ProfileSubPages type="payments" user={user} onUpdateUser={setUser} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/profile/edit" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading profile..." />}>
-                  <ProfileSubPages type="edit" user={user} onUpdateUser={setUser} />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/privacy-policy" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
-                  <PolicyPage type="privacy" />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/refund-policy" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
-                  <PolicyPage type="refunds" />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/terms-and-conditions" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading terms..." />}>
-                  <PolicyPage type="terms" />
-                </Suspense>
-              } 
-            />
-            <Route 
-              path="/shipping-policy" 
-              element={
-                <Suspense fallback={<CircleLoader fullPage label="Loading policy..." />}>
-                  <PolicyPage type="shipping" />
-                </Suspense>
-              } 
-            />
+            <Route path="/addresses" element={<AddressPage cart={cart} user={user} onUpdateUser={setUser} />} />
+            <Route path="/address" element={<AddressPage cart={cart} user={user} onUpdateUser={setUser} />} />
+            <Route path="/add-address" element={<AddressPage cart={cart} user={user} onUpdateUser={setUser} />} />
+            <Route path="/payments" element={<ProfileSubPages type="payments" user={user} onUpdateUser={setUser} />} />
+            <Route path="/profile/edit" element={<ProfileSubPages type="edit" user={user} onUpdateUser={setUser} />} />
+            <Route path="/privacy-policy" element={<PolicyPage type="privacy" />} />
+            <Route path="/refund-policy" element={<PolicyPage type="refunds" />} />
+            <Route path="/terms-and-conditions" element={<PolicyPage type="terms" />} />
+            <Route path="/shipping-policy" element={<PolicyPage type="shipping" />} />
             
             {/* Fallback route: Always redirect unknown paths to Home */}
             <Route path="*" element={<Navigate to="/" replace />} />

@@ -10,7 +10,6 @@ import { User, Order, CartItem } from '../types';
 import { PRODUCTS } from '../constants';
 import { auth } from '../firebase';
 import { updateOrderStatusInFirestore } from '../services/dbService';
-import { OrderHistorySkeleton } from '../components/Skeleton';
 
 interface MyOrdersProps {
   user: User | null;
@@ -25,15 +24,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 220);
-    return () => clearTimeout(timer);
-  }, []);
-
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
     title: string;
@@ -480,11 +470,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Orders List or Skeleton on load/refresh */}
+        {/* Orders List - Direct rendering with zero artificial load animation */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4 pb-28 md:pb-8">
-          {isLoading ? (
-            <OrderHistorySkeleton count={3} />
-          ) : filteredOrders.length === 0 ? (
+          {filteredOrders.length === 0 ? (
             <div className="py-12 text-center my-2">
               <Package size={48} className="text-gray-300 mx-auto mb-3" />
               <h3 className="text-base font-bold text-gray-800">No orders found</h3>
@@ -619,8 +607,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                               <img 
                                 src={item.image} 
                                 alt={item.name} 
-                                loading="lazy"
-                                decoding="async"
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-contain" 
                               />
