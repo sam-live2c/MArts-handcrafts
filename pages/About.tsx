@@ -1,7 +1,11 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
-import { ArrowLeft, ShieldCheck, Sparkles, Award, Box, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, Mail, Phone } from 'lucide-react';
+import NonToxicFoodSafeIcon from '../components/NonToxicFoodSafeIcon';
+import FairWageGuildIcon from '../components/FairWageGuildIcon';
+import TimberCratePackagingIcon from '../components/TimberCratePackagingIcon';
+import AuthenticityGuaranteeIcon from '../components/AuthenticityGuaranteeIcon';
 
 const About: React.FC = () => {
   const navigate = useNavigate();
@@ -77,7 +81,7 @@ const About: React.FC = () => {
             <div className="grid sm:grid-cols-2 gap-4 pt-1">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5 space-y-2">
                 <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                  <Sparkles size={16} className="text-[#C85A32]" />
+                  <NonToxicFoodSafeIcon size={18} className="shrink-0" />
                   <span>100% Non-Toxic &amp; Food-Safe</span>
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
@@ -87,7 +91,7 @@ const About: React.FC = () => {
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5 space-y-2">
                 <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                  <Award size={16} className="text-[#C85A32]" />
+                  <FairWageGuildIcon size={18} className="shrink-0" />
                   <span>Fair-Wage Guild Support</span>
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
@@ -97,7 +101,7 @@ const About: React.FC = () => {
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5 space-y-2">
                 <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                  <Box size={16} className="text-[#C85A32]" />
+                  <TimberCratePackagingIcon size={18} className="shrink-0" />
                   <span>Timber-Crate Packaging</span>
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">
@@ -107,7 +111,7 @@ const About: React.FC = () => {
 
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5 space-y-2">
                 <div className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                  <ShieldCheck size={16} className="text-[#C85A32]" />
+                  <AuthenticityGuaranteeIcon size={18} className="shrink-0" />
                   <span>Authenticity Guarantee</span>
                 </div>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">

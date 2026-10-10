@@ -410,7 +410,8 @@ const App: React.FC = () => {
             <Route path="/orders" element={<MyOrders user={user} onUpdateOrders={handleUpdateOrders} />} />
             
             <Route path="/help" element={<HelpCenter />} />
-            <Route path="/contact" element={<Contact />} />
+            <Route path="/support" element={<HelpCenter />} />
+            <Route path="/contact" element={<HelpCenter />} />
             <Route path="/about" element={<About />} />
             <Route path="/location" element={<Navigate to="/" replace />} />
             
