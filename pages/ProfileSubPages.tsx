@@ -11,7 +11,8 @@ import {
   saveUserAddress,
   saveCustomerDeliveryAddress,
   StoreDeliveryAddress,
-  AddressItem
+  AddressItem,
+  deduplicateAddresses
 } from '../services/dbService';
 
 interface ProfileSubPagesProps {
@@ -59,15 +60,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
           }
         }
 
-        // Deduplicate addresses by id
-        const seen = new Set<string>();
-        const uniqueList: AddressItem[] = [];
-        for (const a of fetched) {
-          if (a && a.id && !seen.has(a.id)) {
-            seen.add(a.id);
-            uniqueList.push(a);
-          }
-        }
+        const uniqueList = deduplicateAddresses(fetched);
 
         if (uniqueList.length > 0) {
           setUserAddresses(uniqueList);
@@ -79,24 +72,13 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
           setPincode(defaultAddr.pincode || '');
         } else if (user.address) {
           setHouseNo(user.address);
-          setUserAddresses([{
-            id: 'addr_1',
-            name: user.name || 'Customer',
-            phone: user.phone || '',
-            pincode: '',
-            houseNo: user.address,
-            area: '',
-            city: '',
-            state: '',
-            type: 'HOME',
-            isDefault: true
-          }]);
+          setUserAddresses([]);
         }
       };
 
       loadAddrs();
     }
-  }, [user]);
+  }, [user?.phone, user?.email, auth.currentUser?.uid]);
 
   useEffect(() => {
     if (!user) {

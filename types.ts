@@ -106,4 +106,11 @@ export interface Order {
   status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Failed';
   paymentId?: string;
   paymentMethod?: string;
+  paymentStatus?: 'PAID' | 'PENDING' | 'REFUNDED' | 'FAILED' | string;
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  customerAddress?: string;
+  shippingAddress?: StoreDeliveryAddress | any;
+  createdAt?: number;
 }

@@ -8,7 +8,8 @@ import {
   AddressItem,
   fetchUserAddresses,
   saveUserAddress,
-  deleteUserAddress
+  deleteUserAddress,
+  deduplicateAddresses
 } from '../services/dbService';
 
 export type { AddressItem };
@@ -122,6 +123,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
   // Load user's addresses from Firestore or local storage on mount
   useEffect(() => {
+    let isMounted = true;
     const loadAddresses = async () => {
       setIsLoading(true);
       const currentUser = auth.currentUser;
@@ -143,38 +145,15 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
         }
       }
 
-      // Deduplicate fetched addresses by id
-      const seen = new Set<string>();
-      const uniqueFetched: AddressItem[] = [];
-      for (const a of fetched) {
-        if (a && a.id && !seen.has(a.id)) {
-          seen.add(a.id);
-          uniqueFetched.push(a);
-        }
-      }
+      const uniqueFetched = deduplicateAddresses(fetched);
+
+      if (!isMounted) return;
 
       if (uniqueFetched.length > 0) {
         setAddresses(uniqueFetched);
         const defaultAddr = uniqueFetched.find(a => a.isDefault) || uniqueFetched[0];
         setSelectedId(defaultAddr.id);
-      } else if (user?.address && user.address.trim() !== '') {
-        const initialAddr: AddressItem = {
-          id: 'addr_' + Date.now(),
-          name: user.name || '',
-          phone: user.phone || '',
-          pincode: '',
-          houseNo: user.address,
-          area: '',
-          city: '',
-          state: '',
-          type: 'HOME',
-          isDefault: true
-        };
-        if (currentUser) {
-          await saveUserAddress(currentUser.uid, initialAddr);
-        }
-        setAddresses([initialAddr]);
-        setSelectedId(initialAddr.id);
+        setShowForm(false);
       } else {
         setAddresses([]);
         setShowForm(true); // Open form automatically for users without an address
@@ -182,7 +161,10 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       setIsLoading(false);
     };
     loadAddresses();
-  }, [user]);
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.phone, user?.email, auth.currentUser?.uid]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -339,17 +321,19 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     if (editingId) {
       setAddresses(prev => {
         const withoutOld = prev.filter(item => item.id !== editingId && item.id !== addrToSave.id);
-        return formData.isDefault
+        const updated = formData.isDefault
           ? [addrToSave, ...withoutOld.map(a => ({ ...a, isDefault: false }))]
           : [...withoutOld, addrToSave];
+        return deduplicateAddresses(updated);
       });
       showToast('Address and profile details updated successfully');
     } else {
       setAddresses(prev => {
-        const withoutTarget = prev.filter(item => item.id !== addrToSave.id);
-        return addrToSave.isDefault
+        const withoutTarget = prev.filter(item => item.id !== addrToSave.id && item.id !== 'default');
+        const updated = addrToSave.isDefault
           ? [addrToSave, ...withoutTarget.map(a => ({ ...a, isDefault: false }))]
           : [...withoutTarget, addrToSave];
+        return deduplicateAddresses(updated);
       });
       setSelectedId(addrToSave.id);
       showToast('New default address set and profile updated');

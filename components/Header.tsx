@@ -258,7 +258,7 @@ const Header: React.FC<HeaderProps> = ({
             {showBack && (
               <button
                 onClick={handleBack}
-                className="p-1.5 -ml-1.5 hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer"
+                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0 active:scale-95"
                 aria-label="Go Back"
               >
                 <ArrowLeft size={22} />

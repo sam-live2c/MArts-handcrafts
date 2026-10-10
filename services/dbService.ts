@@ -33,6 +33,57 @@ export interface AddressItem {
   isDefault?: boolean;
 }
 
+// Deduplicate a list of addresses by both unique ID and normalized content signature, enforcing strictly one default
+export function deduplicateAddresses(addresses: AddressItem[]): AddressItem[] {
+  if (!Array.isArray(addresses)) return [];
+  const seenIds = new Set<string>();
+  const seenKeys = new Set<string>();
+  const result: AddressItem[] = [];
+
+  // Sort so that addresses with real IDs ('addr_...') come before 'default'
+  const sorted = [...addresses].filter(Boolean).sort((a, b) => {
+    if (a.id === 'default' && b.id !== 'default') return 1;
+    if (b.id === 'default' && a.id !== 'default') return -1;
+    return 0;
+  });
+
+  for (const a of sorted) {
+    if (!a || !a.id) continue;
+    
+    // Normalize content for duplicate signature
+    const normPhone = (a.phone || '').replace(/\D/g, '').slice(-10);
+    const normHouse = (a.houseNo || '').trim().toLowerCase();
+    const normPin = (a.pincode || '').trim().toLowerCase();
+    const normName = (a.name || '').trim().toLowerCase();
+    
+    // Content key if core contact/location fields are present
+    const contentKey = (normPhone || normPin) 
+      ? `${normName}|${normPhone}|${normHouse}|${normPin}` 
+      : null;
+
+    if (seenIds.has(a.id)) continue;
+    if (contentKey && seenKeys.has(contentKey)) continue;
+
+    seenIds.add(a.id);
+    if (contentKey) seenKeys.add(contentKey);
+    result.push(a);
+  }
+
+  // Strictly enforce at most ONE default address
+  if (result.length > 0) {
+    const defaultIdx = result.findIndex(a => a.isDefault);
+    const chosenIdx = defaultIdx >= 0 ? defaultIdx : 0;
+    for (let i = 0; i < result.length; i++) {
+      result[i] = {
+        ...result[i],
+        isDefault: i === chosenIdx
+      };
+    }
+  }
+
+  return result;
+}
+
 // Convert an AddressItem or partial address object into the standard StoreDeliveryAddress schema
 export function convertToStoreDeliveryAddress(
   addr: Partial<AddressItem & StoreDeliveryAddress> & { houseNo?: string; area?: string; pincode?: string }
@@ -85,7 +136,7 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
 
   // Update localStorage immediately for instantaneous responsive UI
   const localDefaultAddr: AddressItem = {
-    id: 'default',
+    id: (address as any).id && (address as any).id !== 'default' ? (address as any).id : 'default',
     name: sanitized.recipientName,
     phone: sanitized.phone,
     email: email || '',
@@ -103,11 +154,12 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
   localStorage.setItem('agronic_user_address', formattedStr);
 
   try {
-    // 1. Write to subcollection for default shipping address: users/{uid}/addresses/default
-    const defaultAddrRef = doc(db, 'users', userId, 'addresses', 'default');
-    await withTimeout(setDoc(defaultAddrRef, sanitized, { merge: true }), 2500);
+    // Clean up any legacy duplicate 'default' doc in subcollection to prevent clone entries
+    try {
+      await withTimeout(deleteDoc(doc(db, 'users', userId, 'addresses', 'default')), 1500);
+    } catch (_) {}
 
-    // 2. Write to main user document: users/{uid} (merge into fields deliveryAddress and shippingAddress)
+    // Write to main user document: users/{uid} (merge into fields deliveryAddress and shippingAddress)
     const userRef = doc(db, 'users', userId);
     await withTimeout(setDoc(userRef, {
       displayName: sanitized.recipientName,
@@ -422,10 +474,14 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
   try {
     const addrColRef = collection(db, 'users', uid, 'addresses');
     const snapshot = await withTimeout(getDocs(addrColRef));
-    const addresses: AddressItem[] = [];
+    const rawAddresses: AddressItem[] = [];
+    let hasLegacyDefaultDoc = false;
+
     snapshot.forEach(docSnap => {
       const data = docSnap.data();
-      const isDef = docSnap.id === 'default' || data.isDefault === true;
+      if (docSnap.id === 'default') {
+        hasLegacyDefaultDoc = true;
+      }
       const item: AddressItem = {
         id: data.id || docSnap.id,
         name: data.recipientName || data.name || '',
@@ -437,21 +493,21 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
         city: data.city || '',
         state: data.state || '',
         type: data.type || 'HOME',
-        isDefault: isDef
+        isDefault: data.isDefault === true || docSnap.id === 'default'
       };
-      addresses.push(item);
+      rawAddresses.push(item);
     });
 
-    // If addresses subcollection was empty, check user doc for deliveryAddress/shippingAddress
-    if (addresses.length === 0) {
+    // If addresses subcollection was completely empty, check user doc for deliveryAddress/shippingAddress
+    if (rawAddresses.length === 0) {
       try {
         const userDoc = await withTimeout(getDoc(doc(db, 'users', uid)), 1500);
         if (userDoc.exists()) {
           const uData = userDoc.data();
           const dAddr = (uData.deliveryAddress || uData.shippingAddress) as StoreDeliveryAddress | undefined;
-          if (dAddr && typeof dAddr === 'object') {
+          if (dAddr && typeof dAddr === 'object' && (dAddr.street || dAddr.postalCode)) {
             const defaultItem: AddressItem = {
-              id: 'default',
+              id: 'addr_' + Date.now(),
               name: dAddr.recipientName || uData.displayName || uData.name || 'Customer',
               phone: dAddr.phone || uData.phoneNumber || uData.phone || '',
               email: uData.email || '',
@@ -463,21 +519,20 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
               type: 'HOME',
               isDefault: true
             };
-            addresses.push(defaultItem);
+            rawAddresses.push(defaultItem);
           }
         }
       } catch (e) {}
     }
 
-    // Deduplicate by item.id to ensure keys are strictly unique
-    const seen = new Set<string>();
-    const uniqueAddresses: AddressItem[] = [];
-    for (const a of addresses) {
-      if (a && a.id && !seen.has(a.id)) {
-        seen.add(a.id);
-        uniqueAddresses.push(a);
-      }
+    // Clean up legacy 'default' doc if other real addresses exist
+    if (hasLegacyDefaultDoc && rawAddresses.some(a => a.id !== 'default')) {
+      try {
+        deleteDoc(doc(db, 'users', uid, 'addresses', 'default')).catch(() => {});
+      } catch (_) {}
     }
+
+    const uniqueAddresses = deduplicateAddresses(rawAddresses);
 
     if (uniqueAddresses.length > 0) {
       localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(uniqueAddresses));
@@ -493,15 +548,7 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed)) {
-          const seen = new Set<string>();
-          const uniqueList: AddressItem[] = [];
-          for (const a of parsed) {
-            if (a && a.id && !seen.has(a.id)) {
-              seen.add(a.id);
-              uniqueList.push(a);
-            }
-          }
-          return uniqueList;
+          return deduplicateAddresses(parsed);
         }
       } catch (e) {}
     }
@@ -509,7 +556,7 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
     if (defaultAddr) {
       try {
         const parsed = JSON.parse(defaultAddr);
-        return [parsed];
+        return deduplicateAddresses([parsed]);
       } catch (e) {}
     }
     return [];
@@ -517,22 +564,42 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
 };
 
 export const saveUserAddress = async (uid: string, address: AddressItem): Promise<User> => {
-  // Update local storage first
-  const existing = await fetchUserAddresses(uid);
-  const isDefaultAddress = Boolean(address.isDefault || existing.length === 0);
-  const updatedAddressItem: AddressItem = { ...address, isDefault: isDefaultAddress };
+  // Ensure valid ID (never 'default')
+  const targetId = (!address.id || address.id === 'default') ? ('addr_' + Date.now()) : address.id;
+  const addressWithId: AddressItem = { ...address, id: targetId };
 
-  // Remove any existing address with the same id to strictly prevent duplicates
-  const withoutCurrent = existing.filter(a => a.id !== address.id);
+  // Fetch existing addresses and deduplicate
+  const existing = await fetchUserAddresses(uid);
+  const isDefaultAddress = Boolean(addressWithId.isDefault || existing.length === 0);
+  const updatedAddressItem: AddressItem = { ...addressWithId, isDefault: isDefaultAddress };
+
+  // Filter out any existing address with the same ID, legacy 'default', OR identical normalized address signature
+  const normPhone = (updatedAddressItem.phone || '').replace(/\D/g, '').slice(-10);
+  const normHouse = (updatedAddressItem.houseNo || '').trim().toLowerCase();
+  const normPin = (updatedAddressItem.pincode || '').trim().toLowerCase();
+
+  const withoutCurrent = existing.filter(a => {
+    if (a.id === updatedAddressItem.id || a.id === 'default') return false;
+    const aPhone = (a.phone || '').replace(/\D/g, '').slice(-10);
+    const aHouse = (a.houseNo || '').trim().toLowerCase();
+    const aPin = (a.pincode || '').trim().toLowerCase();
+    if (normPhone && normHouse && aPhone === normPhone && aHouse === normHouse && (!normPin || !aPin || aPin === normPin)) {
+      return false; // same address content, replace it
+    }
+    return true;
+  });
+
   const updatedAddresses: AddressItem[] = isDefaultAddress 
     ? [updatedAddressItem, ...withoutCurrent.map(a => ({ ...a, isDefault: false }))]
     : [...withoutCurrent, updatedAddressItem];
 
-  localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(updatedAddresses));
-  localStorage.setItem('melody_addresses', JSON.stringify(updatedAddresses));
+  const dedupedAddresses = deduplicateAddresses(updatedAddresses);
+
+  localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(dedupedAddresses));
+  localStorage.setItem('melody_addresses', JSON.stringify(dedupedAddresses));
 
   // Format full address string
-  const formattedStr = `${address.houseNo}, ${address.area ? address.area + ', ' : ''}${address.city}, ${address.state} ${address.pincode}`.trim();
+  const formattedStr = `${addressWithId.houseNo}, ${addressWithId.area ? addressWithId.area + ', ' : ''}${addressWithId.city}, ${addressWithId.state} ${addressWithId.pincode}`.trim();
   if (isDefaultAddress) {
     localStorage.setItem('melody_default_address', JSON.stringify(updatedAddressItem));
     localStorage.setItem('melody_user_address', formattedStr);
@@ -545,8 +612,8 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   let currentProfile: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
   const updatedProfile: User = {
     ...currentProfile,
-    ...(address.name ? { name: address.name, displayName: address.name } : {}),
-    ...(address.phone ? { phone: address.phone, phoneNumber: address.phone } : {}),
+    ...(addressWithId.name ? { name: addressWithId.name, displayName: addressWithId.name } : {}),
+    ...(addressWithId.phone ? { phone: addressWithId.phone, phoneNumber: addressWithId.phone } : {}),
     ...(isDefaultAddress ? { address: formattedStr } : {})
   };
   localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
@@ -556,19 +623,24 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   }
 
   try {
-    const addrRef = doc(db, 'users', uid, 'addresses', address.id);
+    const addrRef = doc(db, 'users', uid, 'addresses', addressWithId.id);
     await withTimeout(setDoc(addrRef, updatedAddressItem, { merge: true }), 2500);
+
+    // Clean up any legacy 'default' doc from the subcollection so it never duplicates
+    try {
+      await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', 'default')), 1500);
+    } catch (_) {}
 
     const userDocUpdate: Record<string, any> = {
       updatedAt: new Date().toISOString()
     };
-    if (address.name) {
-      userDocUpdate.name = address.name;
-      userDocUpdate.displayName = address.name;
+    if (addressWithId.name) {
+      userDocUpdate.name = addressWithId.name;
+      userDocUpdate.displayName = addressWithId.name;
     }
-    if (address.phone) {
-      userDocUpdate.phone = address.phone;
-      userDocUpdate.phoneNumber = address.phone;
+    if (addressWithId.phone) {
+      userDocUpdate.phone = addressWithId.phone;
+      userDocUpdate.phoneNumber = addressWithId.phone;
     }
     if (isDefaultAddress) {
       userDocUpdate.address = formattedStr;
@@ -585,10 +657,9 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
     batch.set(doc(db, 'users', uid), userDocUpdate, { merge: true });
     await withTimeout(batch.commit(), 2500);
 
-    // If marked as default or only address, synchronize to users/{uid}/addresses/default and deliveryAddress/shippingAddress
     if (isDefaultAddress) {
-      const storeDeliveryAddr = convertToStoreDeliveryAddress(address);
-      await saveCustomerDeliveryAddress(uid, storeDeliveryAddr, address.email || currentProfile.email);
+      const storeDeliveryAddr = convertToStoreDeliveryAddress(addressWithId);
+      await saveCustomerDeliveryAddress(uid, storeDeliveryAddr, addressWithId.email || currentProfile.email);
     }
   } catch (err) {
     console.warn('Firestore offline when saving address, saved locally.');
@@ -599,11 +670,15 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
 
 export const deleteUserAddress = async (uid: string, addressId: string): Promise<void> => {
   const existing = await fetchUserAddresses(uid);
-  const updated = existing.filter(a => a.id !== addressId);
-  localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(updated));
-  localStorage.setItem('melody_addresses', JSON.stringify(updated));
+  const updated = existing.filter(a => a.id !== addressId && a.id !== 'default');
+  const deduped = deduplicateAddresses(updated);
+  localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(deduped));
+  localStorage.setItem('melody_addresses', JSON.stringify(deduped));
   try {
     await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', addressId)), 2000);
+    if (addressId === 'default' || updated.length === 0) {
+      await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', 'default')), 2000).catch(() => {});
+    }
   } catch (err) {
     console.warn('Firestore offline when deleting address.');
   }

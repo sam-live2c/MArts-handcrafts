@@ -326,10 +326,10 @@ const App: React.FC = () => {
     }
 
     await saveOrderToFirestore(uid, order, {
-      name: user?.name || '',
-      phone: user?.phone || '',
-      email: user?.email || '',
-      address: user?.address || ''
+      name: order.customerName || user?.name || '',
+      phone: order.customerPhone || user?.phone || '',
+      email: order.customerEmail || user?.email || '',
+      address: order.customerAddress || user?.address || ''
     });
   };
 

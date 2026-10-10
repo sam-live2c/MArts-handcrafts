@@ -356,6 +356,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           createdAt: Date.now()
         });
 
+        const customerDeliveryAddr = [
+          activeAddress.houseNo,
+          activeAddress.area,
+          activeAddress.city,
+          activeAddress.state,
+          activeAddress.pincode
+        ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
+
         const newOrder: Order = {
           id: orderId,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -367,6 +375,12 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           status: 'Processing',
           paymentId: paymentId,
           paymentMethod: 'Online Payment (UPI/Cards)',
+          paymentStatus: 'PAID',
+          customerName: activeAddress.name || user?.name || 'Customer',
+          customerPhone: activeAddress.phone || user?.phone || '',
+          customerEmail: user?.email || '',
+          customerAddress: customerDeliveryAddr,
+          createdAt: Date.now()
         };
 
         setIsOrderPlaced(true);
@@ -398,6 +412,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       // Cash on Delivery
       setTimeout(async () => {
         const orderId = 'OD' + Math.floor(Math.random() * 1000000000000);
+        const customerDeliveryAddr = [
+          activeAddress.houseNo,
+          activeAddress.area,
+          activeAddress.city,
+          activeAddress.state,
+          activeAddress.pincode
+        ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
+
         const newOrder: Order = {
           id: orderId,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -408,6 +430,12 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           total: total,
           status: 'Processing',
           paymentMethod: 'Cash on Delivery',
+          paymentStatus: 'PENDING',
+          customerName: activeAddress.name || user?.name || 'Customer',
+          customerPhone: activeAddress.phone || user?.phone || '',
+          customerEmail: user?.email || '',
+          customerAddress: customerDeliveryAddr,
+          createdAt: Date.now()
         };
 
         setIsOrderPlaced(true);
@@ -447,10 +475,10 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                    <button 
                      type="button"
                      onClick={() => setStep(2)} 
-                     className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer"
+                     className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-gray-800 cursor-pointer shrink-0"
                      aria-label="Go back to order summary"
                    >
-                     <ArrowLeft size={22} />
+                     <ArrowLeft size={20} />
                    </button>
                    <div className="leading-tight">
                      <p className="text-[11px] text-gray-500 font-medium mb-0.5">Step 3 of 3</p>
@@ -476,10 +504,10 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                       handleGoBack(navigate, '/cart');
                     }
                   }} 
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors text-gray-800 cursor-pointer shrink-0"
                   aria-label="Go back"
                 >
-                  <ArrowLeft size={22} />
+                  <ArrowLeft size={20} />
                 </button>
                 <h1 className="text-lg font-bold text-gray-900">{step === 1 ? 'Address' : 'Order Summary'}</h1>
              </div>

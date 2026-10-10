@@ -3,9 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
 import { 
   ArrowLeft, Search, MoreVertical, X, Package, 
-  AlertCircle, Headphones, CheckCircle2, Download, HelpCircle, Check
+  AlertCircle, Headphones, CheckCircle2, Download, HelpCircle, Check,
+  ChevronRight
 } from 'lucide-react';
-import { User, Order } from '../types';
+import { User, Order, CartItem } from '../types';
 import { PRODUCTS } from '../constants';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 import { auth } from '../firebase';
@@ -24,6 +25,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
+  const [activeProductMenuKey, setActiveProductMenuKey] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -91,45 +93,262 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   };
 
 
-  const handleDownloadReceipt = (order: Order) => {
+  const handleDownloadReceipt = (order: Order, specificItem?: CartItem) => {
     setActiveMenuOrderId(null);
-    const mrp = order.items.reduce((acc, item) => acc + ((item.oldPrice || (item.price + 10)) * item.quantity), 0);
-    const discount = Math.max(0, mrp - order.total);
+    setActiveProductMenuKey(null);
 
-    const receiptText = `========================================
-MArts ORDER RECEIPT - HANDCRAFTED POTTERY & STATUES
-========================================
-Order ID: #${order.id}
-Date Placed: ${order.date}
-Payment Method: ${order.paymentMethod || 'Online Payment (UPI/Cards)'}
-Transaction Ref: ${order.paymentId || 'N/A'}
-Payment Status: PAID
+    const isItemSpecific = !!specificItem;
+    const items = isItemSpecific ? [specificItem] : order.items;
 
-ITEMS PURCHASED:
-${order.items.map(i => ` - ${i.name} (Qty: ${i.quantity}) - ₹${(i.price * i.quantity).toLocaleString()}`).join('\n')}
+    const mrp = items.reduce((acc, item) => acc + ((item.oldPrice || item.price) * item.quantity), 0);
+    const itemsTotal = isItemSpecific 
+      ? (specificItem.price * specificItem.quantity) 
+      : order.total;
+    const discount = Math.max(0, mrp - itemsTotal);
 
-PRICE DETAILS:
- MRP: ₹${mrp.toLocaleString()}
- Discount: -₹${discount.toLocaleString()}
- Delivery Charge: Free
- 18% GST: Included
-----------------------------------------
-TOTAL PRICE PAID: ₹${order.total.toLocaleString()}
-========================================
-Thank you for supporting master artisans at MArts!
-`;
+    // Accurately determine payment method, status, transaction ref, and badge styling
+    const isCod = Boolean(
+      (order.paymentMethod && /cash|cod|pay on delivery/i.test(order.paymentMethod)) ||
+      (!order.paymentMethod && !order.paymentId)
+    );
 
-    const blob = new Blob([receiptText], { type: 'text/plain;charset=utf-8' });
+    const txnRef = order.paymentId 
+      ? order.paymentId 
+      : isCod 
+        ? `COD-${order.id}` 
+        : `TXN-${order.id}`;
+
+    let paymentStatusLabel = 'PAID';
+    let paymentBadgeColor = '#15803d'; // Green
+    let paymentBadgeBg = '#f0fdf4';
+    let paymentDetail = 'Verified & Settled';
+
+    if (order.status === 'Cancelled') {
+      paymentStatusLabel = 'CANCELLED (Refund Processing)';
+      paymentBadgeColor = '#b91c1c'; // Red
+      paymentBadgeBg = '#fef2f2';
+      paymentDetail = `Order cancelled by customer. Refund of ₹${itemsTotal.toLocaleString()} credited within 24 hours.`;
+    } else if (order.status === 'Failed') {
+      paymentStatusLabel = 'PAYMENT FAILED / UNPAID';
+      paymentBadgeColor = '#b91c1c';
+      paymentBadgeBg = '#fef2f2';
+      paymentDetail = 'Transaction was declined by payment gateway or incomplete.';
+    } else if (isCod) {
+      if (order.status === 'Delivered') {
+        paymentStatusLabel = 'PAID (Cash Collected on Delivery)';
+        paymentBadgeColor = '#15803d';
+        paymentBadgeBg = '#f0fdf4';
+        paymentDetail = `Cash of ₹${itemsTotal.toLocaleString()} collected at doorstep upon delivery.`;
+      } else {
+        paymentStatusLabel = `PAYMENT PENDING (Pay ₹${itemsTotal.toLocaleString()} on Delivery)`;
+        paymentBadgeColor = '#b45309'; // Amber
+        paymentBadgeBg = '#fffbeb';
+        paymentDetail = `Payment of ₹${itemsTotal.toLocaleString()} to be collected via Cash/UPI on package arrival.`;
+      }
+    } else {
+      paymentStatusLabel = `PAID (${order.paymentMethod || 'Online UPI / Card'})`;
+      paymentBadgeColor = '#15803d';
+      paymentBadgeBg = '#f0fdf4';
+      paymentDetail = `Online transaction verified. Reference: ${txnRef}`;
+    }
+
+    const customerName = order.customerName || user?.name || user?.displayName || 'Valued Customer';
+    const customerPhone = order.customerPhone || user?.phone || user?.phoneNumber || 'N/A';
+    const customerEmail = order.customerEmail || user?.email || 'N/A';
+    
+    let customerAddress = order.customerAddress || '';
+    if (!customerAddress && order.shippingAddress) {
+      const s = order.shippingAddress;
+      customerAddress = [s.street || s.houseNo, s.apartment || s.area, s.landmark, s.city, s.state, s.postalCode || s.pincode || s.pin].filter(Boolean).join(', ');
+    }
+    if (!customerAddress && user?.address) {
+      customerAddress = user.address;
+    }
+    if (!customerAddress && user?.deliveryAddress) {
+      const d = user.deliveryAddress;
+      customerAddress = [d.street, d.apartment, d.landmark, d.city, d.state, d.postalCode || d.pin].filter(Boolean).join(', ');
+    }
+    if (!customerAddress) {
+      customerAddress = 'Registered Customer Delivery Address';
+    }
+
+    const receiptHeading = isItemSpecific 
+      ? `TAX INVOICE / PRODUCT RECEIPT`
+      : `TAX INVOICE & ORDER RECEIPT`;
+
+    const formattedDate = order.date;
+    const sanitizedItemName = isItemSpecific 
+      ? specificItem.name.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 30) 
+      : '';
+    const downloadFileName = isItemSpecific
+      ? `Receipt_Order_${order.id}_${sanitizedItemName}.html`
+      : `Receipt_Order_${order.id}_Full.html`;
+
+    const htmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MArts Receipt - #${order.id}${isItemSpecific ? ' - ' + specificItem.name : ''}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #f7f7f7; color: #1a1a1a; padding: 24px; }
+    .invoice-card { max-width: 780px; margin: 0 auto; background: #ffffff; border: 1px solid #e5e5e5; border-radius: 8px; box-shadow: 0 4px 18px rgba(0,0,0,0.06); padding: 36px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #C85A32; padding-bottom: 20px; margin-bottom: 24px; }
+    .brand-title { font-size: 26px; font-weight: 800; color: #C85A32; letter-spacing: -0.5px; }
+    .brand-subtitle { font-size: 13px; color: #666; margin-top: 3px; }
+    .invoice-meta { text-align: right; }
+    .invoice-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #C85A32; }
+    .invoice-num { font-size: 16px; font-weight: 700; color: #111; margin-top: 4px; }
+    .invoice-date { font-size: 12px; color: #666; margin-top: 2px; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+    .info-box { background: #fafafa; border: 1px solid #ebebeb; border-radius: 6px; padding: 14px 16px; }
+    .info-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #888; margin-bottom: 8px; }
+    .info-title { font-size: 14px; font-weight: 700; color: #222; margin-bottom: 4px; }
+    .info-text { font-size: 13px; color: #444; line-height: 1.5; }
+    
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; color: ${paymentBadgeColor}; background-color: ${paymentBadgeBg}; margin-top: 4px; border: 1px solid ${paymentBadgeColor}33; }
+    
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { background: #FAF0E6; color: #8C3F1E; text-align: left; padding: 10px 14px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #EADBCC; }
+    td { padding: 14px; font-size: 13px; border-bottom: 1px solid #eee; vertical-align: top; }
+    .item-name { font-weight: 600; color: #111; }
+    .item-sub { font-size: 11px; color: #777; margin-top: 2px; }
+    .text-right { text-align: right; }
+    
+    .totals-area { display: flex; justify-content: flex-end; margin-bottom: 28px; }
+    .totals-table { width: 300px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; color: #555; }
+    .totals-row.bold { border-top: 2px solid #222; margin-top: 8px; padding-top: 10px; font-size: 16px; font-weight: 800; color: #111; }
+    .savings { color: #15803d; font-weight: 600; }
+    
+    .footer { border-top: 1px dashed #ccc; padding-top: 20px; text-align: center; font-size: 12px; color: #777; line-height: 1.6; }
+    .actions-bar { max-width: 780px; margin: 0 auto 16px auto; display: flex; justify-content: flex-end; gap: 10px; }
+    .print-btn { background: #C85A32; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .print-btn:hover { background: #A04724; }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .actions-bar { display: none !important; }
+      .invoice-card { box-shadow: none; border: none; padding: 0; width: 100%; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions-bar">
+    <button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div class="invoice-card">
+    <div class="header">
+      <div>
+        <div class="brand-title">MArts</div>
+        <div class="brand-subtitle">Handcrafted Pottery & Statues • Heritage Atelier</div>
+        <div class="brand-subtitle">GSTIN: 19AAECM9841B1Z3 • support@marts.crafts</div>
+      </div>
+      <div class="invoice-meta">
+        <div class="invoice-tag">${receiptHeading}</div>
+        <div class="invoice-num">#${order.id}${isItemSpecific ? ' • ' + specificItem.name : ''}</div>
+        <div class="invoice-date">Placed: ${formattedDate}</div>
+        <div class="invoice-date">Generated: ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="info-box">
+        <div class="info-label">Customer & Delivery Details</div>
+        <div class="info-title">${customerName}</div>
+        <div class="info-text">📞 ${customerPhone}</div>
+        ${customerEmail && customerEmail !== 'N/A' ? `<div class="info-text">✉️ ${customerEmail}</div>` : ''}
+        <div class="info-text" style="margin-top: 6px;">📍 ${customerAddress}</div>
+      </div>
+      <div class="info-box">
+        <div class="info-label">Order & Payment Status</div>
+        <div class="info-title">Order Status: ${order.status}</div>
+        <div class="info-text">Payment Method: ${order.paymentMethod || (isCod ? 'Cash on Delivery' : 'Online Payment')}</div>
+        <div class="info-text">Ref / Transaction: ${txnRef}</div>
+        <div>
+          <span class="status-badge">${paymentStatusLabel}</span>
+        </div>
+        <div class="info-text" style="font-size: 11px; margin-top: 4px; color: #666;">${paymentDetail}</div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 40px;">#</th>
+          <th>Artisan Product Item</th>
+          <th class="text-right" style="width: 80px;">Qty</th>
+          <th class="text-right" style="width: 110px;">Unit Price</th>
+          <th class="text-right" style="width: 120px;">Net Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${items.map((it, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>
+            <div class="item-name">${it.name}</div>
+            <div class="item-sub">Category: ${it.category || it.subCategory || 'Handcrafted Pottery'} • SKU: ${it.id}</div>
+          </td>
+          <td class="text-right">${it.quantity}</td>
+          <td class="text-right">₹${it.price.toLocaleString()}</td>
+          <td class="text-right" style="font-weight: 600;">₹${(it.price * it.quantity).toLocaleString()}</td>
+        </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="totals-area">
+      <div class="totals-table">
+        <div class="totals-row">
+          <span>Items MRP Total</span>
+          <span>₹${mrp.toLocaleString()}</span>
+        </div>
+        ${discount > 0 ? `
+        <div class="totals-row">
+          <span>Artisan Discount</span>
+          <span class="savings">- ₹${discount.toLocaleString()}</span>
+        </div>` : ''}
+        <div class="totals-row">
+          <span>Delivery / Shipping</span>
+          <span class="savings">FREE (Insured Crate)</span>
+        </div>
+        <div class="totals-row">
+          <span>GST (18%)</span>
+          <span>Included</span>
+        </div>
+        <div class="totals-row bold">
+          <span>Total Net Amount</span>
+          <span>₹${itemsTotal.toLocaleString()}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>This is a computer-generated tax invoice and delivery receipt issued by MArts Handcrafts.</div>
+      <div>Thank you for honoring traditional pottery kilns, stone carving ateliers, and heritage craft traditions!</div>
+      <div style="margin-top: 6px; font-size: 11px; color: #999;">For replacement or damage claims, please contact support@marts.crafts within 48 hours of delivery.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Receipt_${order.id}.txt`;
+    link.download = downloadFileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    showToast(`Receipt downloaded for Order #${order.id}`);
+    showToast(
+      isItemSpecific ? 'Item Receipt Downloaded' : 'Order Receipt Downloaded',
+      isItemSpecific ? `Receipt downloaded for ${specificItem.name}` : `Full receipt downloaded for Order #${order.id}`
+    );
   };
 
   // Filter logic
@@ -162,10 +381,10 @@ Thank you for supporting master artisans at MArts!
                   setShowSearchInput(false);
                   setSearchQuery('');
                 }}
-                className="p-1 -ml-0.5 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0 flex items-center justify-center"
+                className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-800 transition-colors cursor-pointer shrink-0"
                 aria-label="Close search"
               >
-                <ArrowLeft size={22} />
+                <ArrowLeft size={20} />
               </button>
               <input
                 type="text"
@@ -179,42 +398,42 @@ Thank you for supporting master artisans at MArts!
               {searchQuery ? (
                 <button 
                   onClick={() => setSearchQuery('')}
-                  className="p-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-700 transition-colors shrink-0 cursor-pointer flex items-center justify-center"
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors shrink-0 cursor-pointer"
                   aria-label="Clear search"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               ) : null}
             </div>
           ) : (
             <div className="flex items-center justify-between w-full h-full">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
                 <button 
                   type="button"
                   onClick={() => handleGoBack(navigate, '/account')} 
-                  className="p-1 -ml-0.5 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer flex items-center justify-center"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-800 transition-colors cursor-pointer shrink-0"
                   aria-label="Go back"
                 >
-                  <ArrowLeft size={22} />
+                  <ArrowLeft size={20} />
                 </button>
                 <h1 className="text-lg font-bold text-gray-900">My Orders</h1>
               </div>
-              <div className="flex items-center gap-1.5 relative">
+              <div className="flex items-center gap-1 relative">
                 <button
                   type="button"
                   onClick={() => setShowSearchInput(true)}
-                  className="p-1 hover:bg-gray-100 rounded-full text-gray-700 transition-colors cursor-pointer flex items-center justify-center"
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
                   aria-label="Search orders"
                 >
-                  <Search size={22} />
+                  <Search size={20} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                  className="p-1 hover:bg-gray-100 rounded-full text-gray-700 transition-colors cursor-pointer flex items-center justify-center"
+                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
                   aria-label="More options"
                 >
-                  <MoreVertical size={22} />
+                  <MoreVertical size={20} />
                 </button>
 
                 {showHeaderMenu && (
@@ -358,10 +577,10 @@ Thank you for supporting master artisans at MArts!
                           <button
                             type="button"
                             onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
-                            className="p-1 hover:bg-gray-100 rounded-full text-gray-600 transition-colors cursor-pointer"
+                            className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
                             aria-label="Order Options"
                           >
-                            <MoreVertical size={18} />
+                            <MoreVertical size={20} />
                           </button>
 
                           {/* Dropdown Menu */}
@@ -371,13 +590,13 @@ Thank you for supporting master artisans at MArts!
                                 className="fixed inset-0 z-40" 
                                 onClick={() => setActiveMenuOrderId(null)} 
                               />
-                              <div className="absolute right-0 top-8 z-50 w-[155px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
+                              <div className="absolute right-0 top-10 sm:top-11 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
                                 <button
                                   type="button"
                                   onClick={() => handleDownloadReceipt(order)}
-                                  className="w-full text-left px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                  className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
                                 >
-                                  <span>Download Receipt</span>
+                                  <span>Download Full Receipt</span>
                                   <Download size={14} className="text-[#C85A32] shrink-0" />
                                 </button>
                                 {isActiveOrder && (
@@ -387,7 +606,7 @@ Thank you for supporting master artisans at MArts!
                                       setActiveMenuOrderId(null);
                                       setCancellingOrderId(order.id);
                                     }}
-                                    className="w-full text-left px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                    className="w-full text-left px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
                                   >
                                     <span>Cancel Order</span>
                                     <X size={14} className="shrink-0" />
@@ -402,37 +621,100 @@ Thank you for supporting master artisans at MArts!
 
                     {/* Products List */}
                     <div className="divide-y divide-gray-100">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="py-3 first:pt-0 last:pb-0 flex gap-4 items-start">
-                          <div className="w-[76px] h-[76px] bg-white border border-gray-100 rounded-sm p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
-                            <img 
-                              src={item.image} 
-                              alt={item.name} 
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-contain" 
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-[15px] font-medium text-gray-900 line-clamp-1 leading-tight mb-1">
-                              {item.name}
-                            </h4>
-                            <div className="flex items-center gap-2 text-xs text-gray-500">
-                              <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
-                              <span>•</span>
-                              <span className="font-semibold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
+                      {order.items.map((item, idx) => {
+                        const productMenuKey = `${order.id}-${item.id}-${idx}`;
+                        const isProductMenuOpen = activeProductMenuKey === productMenuKey;
+
+                        return (
+                          <div key={idx} className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4">
+                            <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
+                              <div className="w-[76px] h-[76px] bg-white border border-gray-100 rounded-sm p-1.5 flex items-center justify-center shrink-0 overflow-hidden">
+                                <img 
+                                  src={item.image} 
+                                  alt={item.name} 
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-contain" 
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0 pr-1">
+                                <h4 className="text-[15px] font-medium text-gray-900 line-clamp-1 leading-tight mb-1">
+                                  {item.name}
+                                </h4>
+                                <div className="flex items-center gap-2 text-xs text-gray-500">
+                                  <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
+                                  <span>•</span>
+                                  <span className="font-semibold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
+                                </div>
+                                <div className="mt-2 text-xs text-gray-600">
+                                  {deliveryDateText.startsWith('Delivery by') ? (
+                                    <>
+                                      Delivery by <span className="font-semibold text-gray-900">{deliveryDateText.replace('Delivery by ', '')}</span>
+                                    </>
+                                  ) : (
+                                    <span className="font-semibold text-gray-900">{deliveryDateText}</span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="mt-2 text-xs text-gray-600">
-                              {deliveryDateText.startsWith('Delivery by') ? (
-                                <>
-                                  Delivery by <span className="font-semibold text-gray-900">{deliveryDateText.replace('Delivery by ', '')}</span>
-                                </>
-                              ) : (
-                                <span className="font-semibold text-gray-900">{deliveryDateText}</span>
-                              )}
+
+                            {/* Product Item Actions & Menu Button - Aligned on identical vertical axis */}
+                            <div className="flex items-center gap-1.5 shrink-0 self-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadReceipt(order, item)}
+                                className="hidden sm:inline-flex items-center gap-1 text-[11px] font-semibold text-[#C85A32] hover:text-[#A04724] px-2.5 py-1 rounded hover:bg-[#FAF0E6] transition-colors cursor-pointer"
+                                title={`Download item receipt for ${item.name}`}
+                              >
+                                <Download size={13} />
+                                <span>Receipt</span>
+                              </button>
+
+                              <div className="relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveProductMenuKey(isProductMenuOpen ? null : productMenuKey)}
+                                  className="w-9 h-9 flex items-center justify-center rounded-full text-gray-700 hover:text-black hover:bg-gray-100 active:bg-gray-200 transition-colors cursor-pointer shrink-0"
+                                  aria-label="Product Options"
+                                  title="Product options"
+                                >
+                                  <MoreVertical size={20} />
+                                </button>
+
+                                {/* Product Options Dropdown */}
+                                {isProductMenuOpen && (
+                                  <>
+                                    <div 
+                                      className="fixed inset-0 z-40" 
+                                      onClick={() => setActiveProductMenuKey(null)} 
+                                    />
+                                    <div className="absolute right-0 top-10 sm:top-11 z-50 w-[185px] bg-white border border-gray-200 rounded-lg py-1 shadow-md animate-in fade-in zoom-in-95 duration-150">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDownloadReceipt(order, item)}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                      >
+                                        <span>Download Item Receipt</span>
+                                        <Download size={14} className="text-[#C85A32] shrink-0" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActiveProductMenuKey(null);
+                                          navigate(`/product/${item.id}`);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                      >
+                                        <span>View Product Details</span>
+                                        <ChevronRight size={14} className="text-gray-400 shrink-0" />
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Price Details Breakdown - Clean dividers matching Checkout */}

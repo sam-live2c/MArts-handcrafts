@@ -197,10 +197,10 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
           <button 
             type="button"
             onClick={() => handleGoBack(navigate, '/')} 
-            className="p-1 -ml-1 text-gray-800 hover:text-black rounded-full active:bg-gray-100 transition-colors cursor-pointer"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 active:bg-gray-200 text-gray-800 transition-colors cursor-pointer shrink-0"
             aria-label="Go back"
           >
-            <ArrowLeft strokeWidth={2.5} size={22} />
+            <ArrowLeft size={20} />
           </button>
           <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Cart</h1>
         </div>
