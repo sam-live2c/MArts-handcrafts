@@ -17,7 +17,6 @@ import AddressPage from './pages/AddressPage';
 import PolicyPage from './pages/PolicyPage';
 import MyOrders from './pages/MyOrders';
 import About from './pages/About';
-import Location from './pages/Location';
 import Wishlist from './pages/Wishlist';
 import { CartItem, User, Order, Product } from './types';
 import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
@@ -413,7 +412,7 @@ const App: React.FC = () => {
             <Route path="/help" element={<HelpCenter />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/about" element={<About />} />
-            <Route path="/location" element={<Location />} />
+            <Route path="/location" element={<Navigate to="/" replace />} />
             
             <Route path="/addresses" element={<AddressPage cart={cart} user={user} onUpdateUser={setUser} />} />
             <Route path="/address" element={<AddressPage cart={cart} user={user} onUpdateUser={setUser} />} />

@@ -1,20 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Logo from './Logo';
-import { MapPin, Phone, Mail, ShieldCheck, ArrowRight, FileText, Info, Compass } from 'lucide-react';
+import { Phone, Mail, ShieldCheck, Compass } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
     <footer className="w-full bg-[#FAF7F2] text-[#2B221B] border-t border-[#EADBCC] mt-auto">
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12 sm:py-14">
-        {/* Main 3-Column Structured Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 pb-10 border-b border-[#EADBCC]">
+        {/* Main 2-Column Balanced Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16 pb-10 border-b border-[#EADBCC]">
           {/* Column 1: MArts Atelier Brand */}
           <div className="space-y-4">
             <Link to="/" className="inline-block hover:opacity-95 transition-opacity">
               <Logo variant="dark" size="md" showStoreTag={false} />
             </Link>
-            <p className="text-xs sm:text-sm text-[#735A4C] leading-relaxed max-w-sm">
+            <p className="text-xs sm:text-sm text-[#735A4C] leading-relaxed max-w-md">
               MArts celebrates generational artisan craftsmanship. Wheel-thrown terracotta pottery, vitrified artisan ceramics, and hand-chiseled stone sculptures from master heritage guilds.
             </p>
             <div className="flex items-center gap-2 text-xs font-semibold text-[#8C3F1E] pt-1">
@@ -23,75 +23,8 @@ const Footer: React.FC = () => {
             </div>
           </div>
 
-          {/* Column 2: Very Needed Options & Pages */}
-          <div className="space-y-4">
-            <div>
-              <span className="text-[11px] font-bold text-[#C85A32] uppercase tracking-wider">Quick Navigation</span>
-              <h4 className="font-serif font-bold text-base sm:text-lg text-[#2B221B]">
-                Essential Pages &amp; Options
-              </h4>
-            </div>
-
-            <ul className="space-y-3 text-xs sm:text-sm">
-              <li>
-                <Link
-                  to="/contact"
-                  className="flex items-center gap-2.5 text-[#5E473A] hover:text-[#C85A32] transition-colors font-medium group"
-                >
-                  <Mail size={15} className="text-[#C85A32] shrink-0 transition-transform group-hover:scale-110" />
-                  <span>Contact</span>
-                  <span className="text-[11px] text-[#A89283] ml-auto group-hover:text-[#C85A32]">Inquiries &amp; Support</span>
-                </Link>
-              </li>
-
-              <li>
-                <Link
-                  to="/privacy-policy"
-                  className="flex items-center gap-2.5 text-[#5E473A] hover:text-[#C85A32] transition-colors font-medium group"
-                >
-                  <FileText size={15} className="text-[#C85A32] shrink-0 transition-transform group-hover:scale-110" />
-                  <span>Privacy Policy</span>
-                  <span className="text-[11px] text-[#A89283] ml-auto group-hover:text-[#C85A32]">Data &amp; Trust</span>
-                </Link>
-              </li>
-
-              <li>
-                <Link
-                  to="/terms-and-conditions"
-                  className="flex items-center gap-2.5 text-[#5E473A] hover:text-[#C85A32] transition-colors font-medium group"
-                >
-                  <FileText size={15} className="text-[#C85A32] shrink-0 transition-transform group-hover:scale-110" />
-                  <span>Terms and Conditions</span>
-                  <span className="text-[11px] text-[#A89283] ml-auto group-hover:text-[#C85A32]">Store Terms</span>
-                </Link>
-              </li>
-
-              <li>
-                <Link
-                  to="/about"
-                  className="flex items-center gap-2.5 text-[#5E473A] hover:text-[#C85A32] transition-colors font-medium group"
-                >
-                  <Info size={15} className="text-[#C85A32] shrink-0 transition-transform group-hover:scale-110" />
-                  <span>About</span>
-                  <span className="text-[11px] text-[#A89283] ml-auto group-hover:text-[#C85A32]">Our Story &amp; Guild</span>
-                </Link>
-              </li>
-
-              <li>
-                <Link
-                  to="/location"
-                  className="flex items-center gap-2.5 text-[#5E473A] hover:text-[#C85A32] transition-colors font-medium group"
-                >
-                  <MapPin size={15} className="text-[#C85A32] shrink-0 transition-transform group-hover:scale-110" />
-                  <span>Location</span>
-                  <span className="text-[11px] text-[#A89283] ml-auto group-hover:text-[#C85A32]">Atelier &amp; Showroom</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          {/* Column 3: Atelier Showroom & Contact Details */}
-          <div className="space-y-4">
+          {/* Column 2: Atelier Showroom & Contact Details */}
+          <div className="space-y-4 md:pl-6 lg:pl-12">
             <div>
               <span className="text-[11px] font-bold text-[#C85A32] uppercase tracking-wider">Direct Connect</span>
               <h4 className="font-serif font-bold text-base sm:text-lg text-[#2B221B]">
@@ -129,8 +62,8 @@ const Footer: React.FC = () => {
           <p>© {new Date().getFullYear()} MArts Handcrafted. All rights reserved.</p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-semibold">
-            <Link to="/contact" className="hover:text-[#C85A32] transition-colors">
-              Contact
+            <Link to="/help" className="hover:text-[#C85A32] transition-colors">
+              Support
             </Link>
             <span className="text-[#D4C3B7]">•</span>
             <Link to="/privacy-policy" className="hover:text-[#C85A32] transition-colors">
@@ -143,10 +76,6 @@ const Footer: React.FC = () => {
             <span className="text-[#D4C3B7]">•</span>
             <Link to="/about" className="hover:text-[#C85A32] transition-colors">
               About
-            </Link>
-            <span className="text-[#D4C3B7]">•</span>
-            <Link to="/location" className="hover:text-[#C85A32] transition-colors">
-              Location
             </Link>
           </div>
         </div>

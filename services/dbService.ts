@@ -33,17 +33,21 @@ export interface AddressItem {
   isDefault?: boolean;
 }
 
-// Deduplicate a list of addresses by both unique ID and normalized content signature, enforcing strictly one default
+// Deduplicate a list of addresses by both unique ID and normalized location signature, enforcing strictly one default
 export function deduplicateAddresses(addresses: AddressItem[]): AddressItem[] {
   if (!Array.isArray(addresses)) return [];
   const seenIds = new Set<string>();
-  const seenKeys = new Set<string>();
+  const seenLocations = new Set<string>();
   const result: AddressItem[] = [];
 
-  // Sort so that addresses with real IDs ('addr_...') come before 'default'
+  // Sort so that addresses with real IDs ('addr_...') come before 'default', and items with real user names come before 'Customer'
   const sorted = [...addresses].filter(Boolean).sort((a, b) => {
     if (a.id === 'default' && b.id !== 'default') return 1;
     if (b.id === 'default' && a.id !== 'default') return -1;
+    if (a.id === 'addr_default' && b.id !== 'addr_default') return 1;
+    if (b.id === 'addr_default' && a.id !== 'addr_default') return -1;
+    if (a.name?.toLowerCase() === 'customer' && b.name?.toLowerCase() !== 'customer') return 1;
+    if (b.name?.toLowerCase() === 'customer' && a.name?.toLowerCase() !== 'customer') return -1;
     return 0;
   });
 
@@ -52,20 +56,27 @@ export function deduplicateAddresses(addresses: AddressItem[]): AddressItem[] {
     
     // Normalize content for duplicate signature
     const normPhone = (a.phone || '').replace(/\D/g, '').slice(-10);
-    const normHouse = (a.houseNo || '').trim().toLowerCase();
-    const normPin = (a.pincode || '').trim().toLowerCase();
-    const normName = (a.name || '').trim().toLowerCase();
-    
-    // Content key if core contact/location fields are present
-    const contentKey = (normPhone || normPin) 
-      ? `${normName}|${normPhone}|${normHouse}|${normPin}` 
-      : null;
+    const normHouse = (a.houseNo || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normPin = (a.pincode || '').trim().toLowerCase().replace(/\s+/g, '');
+    const normCity = (a.city || '').trim().toLowerCase();
+
+    // Location key: if houseNo and pincode exist, that uniquely identifies the location!
+    let locKey: string | null = null;
+    if (normHouse && normPin) {
+      locKey = `loc_${normHouse}_${normPin}`;
+    } else if (normPhone && normHouse) {
+      locKey = `loc_${normPhone}_${normHouse}`;
+    } else if (normHouse && normCity) {
+      locKey = `loc_${normHouse}_${normCity}`;
+    } else if (normPhone && normPin) {
+      locKey = `loc_${normPhone}_${normPin}`;
+    }
 
     if (seenIds.has(a.id)) continue;
-    if (contentKey && seenKeys.has(contentKey)) continue;
+    if (locKey && seenLocations.has(locKey)) continue;
 
     seenIds.add(a.id);
-    if (contentKey) seenKeys.add(contentKey);
+    if (locKey) seenLocations.add(locKey);
     result.push(a);
   }
 
@@ -507,7 +518,7 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
           const dAddr = (uData.deliveryAddress || uData.shippingAddress) as StoreDeliveryAddress | undefined;
           if (dAddr && typeof dAddr === 'object' && (dAddr.street || dAddr.postalCode)) {
             const defaultItem: AddressItem = {
-              id: 'addr_' + Date.now(),
+              id: 'addr_default',
               name: dAddr.recipientName || uData.displayName || uData.name || 'Customer',
               phone: dAddr.phone || uData.phoneNumber || uData.phone || '',
               email: uData.email || '',
@@ -525,7 +536,7 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
       } catch (e) {}
     }
 
-    // Clean up legacy 'default' doc if other real addresses exist
+    // Clean up legacy 'default' or 'addr_default' doc if other real addresses exist
     if (hasLegacyDefaultDoc && rawAddresses.some(a => a.id !== 'default')) {
       try {
         deleteDoc(doc(db, 'users', uid, 'addresses', 'default')).catch(() => {});
@@ -564,8 +575,8 @@ export const fetchUserAddresses = async (uid: string): Promise<AddressItem[]> =>
 };
 
 export const saveUserAddress = async (uid: string, address: AddressItem): Promise<User> => {
-  // Ensure valid ID (never 'default')
-  const targetId = (!address.id || address.id === 'default') ? ('addr_' + Date.now()) : address.id;
+  // Ensure valid ID (never 'default' or 'addr_default')
+  const targetId = (!address.id || address.id === 'default' || address.id === 'addr_default') ? ('addr_' + Date.now()) : address.id;
   const addressWithId: AddressItem = { ...address, id: targetId };
 
   // Fetch existing addresses and deduplicate
@@ -573,19 +584,36 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   const isDefaultAddress = Boolean(addressWithId.isDefault || existing.length === 0);
   const updatedAddressItem: AddressItem = { ...addressWithId, isDefault: isDefaultAddress };
 
-  // Filter out any existing address with the same ID, legacy 'default', OR identical normalized address signature
+  // Filter out any existing address with the same ID, legacy 'default'/'addr_default', OR identical normalized address signature
   const normPhone = (updatedAddressItem.phone || '').replace(/\D/g, '').slice(-10);
-  const normHouse = (updatedAddressItem.houseNo || '').trim().toLowerCase();
-  const normPin = (updatedAddressItem.pincode || '').trim().toLowerCase();
+  const normHouse = (updatedAddressItem.houseNo || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normPin = (updatedAddressItem.pincode || '').trim().toLowerCase().replace(/\s+/g, '');
+  const normCity = (updatedAddressItem.city || '').trim().toLowerCase();
 
   const withoutCurrent = existing.filter(a => {
-    if (a.id === updatedAddressItem.id || a.id === 'default') return false;
+    if (!a || !a.id) return false;
+    if (a.id === updatedAddressItem.id || a.id === 'default' || a.id === 'addr_default') return false;
+    
     const aPhone = (a.phone || '').replace(/\D/g, '').slice(-10);
-    const aHouse = (a.houseNo || '').trim().toLowerCase();
-    const aPin = (a.pincode || '').trim().toLowerCase();
-    if (normPhone && normHouse && aPhone === normPhone && aHouse === normHouse && (!normPin || !aPin || aPin === normPin)) {
-      return false; // same address content, replace it
+    const aHouse = (a.houseNo || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const aPin = (a.pincode || '').trim().toLowerCase().replace(/\s+/g, '');
+    const aCity = (a.city || '').trim().toLowerCase();
+
+    // If existing address was a generic placeholder from profile creation, replace it
+    if (a.name?.toLowerCase() === 'customer' && (!a.houseNo || aHouse === normHouse || aPin === normPin)) {
+      return false;
     }
+
+    // Matching location details
+    if (normHouse && aHouse && normHouse === aHouse) {
+      if (normPin && aPin && normPin === aPin) return false;
+      if (normCity && aCity && normCity === aCity) return false;
+      if (normPhone && aPhone && normPhone === aPhone) return false;
+    }
+    if (normPhone && aPhone && normPhone === aPhone && normPin && aPin && normPin === aPin) {
+      return false;
+    }
+
     return true;
   });
 

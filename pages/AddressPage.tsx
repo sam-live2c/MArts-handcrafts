@@ -67,6 +67,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
   const [editingId, setEditingId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const isSavingRef = React.useRef<boolean>(false);
 
   // Authenticated user email (retrieved regardless of whether signed in via Google or Email)
   const loggedInEmail = user?.email || auth.currentUser?.email || (() => {
@@ -124,6 +125,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
   // Load user's addresses from Firestore or local storage on mount
   useEffect(() => {
     let isMounted = true;
+    if (isSavingRef.current) return;
     const loadAddresses = async () => {
       setIsLoading(true);
       const currentUser = auth.currentUser;
@@ -147,7 +149,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
       const uniqueFetched = deduplicateAddresses(fetched);
 
-      if (!isMounted) return;
+      if (!isMounted || isSavingRef.current) return;
 
       if (uniqueFetched.length > 0) {
         setAddresses(uniqueFetched);
@@ -296,9 +298,13 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       localStorage.setItem('agronic_user_address', formattedStr);
     }
 
+    isSavingRef.current = true;
     let updatedProfile: User | null = null;
+    let canonicalAddresses: AddressItem[] = [];
+
     if (currentUser) {
       updatedProfile = await saveUserAddress(currentUser.uid, addrToSave);
+      canonicalAddresses = await fetchUserAddresses(currentUser.uid);
     } else {
       const cached = localStorage.getItem('melody_user_profile');
       let current: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
@@ -318,7 +324,11 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       onUpdateUser(updatedProfile);
     }
 
-    if (editingId) {
+    if (canonicalAddresses.length > 0) {
+      setAddresses(canonicalAddresses);
+      const chosen = canonicalAddresses.find(a => a.id === addrToSave.id || (editingId && a.id === editingId)) || canonicalAddresses[0];
+      setSelectedId(chosen.id);
+    } else if (editingId) {
       setAddresses(prev => {
         const withoutOld = prev.filter(item => item.id !== editingId && item.id !== addrToSave.id);
         const updated = formData.isDefault
@@ -326,21 +336,24 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
           : [...withoutOld, addrToSave];
         return deduplicateAddresses(updated);
       });
-      showToast('Address and profile details updated successfully');
+      setSelectedId(addrToSave.id);
     } else {
       setAddresses(prev => {
-        const withoutTarget = prev.filter(item => item.id !== addrToSave.id && item.id !== 'default');
+        const withoutTarget = prev.filter(item => item.id !== addrToSave.id && item.id !== 'default' && item.id !== 'addr_default');
         const updated = addrToSave.isDefault
           ? [addrToSave, ...withoutTarget.map(a => ({ ...a, isDefault: false }))]
           : [...withoutTarget, addrToSave];
         return deduplicateAddresses(updated);
       });
       setSelectedId(addrToSave.id);
-      showToast('New default address set and profile updated');
     }
 
+    showToast(editingId ? 'Address and profile details updated successfully' : 'New default address set and profile updated');
     setShowForm(false);
     setEditingId(null);
+    setTimeout(() => {
+      isSavingRef.current = false;
+    }, 600);
 
     if (redirectTarget) {
       setTimeout(() => {
