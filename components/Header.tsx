@@ -24,6 +24,8 @@ interface HeaderProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   wishlistCount?: number;
+  showSearch?: boolean;
+  showWishlist?: boolean;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -33,7 +35,9 @@ const Header: React.FC<HeaderProps> = ({
   showBack,
   searchQuery = "",
   onSearchChange,
-  wishlistCount
+  wishlistCount,
+  showSearch = true,
+  showWishlist = true
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -279,72 +283,78 @@ const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Desktop Center Search Bar */}
-          <div className="hidden lg:flex flex-1 max-w-md mx-6 transition-all duration-200 relative">
-            <div className="w-full relative flex items-center">
-              <Search
-                size={17}
-                className="absolute left-3.5 text-[#8C6D58] pointer-events-none shrink-0"
-              />
-              <input
-                ref={desktopSearchInputRef}
-                type="text"
-                value={internalQuery}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                onClick={() => {
-                  if (suggestions.length > 0) setShowDropdown(true);
-                }}
-                onFocus={() => {
-                  if (suggestions.length > 0) setShowDropdown(true);
-                }}
-                placeholder="Search handcrafted pottery, statues..."
-                className="w-full pl-9 pr-9 py-2 bg-white/90 hover:bg-white focus:bg-white rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58] border border-[#E5D7CA] focus:border-[#C85A32] focus:ring-1 focus:ring-[#C85A32]/30 outline-none transition-all shadow-2xs"
-              />
-              {internalQuery && (
-                <button
-                  type="button"
-                  onClick={handleClearQuery}
-                  className="absolute right-3 text-[#8C6D58] hover:text-[#2B221B] p-0.5 rounded-full cursor-pointer"
-                  aria-label="Clear search"
-                >
-                  <X size={15} />
-                </button>
-              )}
+          {showSearch && (
+            <div className="hidden lg:flex flex-1 max-w-md mx-6 transition-all duration-200 relative">
+              <div className="w-full relative flex items-center">
+                <Search
+                  size={17}
+                  className="absolute left-3.5 text-[#8C6D58] pointer-events-none shrink-0"
+                />
+                <input
+                  ref={desktopSearchInputRef}
+                  type="text"
+                  value={internalQuery}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onClick={() => {
+                    if (suggestions.length > 0) setShowDropdown(true);
+                  }}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowDropdown(true);
+                  }}
+                  placeholder="Search handcrafted pottery, statues..."
+                  className="w-full pl-9 pr-9 py-2 bg-white/90 hover:bg-white focus:bg-white rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58] border border-[#E5D7CA] focus:border-[#C85A32] focus:ring-1 focus:ring-[#C85A32]/30 outline-none transition-all shadow-2xs"
+                />
+                {internalQuery && (
+                  <button
+                    type="button"
+                    onClick={handleClearQuery}
+                    className="absolute right-3 text-[#8C6D58] hover:text-[#2B221B] p-0.5 rounded-full cursor-pointer"
+                    aria-label="Clear search"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Right Corner: Search Toggle (Mobile/Tablet), Wishlist, Cart, Profile */}
           <div className="flex items-center gap-1.5 sm:gap-2.5 text-[#5F6368] shrink-0">
             {/* Mobile & Tablet Search Icon Toggle Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsSearchOpen(true);
-              }}
-              className="lg:hidden w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
-              aria-label="Search Store"
-              title="Search Store"
-            >
-              <Search size={20} />
-            </button>
+            {showSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSearchOpen(true);
+                }}
+                className="lg:hidden w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
+                aria-label="Search Store"
+                title="Search Store"
+              >
+                <Search size={20} />
+              </button>
+            )}
 
             {/* Wishlist Option */}
-            <Link
-              to="/wishlist"
-              className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
-              aria-label="Wishlist"
-              title="Saved Pieces"
-            >
-              <Heart
-                size={20}
-                className={wishlistCount !== undefined && wishlistCount > 0 ? "text-[#C85A32] fill-[#C85A32]/10" : ""}
-              />
-              {wishlistCount !== undefined && wishlistCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5]">
-                  {wishlistCount}
-                </span>
-              )}
-            </Link>
+            {showWishlist && location.pathname !== "/wishlist" && (
+              <Link
+                to="/wishlist"
+                className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
+                aria-label="Wishlist"
+                title="Saved Pieces"
+              >
+                <Heart
+                  size={20}
+                  className={wishlistCount !== undefined && wishlistCount > 0 ? "text-[#C85A32] fill-[#C85A32]/10" : ""}
+                />
+                {wishlistCount !== undefined && wishlistCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5]">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Cart Option */}
             <Link

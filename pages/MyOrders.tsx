@@ -4,11 +4,10 @@ import { handleGoBack } from '../utils/navigation';
 import { 
   ArrowLeft, Search, MoreVertical, X, Package, 
   AlertCircle, Headphones, CheckCircle2, Download, HelpCircle, Check,
-  ChevronRight, Truck
+  ChevronRight, Truck, XCircle
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
 import { PRODUCTS } from '../constants';
-import { OrderHistorySkeleton } from '../components/Skeleton';
 import { auth } from '../firebase';
 import { updateOrderStatusInFirestore } from '../services/dbService';
 
@@ -22,7 +21,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchInput, setShowSearchInput] = useState(false);
-  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -31,14 +29,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     title: string;
     message?: string;
   } | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const state = location.state as {
@@ -439,46 +429,16 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Orders</h1>
               </div>
 
-              {/* Right Side: Search and Menu button relatively positioned to the opposite side */}
-              <div className="flex items-center gap-1 -mr-1 relative">
+              {/* Right Side: Search button symmetrically aligned to opposite side using profile page reference */}
+              <div className="flex items-center -mr-1">
                 <button
                   type="button"
                   onClick={() => setShowSearchInput(true)}
-                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
                   aria-label="Search orders"
                 >
-                  <Search size={20} />
+                  <Search size={22} strokeWidth={2.2} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setShowHeaderMenu(!showHeaderMenu)}
-                  className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
-                  aria-label="More options"
-                >
-                  <MoreVertical size={20} />
-                </button>
-
-                {showHeaderMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-40" 
-                      onClick={() => setShowHeaderMenu(false)} 
-                    />
-                    <div className="absolute right-0 top-11 sm:top-12 z-50 w-[160px] bg-white border border-gray-200 rounded-lg py-1 shadow-md">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowHeaderMenu(false);
-                          navigate('/help');
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <span>Help & Support</span>
-                        <HelpCircle size={16} className="text-[#C85A32] shrink-0" />
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             </div>
           )}
@@ -510,11 +470,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Orders List */}
+        {/* Orders List - Direct rendering with zero artificial load animation */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4 pb-28 md:pb-8">
-          {isLoading ? (
-            <OrderHistorySkeleton count={3} />
-          ) : filteredOrders.length === 0 ? (
+          {filteredOrders.length === 0 ? (
             <div className="py-12 text-center my-2">
               <Package size={48} className="text-gray-300 mx-auto mb-3" />
               <h3 className="text-base font-bold text-gray-800">No orders found</h3>
@@ -561,53 +519,53 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <span className="text-sm font-bold text-gray-900">Order #{order.id}</span>
                           {isDelivered && (
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200/60 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
                             </span>
                           )}
                           {isProcessing && (
-                            <span className="bg-[#FAF0E6] text-[#8C3F1E] border border-[#EADBCC] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="bg-amber-50 text-amber-800 border border-amber-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
                               Processing
                             </span>
                           )}
                           {isShipped && (
-                            <span className="bg-blue-50 text-blue-700 border border-blue-200/60 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="bg-blue-50 text-blue-700 border border-blue-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
                               <Truck size={12} /> Shipped
                             </span>
                           )}
                           {isCancelled && (
-                            <span className="bg-gray-100 text-gray-600 border border-gray-200 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                              Cancelled
+                            <span className="bg-red-50 text-red-700 border border-red-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                              <XCircle size={12} strokeWidth={2.5} /> Cancelled
                             </span>
                           )}
                           {isFailed && (
-                            <span className="bg-red-50 text-red-700 border border-red-200 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
-                              Failed
+                            <span className="bg-red-50 text-red-700 border border-red-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                              <AlertCircle size={12} strokeWidth={2.5} /> Failed
                             </span>
                           )}
                         </div>
                         <p className="text-xs text-gray-500 mt-0.5">Placed on {order.date}</p>
                       </div>
 
-                      {/* Single Menu Button - Positioned on right side with -mr-1 */}
+                      {/* Single Menu Button - Positioned on right side aligned with profile back button reference */}
                       <div className="relative shrink-0 -mr-1">
                         <button
                           type="button"
                           onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
-                          className="p-1.5 hover:bg-gray-100 rounded-full text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shrink-0"
+                          className="p-1 hover:bg-gray-100 rounded-full text-gray-800 transition-colors cursor-pointer shrink-0"
                           aria-label="Order Options"
                         >
                           <MoreVertical size={20} />
                         </button>
 
-                        {/* Dropdown Menu: Download receipt & Cancel order */}
+                        {/* Dropdown Menu: strictly Download receipt & Cancel order */}
                         {isMenuOpen && (
                           <>
                             <div 
                               className="fixed inset-0 z-40" 
                               onClick={() => setActiveMenuOrderId(null)} 
                             />
-                            <div className="absolute right-0 top-10 sm:top-11 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-md">
+                            <div className="absolute right-0 top-9 sm:top-10 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-lg animate-in fade-in duration-100">
                               <button
                                 type="button"
                                 onClick={() => handleDownloadReceipt(order)}
@@ -669,11 +627,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                                     Delivered on {order.date}
                                   </span>
                                 ) : isCancelled ? (
-                                  <span className="font-semibold text-gray-500">
+                                  <span className="font-semibold text-red-600 flex items-center gap-1">
+                                    <XCircle size={13} strokeWidth={2.5} />
                                     Cancelled on {order.date}
                                   </span>
                                 ) : isFailed ? (
-                                  <span className="font-semibold text-red-600">
+                                  <span className="font-semibold text-red-600 flex items-center gap-1">
+                                    <AlertCircle size={13} strokeWidth={2.5} />
                                     Payment Failed on {order.date}
                                   </span>
                                 ) : isShipped ? (

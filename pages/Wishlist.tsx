@@ -1,15 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
   ShoppingCart,
-  Trash2,
-  ArrowLeft,
   ChevronRight,
-  ShoppingBag,
-  Star,
-  Check,
-  AlertCircle
+  Star
 } from 'lucide-react';
 import { Product, User } from '../types';
 import { PRODUCTS } from '../constants';
@@ -32,12 +27,9 @@ const Wishlist: React.FC<WishlistProps> = ({
   onRemoveFromWishlist,
   onMoveToCart,
   onMoveAllToCart,
-  onClearWishlist,
   cartCount
 }) => {
   const navigate = useNavigate();
-  const [movingId, setMovingId] = useState<string | null>(null);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Combine products from catalog and local cache
   const allProducts = useMemo(() => {
@@ -63,14 +55,6 @@ const Wishlist: React.FC<WishlistProps> = ({
     return allProducts.filter((product) => wishlist.includes(product.id));
   }, [allProducts, wishlist]);
 
-  const handleMoveToCart = (product: Product) => {
-    if (product.stock <= 0) return;
-    setMovingId(product.id);
-    setTimeout(() => {
-      onMoveToCart(product);
-      setMovingId(null);
-    }, 250);
-  };
 
   const handleMoveAll = () => {
     const inStockItems = wishlistProducts.filter((p) => p.stock > 0);
@@ -105,66 +89,19 @@ const Wishlist: React.FC<WishlistProps> = ({
           <span className="text-[#2B221B] font-semibold">Wishlist</span>
         </nav>
 
-        {/* Page Heading & Actions Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 mb-6 border-b border-[#EADBCC]">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
-                My Wishlist
-              </h1>
-              <span className="text-xs sm:text-sm font-bold bg-[#F2E8DE] text-[#C85A32] px-2.5 py-0.5 rounded-full">
-                {wishlistProducts.length} {wishlistProducts.length === 1 ? 'item' : 'items'}
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-[#735A4C] mt-1 max-w-xl">
-              Your saved collection of wheel-thrown terracotta pottery, vitrified ceramics, and hand-chiseled stone sculptures.
-            </p>
+        {/* Page Heading */}
+        <div className="pb-6 mb-6 border-b border-[#EADBCC]">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
+              My Wishlist
+            </h1>
+            <span className="text-xs sm:text-sm font-bold bg-[#F2E8DE] text-[#C85A32] px-2.5 py-0.5 rounded-full">
+              {wishlistProducts.length} {wishlistProducts.length === 1 ? 'item' : 'items'}
+            </span>
           </div>
-
-          {/* Bulk actions when wishlist is populated */}
-          {wishlistProducts.length > 0 && (
-            <div className="flex items-center gap-2.5 shrink-0">
-              {showClearConfirm ? (
-                <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-[#EADBCC] shadow-xs animate-in fade-in duration-150">
-                  <span className="text-xs text-[#735A4C]">Clear all items?</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onClearWishlist) onClearWishlist();
-                      setShowClearConfirm(false);
-                    }}
-                    className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer"
-                  >
-                    Yes, clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowClearConfirm(false)}
-                    className="text-xs text-[#735A4C] hover:text-[#2B221B] cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowClearConfirm(true)}
-                  className="px-3 py-2 text-xs font-medium text-[#735A4C] hover:text-[#C85A32] border border-[#EADBCC] hover:border-[#C85A32] bg-white rounded-lg transition-colors cursor-pointer"
-                >
-                  Clear Wishlist
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={handleMoveAll}
-                className="px-4 py-2 bg-[#C85A32] hover:bg-[#B34D27] active:scale-98 text-white rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
-              >
-                <ShoppingBag size={15} />
-                <span>Move All to Cart</span>
-              </button>
-            </div>
-          )}
+          <p className="text-xs sm:text-sm text-[#735A4C] mt-1 max-w-xl">
+            Your saved collection of wheel-thrown terracotta pottery, vitrified ceramics, and hand-chiseled stone sculptures.
+          </p>
         </div>
 
         {/* Wishlist Items Grid - matching Home page product grid style */}
@@ -173,7 +110,6 @@ const Wishlist: React.FC<WishlistProps> = ({
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
               {wishlistProducts.map((prod) => {
                 const isOutOfStock = prod.stock <= 0;
-                const isMoving = movingId === prod.id;
 
                 return (
                   <div
@@ -235,7 +171,7 @@ const Wishlist: React.FC<WishlistProps> = ({
 
                     <div>
                       {/* Price Display */}
-                      <div className="flex items-baseline gap-1.5 mb-2.5 pt-1.5 border-t border-[#F0E6DC]">
+                      <div className="flex items-baseline gap-1.5 pt-1.5 border-t border-[#F0E6DC]">
                         <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
                           ₹{prod.price.toLocaleString()}
                         </span>
@@ -250,78 +186,6 @@ const Wishlist: React.FC<WishlistProps> = ({
                           </span>
                         )}
                       </div>
-
-                      {/* Interactive Action Buttons (Neatly proportioned for 2 in a row mobile) */}
-                      <div className="flex items-center gap-1.5 sm:gap-2 w-full">
-                        <button
-                          type="button"
-                          disabled={isOutOfStock || isMoving}
-                          style={{ flex: 1 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMoveToCart(prod);
-                          }}
-                          className={`flex-[1] text-[11px] sm:text-xs font-semibold py-1.5 sm:py-2 px-1 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer border min-w-0 ${
-                            isOutOfStock
-                              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : isMoving
-                              ? 'bg-[#EBDCCB] text-[#5E473A] border-[#D8C7B5]'
-                              : 'bg-[#FAF5EE] hover:bg-[#F2E9DE] text-[#5E473A] border-[#E5D7CA]'
-                          }`}
-                          title="Move to Cart"
-                          aria-label="Move to Cart"
-                        >
-                          {isMoving ? (
-                            <>
-                              <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0 text-[#C85A32]" />
-                              <span className="truncate text-[#C85A32]">Added</span>
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                              <span className="truncate">Cart</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          disabled={isOutOfStock}
-                          style={{ flex: 1.3 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isOutOfStock) return;
-                            onMoveToCart(prod);
-                            if (!user) {
-                              navigate('/login?redirect=checkout');
-                              return;
-                            }
-                            navigate('/checkout');
-                          }}
-                          className={`flex-[1.3] text-[11px] sm:text-xs font-bold py-1.5 sm:py-2 px-1.5 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-1 shadow-xs cursor-pointer min-w-0 ${
-                            isOutOfStock
-                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
-                              : 'bg-[#C85A32] hover:bg-[#A04724] text-white'
-                          }`}
-                          title="Buy Now"
-                          aria-label="Buy Now"
-                        >
-                          <span className="truncate">{isOutOfStock ? 'Sold Out' : 'Buy Now'}</span>
-                        </button>
-                      </div>
-
-                      {/* Quick subtle remove link */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveFromWishlist(prod.id);
-                        }}
-                        className="w-full mt-2 text-center text-[11px] text-[#A89283] hover:text-[#C85A32] transition-colors cursor-pointer flex items-center justify-center gap-1"
-                      >
-                        <Trash2 size={12} />
-                        <span>Remove</span>
-                      </button>
                     </div>
                   </div>
                 );
