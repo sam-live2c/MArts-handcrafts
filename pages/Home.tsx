@@ -14,6 +14,10 @@ import { PRODUCTS } from '../constants';
 import { CartItem, Product, User } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
+import terracottaBanner from '../src/assets/images/marts_terracotta_banner_1791637410497.jpg';
+import stoneStatuesBanner from '../src/assets/images/marts_stone_statues_banner_1791637432558.jpg';
+import ceramicVasesBanner from '../src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg';
+import bronzeBrassBanner from '../src/assets/images/marts_bronze_brass_banner_1791637453407.jpg';
 
 interface HomeProps {
   user?: User | null;
@@ -26,6 +30,7 @@ interface HomeProps {
 interface BannerSlide {
   id: string;
   image: string;
+  fallbackImage?: string;
   title: string;
   subtitle: string;
   tag: string;
@@ -36,7 +41,8 @@ interface BannerSlide {
 const BANNER_SLIDES: BannerSlide[] = [
   {
     id: 'slide-1',
-    image: '/src/assets/images/marts_terracotta_banner_1791637410497.jpg',
+    image: terracottaBanner,
+    fallbackImage: '/media/banners/marts_terracotta_banner_1791637410497.jpg',
     title: 'MArts Heirloom Terracotta Pottery',
     subtitle: 'Wheel-thrown alluvial clay vessels fired in traditional biomass wood kilns',
     tag: 'Wheel-Thrown Masterpieces',
@@ -45,7 +51,8 @@ const BANNER_SLIDES: BannerSlide[] = [
   },
   {
     id: 'slide-2',
-    image: '/src/assets/images/marts_stone_statues_banner_1791637432558.jpg',
+    image: stoneStatuesBanner,
+    fallbackImage: '/media/banners/marts_stone_statues_banner_1791637432558.jpg',
     title: 'MArts Sacred Stone Sculptures',
     subtitle: 'Solid monolithic sandstone sculptures carved by generational master sculptors',
     tag: 'Sacred Sculptures',
@@ -54,7 +61,8 @@ const BANNER_SLIDES: BannerSlide[] = [
   },
   {
     id: 'slide-3',
-    image: '/src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg',
+    image: ceramicVasesBanner,
+    fallbackImage: '/media/banners/marts_ceramic_vases_banner_1791637442354.jpg',
     title: 'MArts Ceramic Vases',
     subtitle: 'Watertight stoneware pottery dipped in tactile raw earth & oatmeal mineral glazes',
     tag: 'Artisan Ceramics',
@@ -63,7 +71,8 @@ const BANNER_SLIDES: BannerSlide[] = [
   },
   {
     id: 'slide-4',
-    image: '/src/assets/images/marts_bronze_brass_banner_1791637453407.jpg',
+    image: bronzeBrassBanner,
+    fallbackImage: '/media/banners/marts_bronze_brass_banner_1791637453407.jpg',
     title: 'MArts Heritage Bronze & Brass',
     subtitle: 'Heirloom bell-metal sculptures with hand-rubbed antique beeswax patina',
     tag: 'Heritage Metalwork',
@@ -259,7 +268,14 @@ export const Home: React.FC<HomeProps> = ({
                   <img
                     src={slide.image}
                     alt={slide.title}
-                    referrerPolicy="no-referrer"
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                    decoding="async"
+                    onError={(e) => {
+                      const target = e.currentTarget;
+                      if (slide.fallbackImage && target.src !== slide.fallbackImage && !target.src.endsWith(slide.fallbackImage)) {
+                        target.src = slide.fallbackImage;
+                      }
+                    }}
                     className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.01]"
                   />
                 </Link>
