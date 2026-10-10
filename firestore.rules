@@ -1,0 +1,149 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // PILLAR 1 & 2: DEFAULT CLOSED & HELPER FUNCTIONS
+    // ==========================================
+    
+    // Catch-all default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Secure Admin Check:
+    // 1. Dedicated admins/{uid} document verification
+    // 2. Or user profile document role == 'admin'
+    // 3. Or bootstrap master admin email
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin') ||
+        request.auth.token.email == 'xsophiya99@gmail.com'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // ==========================================
+    // PRODUCTS COLLECTION (PUBLIC READ, ADMIN WRITE)
+    // ==========================================
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(productId);
+    }
+
+    // ==========================================
+    // SITE SETTINGS & HERO BANNERS (PUBLIC READ, ADMIN WRITE)
+    // ==========================================
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(settingId);
+    }
+
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(bannerId);
+    }
+
+    // ==========================================
+    // USERS COLLECTION & SUBCOLLECTIONS (PII PROTECTED)
+    // ==========================================
+    match /users/{userId} {
+      // Individual user profile can only be read by the owner or an admin (NO public listing)
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+
+      // User creation during signup
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
+      // User profile update:
+      // Owners can update their profile (name, phone, address, etc.), but CANNOT elevate their role to admin!
+      allow update: if (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role']))) || isAdmin();
+
+      // Only admins can delete user records
+      allow delete: if isAdmin();
+
+      // --- Addresses Subcollection ---
+      // Universally accessible by the account owner and fulfillment admins
+      match /addresses/{addressId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if isOwner(userId) || isAdmin();
+      }
+
+      // --- Cart Subcollection ---
+      match /cart/{cartItemId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // --- Wishlist Subcollection ---
+      match /wishlist/{wishlistId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // --- User-Specific Orders Subcollection ---
+      match /orders/{orderId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId);
+        allow update, delete: if isAdmin();
+      }
+
+      // --- Notifications Subcollection ---
+      match /notifications/{notifId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // ==========================================
+    // GLOBAL ORDERS COLLECTION (CUSTOMER + ADMIN PIPELINE)
+    // ==========================================
+    match /orders/{orderId} {
+      // Customers can read their own orders; admins can list and read all
+      allow get: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow list: if isAdmin();
+
+      // Only authenticated users can create orders for their own user ID
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+
+      // Only admins can update order status (e.g., Shipped, Delivered) or delete orders
+      allow update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // PAYMENTS COLLECTION (SECURE AUDIT LOGS)
+    // ==========================================
+    match /payments/{paymentId} {
+      allow get: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // ==========================================
+    // ADMINS REGISTRY (ROLE GOVERNANCE)
+    // ==========================================
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

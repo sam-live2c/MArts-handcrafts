@@ -1,0 +1,303 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with personal details, default address, and contact info",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Full name of the user",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Primary phone number of the user",
+          "maxLength": 20
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user",
+          "maxLength": 120
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Full display name of the user",
+          "maxLength": 100
+        },
+        "phoneNumber": {
+          "type": "string",
+          "description": "Phone number of the user",
+          "maxLength": 20
+        },
+        "address": {
+          "type": "string",
+          "description": "Universal formatted primary delivery address",
+          "maxLength": 500
+        },
+        "deliveryAddress": {
+          "type": "object",
+          "description": "Standard StoreDeliveryAddress object synchronized with Melody App"
+        },
+        "shippingAddress": {
+          "type": "object",
+          "description": "Standard StoreDeliveryAddress object for shipping"
+        },
+        "role": {
+          "type": "string",
+          "description": "Access role of the user (customer or admin)",
+          "enum": ["customer", "admin"]
+        },
+        "orders": {
+          "type": "array",
+          "description": "Cached order summary list for the user"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp of the last profile or address update"
+        }
+      },
+      "required": ["name"]
+    },
+    "Address": {
+      "title": "Address",
+      "description": "Delivery address saved under user account",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the address"
+        },
+        "name": {
+          "type": "string",
+          "description": "Recipient full name",
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Recipient contact phone number",
+          "maxLength": 20
+        },
+        "pincode": {
+          "type": "string",
+          "description": "Postal pincode",
+          "maxLength": 10
+        },
+        "houseNo": {
+          "type": "string",
+          "description": "House number, building name, flat details",
+          "maxLength": 200
+        },
+        "area": {
+          "type": "string",
+          "description": "Street, colony, or locality details",
+          "maxLength": 200
+        },
+        "city": {
+          "type": "string",
+          "description": "City or district name",
+          "maxLength": 100
+        },
+        "state": {
+          "type": "string",
+          "description": "State or region name",
+          "maxLength": 100
+        },
+        "type": {
+          "type": "string",
+          "description": "Address classification label",
+          "enum": ["HOME", "WORK", "OTHER"]
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "Whether this address is the universal default"
+        }
+      },
+      "required": ["name", "phone", "houseNo", "pincode", "city", "state"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Catalog hardware product item",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique product SKU / ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name of the product",
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Hardware category"
+        },
+        "subCategory": {
+          "type": "string",
+          "description": "Hardware sub-category"
+        },
+        "price": {
+          "type": "number",
+          "description": "Current selling price in INR"
+        },
+        "oldPrice": {
+          "type": "number",
+          "description": "Original MRP before discount in INR"
+        },
+        "discount": {
+          "type": "string",
+          "description": "Discount badge text"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Star rating out of 5"
+        },
+        "reviewsCount": {
+          "type": "number",
+          "description": "Total review count"
+        },
+        "image": {
+          "type": "string",
+          "description": "Primary product image URL stored in Firebase Storage or public CDN"
+        },
+        "images": {
+          "type": "array",
+          "description": "Gallery of product image URLs"
+        },
+        "description": {
+          "type": "string",
+          "description": "Product summary and sales pitch"
+        },
+        "brand": {
+          "type": "string",
+          "description": "Hardware manufacturer / brand name"
+        },
+        "stock": {
+          "type": "number",
+          "description": "Available stock count"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["id", "name", "price", "image"]
+    },
+    "HeroBanner": {
+      "title": "HeroBanner",
+      "description": "Dynamic homepage hero banner configuration and image assets",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Hero banner ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Main banner headline",
+          "maxLength": 300
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Supporting promotional body text",
+          "maxLength": 600
+        },
+        "badgeText": {
+          "type": "string",
+          "description": "Top highlight badge text",
+          "maxLength": 100
+        },
+        "ctaText": {
+          "type": "string",
+          "description": "Primary call-to-action button label",
+          "maxLength": 60
+        },
+        "ctaLink": {
+          "type": "string",
+          "description": "Destination route or URL"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Hero showcase graphic URL stored in Firebase Storage"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this hero configuration is live"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp of banner update"
+        }
+      },
+      "required": ["title", "active"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Order reference code"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Purchaser UID"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Customer name"
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Customer contact number"
+        },
+        "customerAddress": {
+          "type": "string",
+          "description": "Full shipping address"
+        },
+        "total": {
+          "type": "number",
+          "description": "Order total amount in INR"
+        },
+        "status": {
+          "type": "string",
+          "description": "Current order lifecycle status",
+          "enum": ["Processing", "Shipped", "Delivered", "Cancelled", "Failed"]
+        },
+        "items": {
+          "type": "array",
+          "description": "Line items in the order"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Order placement timestamp"
+        }
+      },
+      "required": ["id", "userId", "total", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles with universal contact and address details"
+    },
+    "/users/{userId}/addresses/{addressId}": {
+      "schema": "Address",
+      "description": "User saved shipping addresses"
+    },
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Storefront equipment products managed via admin panel"
+    },
+    "/settings/{settingId}": {
+      "schema": "HeroBanner",
+      "description": "Site-wide configuration and hero banner settings"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Global order management registry"
+    }
+  }
+}

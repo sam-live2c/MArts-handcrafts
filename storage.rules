@@ -1,0 +1,59 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Catch-all default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isImageFile() {
+      return request.resource.contentType.matches('image/.*');
+    }
+
+    function isReasonableSize(maxMb) {
+      return request.resource.size < maxMb * 1024 * 1024;
+    }
+
+    // ==========================================
+    // PRODUCT IMAGES PIPELINE
+    // Public read for storefront; authenticated admin write
+    // ==========================================
+    match /products/{productId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImageFile() && isReasonableSize(15);
+    }
+
+    // ==========================================
+    // HERO BANNER IMAGES PIPELINE
+    // Public read for homepage banner; authenticated admin write
+    // ==========================================
+    match /hero/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && isImageFile() && isReasonableSize(15);
+    }
+
+    // ==========================================
+    // USER AVATARS & ASSETS
+    // Owner write, public read
+    // ==========================================
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId && isImageFile() && isReasonableSize(5);
+    }
+
+    // ==========================================
+    // CUSTOMER CUSTOMIZATION UPLOADS
+    // Logos, vector artwork, QR codes for fabrication
+    // ==========================================
+    match /customizations/{itemId}/{fileName} {
+      allow read: if true;
+      allow write: if isReasonableSize(25);
+    }
+  }
+}

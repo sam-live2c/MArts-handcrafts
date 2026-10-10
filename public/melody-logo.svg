@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 80" fill="none">
+  <!-- Melody Colorful 'm' Icon -->
+  <g stroke-width="13.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Blue: Left Vertical Leg -->
+    <path d="M 18 58 L 18 34" stroke="#4285F4" />
+    <!-- Yellow: Top-Left Arch -->
+    <path d="M 18 34 C 18 16, 43 16, 43 34" stroke="#FBBC05" />
+    <!-- Red: Center Stem & Top-Right Arch -->
+    <path d="M 43 58 L 43 34 C 43 16, 68 16, 68 34" stroke="#EA4335" />
+    <!-- Green: Lower Right Leg -->
+    <path d="M 68 34 L 68 58" stroke="#34A853" />
+  </g>
+  
+  <!-- Text 'melody' -->
+  <text x="96" y="55" font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif" font-size="44" font-weight="700" fill="#1F1F1F" letter-spacing="-1">melody</text>
+</svg>

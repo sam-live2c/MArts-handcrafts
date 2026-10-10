@@ -1,0 +1,1137 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { PRODUCTS } from "../constants";
+import {
+  X,
+  ShoppingCart,
+  Star,
+  Plus,
+  Minus,
+  Check,
+  CreditCard,
+  Zap,
+  ChevronRight,
+  ChevronDown,
+  HelpCircle,
+  ArrowLeft,
+  Share2,
+  ThumbsUp,
+  MessageSquare,
+  Send,
+  UserCheck,
+  Lock,
+  ShieldCheck,
+  ShoppingBag,
+  AlertCircle,
+  Filter,
+  Heart
+} from "lucide-react";
+import { CartItem, User, Review, Order } from "../types";
+import Logo from "../components/Logo";
+import RunningTruckIcon from "../components/RunningTruckIcon";
+
+interface ProductDetailProps {
+  onAddToCart: (item: CartItem, silent?: boolean) => void;
+  wishlist: string[];
+  onToggleWishlist: (id: string) => void;
+  user?: User | null;
+  cartCount?: number;
+}
+
+const INITIAL_REVIEWS: Review[] = [
+  {
+    id: "rev-1",
+    productId: "1",
+    userName: "Ananya Sengupta",
+    rating: 5,
+    comment: "The fluted urn arrived in pristine condition within heavy timber crating. The raw alluvial clay texture and subtle kiln flame gradient make it a true masterpiece in our foyer.",
+    date: "3 days ago",
+    isVerified: true,
+    helpfulCount: 28,
+  },
+  {
+    id: "rev-2",
+    productId: "1",
+    userName: "Dr. Vikramaditya Roy",
+    rating: 5,
+    comment: "Outstanding craftsmanship! You can immediately feel the weight and authentic wheel-thrown craft. The unglazed finish has that earthy, grounding presence.",
+    date: "1 week ago",
+    isVerified: true,
+    helpfulCount: 19,
+  },
+  {
+    id: "rev-3",
+    productId: "1",
+    userName: "Meera Kulkarni",
+    rating: 5,
+    comment: "Exceeded all expectations. Completely transformed our dining credenza. We get compliments from every single guest who visits.",
+    date: "2 weeks ago",
+    isVerified: true,
+    helpfulCount: 14,
+  },
+];
+
+const ProductDetail: React.FC<ProductDetailProps> = ({
+  onAddToCart,
+  wishlist,
+  onToggleWishlist,
+  user,
+  cartCount = 0,
+}) => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const product = PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
+
+  const [selectedImg, setSelectedImg] = useState(0);
+  const [selectedQty, setSelectedQty] = useState(1);
+  const [activeTab, setActiveTab] = useState<"details" | "specs" | "reviews">("details");
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  // Reviews state with localStorage persistence
+  const [reviews, setReviews] = useState<Review[]>(() => {
+    try {
+      const isInit = localStorage.getItem(`melody_reviews_init_v3_${product.id}`);
+      if (!isInit) {
+        localStorage.setItem(`melody_reviews_init_v3_${product.id}`, "true");
+        localStorage.setItem(`melody_reviews_${product.id}`, JSON.stringify(INITIAL_REVIEWS));
+        return INITIAL_REVIEWS;
+      }
+      const saved = localStorage.getItem(`melody_reviews_${product.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_REVIEWS;
+  });
+
+  const [authorName, setAuthorName] = useState("");
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [newComment, setNewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSuccessMsg, setReviewSuccessMsg] = useState("");
+  const [helpfulVotes, setHelpfulVotes] = useState<Record<string, boolean>>({});
+  const [ratingFilter, setRatingFilter] = useState<number | "all">("all");
+  const [sortBy, setSortBy] = useState<"newest" | "highest" | "helpful">("newest");
+
+  const wordCount = useMemo(() => {
+    const trimmed = newComment.trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).filter(Boolean).length;
+  }, [newComment]);
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const words = val.trim().split(/\s+/).filter(Boolean);
+    if (words.length <= 500) {
+      setNewComment(val);
+    } else {
+      const allowedWords = words.slice(0, 500).join(" ");
+      setNewComment(allowedWords);
+    }
+  };
+
+  // Extract all user orders from user profile & localStorage caches
+  const userOrders: Order[] = useMemo(() => {
+    const list: Order[] = [];
+    if (user && Array.isArray(user.orders)) {
+      list.push(...user.orders);
+    }
+    try {
+      const cached = localStorage.getItem("melody_orders");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((po: Order) => {
+            if (!list.some((o) => o.id === po.id)) {
+              list.push(po);
+            }
+          });
+        }
+      }
+      if (user?.email) {
+        const userCache = localStorage.getItem(`melody_orders_${user.email}`);
+        if (userCache) {
+          const parsed = JSON.parse(userCache);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((po: Order) => {
+              if (!list.some((o) => o.id === po.id)) {
+                list.push(po);
+              }
+            });
+          }
+        }
+      }
+      if (user?.phone) {
+        const phoneCache = localStorage.getItem(`melody_orders_${user.phone}`);
+        if (phoneCache) {
+          const parsed = JSON.parse(phoneCache);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((po: Order) => {
+              if (!list.some((o) => o.id === po.id)) {
+                list.push(po);
+              }
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Order read error:", err);
+    }
+    return list;
+  }, [user]);
+
+  // Identify purchase: search purchase history records for this product's ID
+  const matchingPurchase = useMemo(() => {
+    return (
+      userOrders.find(
+        (order) =>
+          Boolean(order?.id) &&
+          order.status !== "Cancelled" &&
+          order.status !== "Failed" &&
+          Array.isArray(order.items) &&
+          order.items.some(
+            (item: any) =>
+              String(item?.id || item?.productId || "").trim() === String(product.id).trim()
+          )
+      ) || null
+    );
+  }, [userOrders, product.id]);
+
+  const hasPurchased = Boolean(matchingPurchase && matchingPurchase.id);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`melody_reviews_${product.id}`, JSON.stringify(reviews));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [reviews, product.id]);
+
+  const ratingCounts = useMemo(() => {
+    const counts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    reviews.forEach((r) => {
+      const star = Math.min(Math.max(Math.round(r.rating), 1), 5);
+      counts[star] = (counts[star] || 0) + 1;
+    });
+    return counts;
+  }, [reviews]);
+
+  const avgRating = useMemo(() => {
+    if (reviews.length === 0) return "5.0";
+    const sum = reviews.reduce((acc, r) => acc + (r.rating || 5), 0);
+    return (sum / reviews.length).toFixed(1);
+  }, [reviews]);
+
+  const displayedReviews = useMemo(() => {
+    let list = [...reviews];
+    if (ratingFilter !== "all") {
+      list = list.filter((r) => Math.round(r.rating) === ratingFilter);
+    }
+    if (sortBy === "highest") {
+      list.sort((a, b) => b.rating - a.rating);
+    } else if (sortBy === "helpful") {
+      list.sort((a, b) => (b.helpfulCount || 0) - (a.helpfulCount || 0));
+    }
+    return list;
+  }, [reviews, ratingFilter, sortBy]);
+
+  const handleSubmitReview = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!newComment.trim()) return;
+
+    setSubmittingReview(true);
+    setTimeout(() => {
+      const displayName = (authorName.trim() || user?.name || "Verified Customer").trim();
+      const newRev: Review = {
+        id: `rev-${Date.now()}`,
+        productId: product.id,
+        userName: displayName,
+        rating: newRating,
+        comment: newComment.trim(),
+        date: "Just now",
+        isVerified: true,
+        orderId: matchingPurchase?.id,
+        helpfulCount: 0,
+      };
+      setReviews((prev) => [newRev, ...prev]);
+      setNewComment("");
+      setAuthorName("");
+      setSubmittingReview(false);
+      setShowReviewModal(false);
+      setReviewSuccessMsg("Thank you! Your verified purchaser review has been added.");
+      setTimeout(() => setReviewSuccessMsg(""), 5000);
+    }, 250);
+  };
+
+  const handleToggleHelpful = (reviewId: string) => {
+    setHelpfulVotes((prev) => {
+      const wasHelpful = prev[reviewId];
+      setReviews((currentReviews) =>
+        currentReviews.map((r) =>
+          r.id === reviewId
+            ? { ...r, helpfulCount: r.helpfulCount + (wasHelpful ? -1 : 1) }
+            : r
+        )
+      );
+      return { ...prev, [reviewId]: !wasHelpful };
+    });
+  };
+
+  const faqs = [
+    {
+      question: "How does the Melody NFC review stand work?",
+      answer: "Customers simply tap their smartphone (iPhone or Android) on the stand, or scan the high-definition QR code with their camera. Their phone automatically opens your official Google review submission screen directly—no app download or manual searching needed."
+    },
+    {
+      question: "Are there any monthly subscription or renewal fees?",
+      answer: "Zero! This is a 100% one-time purchase. There are no monthly subscriptions, no hidden cloud fees, and lifetime free tap redirection is included."
+    },
+    {
+      question: "Does the stand need charging, batteries, or Wi-Fi?",
+      answer: "No power or charging is required. The stand operates 100% passively using standard NFC electromagnetic induction. It never runs out of battery and is ready 24/7."
+    },
+    {
+      question: "How is it configured with my Google Business profile?",
+      answer: "We pre-configure every stand before dispatch using the Google Maps link or business name provided in your order. When you unbox it, it works immediately on your counter."
+    },
+    {
+      question: "Is it compatible with both iPhone and Android?",
+      answer: "Yes. All modern iPhones (iPhone 7 and newer) and virtually all NFC-enabled Android smartphones support instant tap. For older devices, the laser-crisp QR code provides instant camera access."
+    }
+  ];
+
+  const displayImages =
+    product.images && product.images.length > 0
+      ? product.images
+      : [product.image];
+
+  const isWishlisted = wishlist.includes(product.id);
+
+  // Touch swipe handling
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    if (distance > 35) {
+      // Next image
+      setSelectedImg((prev) => (prev + 1) % displayImages.length);
+    } else if (distance < -35) {
+      // Prev image
+      setSelectedImg((prev) => (prev - 1 + displayImages.length) % displayImages.length);
+    }
+  };
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [id]);
+
+  const handleDecreaseQty = () => {
+    if (selectedQty > 1) {
+      setSelectedQty((prev) => prev - 1);
+    }
+  };
+
+  const handleIncreaseQty = () => {
+    const nextQty = selectedQty + 1;
+    setSelectedQty(nextQty);
+    onAddToCart(
+      {
+        ...product,
+        quantity: 1,
+      },
+      true
+    );
+  };
+
+  const handleAddToCart = () => {
+    onAddToCart({
+      ...product,
+      quantity: selectedQty,
+    });
+  };
+
+  const handleBuyNow = () => {
+    onAddToCart(
+      {
+        ...product,
+        quantity: selectedQty,
+      },
+      true
+    );
+
+    if (!user) {
+      navigate("/login?redirect=checkout");
+      return;
+    }
+    navigate("/checkout");
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: product.name,
+        url: window.location.href,
+      }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
+
+  const handleBack = () => {
+    if (window.history.state && window.history.state.idx > 0) {
+      navigate(-1);
+    } else {
+      navigate('/', { replace: true });
+    }
+  };
+
+  return (
+    <div className="w-full min-h-screen bg-white font-sans selection:bg-purple-100 text-[#1F1F1F] flex flex-col">
+      {/* Top Minimalist Bar: Edge-to-edge across devices with proper outer edge positioning */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between border-b border-gray-100 shadow-xs min-h-[52px] sm:min-h-[56px]">
+          {/* Back/Close Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 text-gray-800 transition-colors cursor-pointer"
+              aria-label="Back"
+            >
+              <ArrowLeft size={22} strokeWidth={2} />
+            </button>
+
+            {/* Desktop Breadcrumb */}
+            <nav className="hidden md:flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+              <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
+              <ChevronRight size={13} className="text-gray-400" />
+              <Link to="/" className="hover:text-gray-900 transition-colors">Hardware</Link>
+              <ChevronRight size={13} className="text-gray-400" />
+              <span className="text-gray-900 font-semibold truncate max-w-[200px] lg:max-w-xs">{product.name}</span>
+            </nav>
+          </div>
+
+          {/* Right Action Buttons */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Share link button */}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+              aria-label="Share product"
+              title="Share product"
+            >
+              <Share2 size={18} strokeWidth={2} />
+              {copiedLink && (
+                <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded shadow-md whitespace-nowrap">
+                  Link copied!
+                </span>
+              )}
+            </button>
+
+            {/* Wishlist toggle button */}
+            <button
+              type="button"
+              onClick={() => onToggleWishlist(product.id)}
+              className={`relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center transition-colors cursor-pointer ${
+                isWishlisted ? "text-[#C85A32]" : "text-gray-700 hover:text-[#C85A32]"
+              }`}
+              aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
+              title={isWishlisted ? "Saved to wishlist" : "Save to wishlist"}
+            >
+              <Heart size={19} strokeWidth={2} className={isWishlisted ? "fill-[#C85A32]" : ""} />
+            </button>
+
+            {/* Cart circular button with badge */}
+            <button
+              type="button"
+              onClick={() => navigate("/cart")}
+              className="relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+              aria-label="Shopping Cart"
+            >
+              <ShoppingCart size={20} strokeWidth={2} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#2874f0] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
+          
+          {/* Left Column: Product Gallery */}
+          <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">
+            <div
+              className="relative w-full aspect-square max-w-[320px] md:max-w-[420px] flex items-center justify-center select-none touch-pan-y group"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              <img
+                src={displayImages[selectedImg] || product.image}
+                alt={product.name}
+                className="w-[85%] h-[85%] object-contain drop-shadow-md"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+
+            {/* Pagination dots (o o • o) */}
+            <div className="flex items-center justify-center gap-2 mt-4">
+              {displayImages.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setSelectedImg(idx)}
+                  className={`transition-all duration-300 rounded-full cursor-pointer ${
+                    idx === selectedImg
+                      ? "w-2.5 h-2.5 bg-[#2E2E2E]"
+                      : "w-2 h-2 bg-[#E5E7EB] hover:bg-gray-400"
+                  }`}
+                  aria-label={`Image slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Right Column: Metadata, Pricing, Stepper & Purchase Flow */}
+          <div className="md:col-span-6 lg:col-span-6 px-5 sm:px-6 lg:px-10 pt-3 md:pt-6 lg:pt-10 pb-6 flex flex-col gap-3.5 bg-white justify-between">
+            <div className="flex flex-col gap-3.5">
+              {/* Eyebrow / Brand (Purple bold text) */}
+              <div className="text-[#3B125B] font-bold text-sm tracking-tight">
+                <span>{product.brand || "Melody"}</span>
+              </div>
+
+              {/* Product Title */}
+              <h1 className="text-[19px] sm:text-[21px] lg:text-[24px] font-bold text-gray-900 leading-[1.3] tracking-tight -mt-1">
+                {product.name}
+              </h1>
+
+              {/* Pricing & Unit Info */}
+              <div className="flex items-baseline gap-2.5 flex-wrap">
+                <span className="text-2xl lg:text-3xl font-black text-[#BA3D1D] tracking-tight">
+                  ₹{product.price.toLocaleString()}
+                </span>
+                {(product.oldPrice || 1499) && (
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="text-xs text-gray-400 font-normal">M.R.P.:</span>
+                    <del className="text-sm lg:text-base text-gray-400 font-normal" aria-label="Maximum retail price">
+                      ₹{(product.oldPrice || 1499).toLocaleString()}
+                    </del>
+                    <span className="text-xs lg:text-sm font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                      {product.discount || `${Math.round((((product.oldPrice || 1499) - product.price) / (product.oldPrice || 1499)) * 100)}% off`}
+                    </span>
+                  </span>
+                )}
+                <span className="text-sm font-medium text-gray-600">
+                  Standard Countertop Edition
+                </span>
+              </div>
+
+              {/* Rating & Review count */}
+              <div className="flex items-center gap-1.5 text-sm text-gray-800 -mt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("reviews");
+                    const el = document.getElementById("reviews-tab-section");
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }}
+                  className="flex items-center gap-1.5 text-gray-800 hover:text-[#2874f0] transition-colors cursor-pointer group text-left"
+                  aria-label={`View ${reviews.length} ratings and reviews`}
+                >
+                  <span className="font-bold">{avgRating}</span>
+                  <div className="flex text-amber-400">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        size={14}
+                        className={
+                          s <= Math.round(Number(avgRating))
+                            ? "fill-current text-amber-400"
+                            : "text-gray-200"
+                        }
+                      />
+                    ))}
+                  </div>
+                  <span className="text-gray-600 group-hover:text-[#2874f0] group-hover:underline text-xs ml-0.5 font-medium">
+                    ({reviews.length} {reviews.length === 1 ? "rating" : "ratings"})
+                  </span>
+                </button>
+              </div>
+
+              {/* Badge Pill (Dark teal like EBT in screenshot) */}
+              <div>
+                <span className="inline-block bg-[#0D4B3E] text-white text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider">
+                  NTAG216 NFC
+                </span>
+              </div>
+
+              {/* Delivery & Melody Branding Card */}
+              <div className="rounded-2xl border border-gray-200/90 p-3.5 sm:p-4 flex flex-col gap-3">
+                {/* Delivery Information */}
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-8 h-8 flex items-center justify-center shrink-0 mt-0.5"
+                    title="Express Delivery"
+                  >
+                    <RunningTruckIcon size={21} className="text-gray-900" />
+                  </div>
+                  <div className="flex flex-col min-w-0">
+                    <div className="flex items-baseline gap-2 flex-wrap">
+                      <span className="text-[13px] font-semibold text-gray-900 tracking-tight">
+                        Free delivery across India
+                      </span>
+                    </div>
+                    <p className="text-[12px] text-gray-500 font-normal mt-0.5 leading-relaxed">
+                      Dispatches within 24 hours • Expected delivery in 2–4 business days
+                    </p>
+                  </div>
+                </div>
+
+                {/* Subtle Divider */}
+                <div className="h-px bg-gray-200/80 w-full" />
+
+                {/* Brand Row */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  {/* Melody Store Branding */}
+                  <div className="flex items-center gap-1.5">
+                    <Logo variant="dark" size="sm" showStoreTag={true} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Large Pill Stepper (Deep purple container with white circular buttons) */}
+              <div className="mt-2 w-full bg-[#1F132E] text-white h-[54px] rounded-full px-2 hidden sm:flex items-center justify-between shadow-md">
+                <button
+                  type="button"
+                  onClick={handleDecreaseQty}
+                  className="w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center active:scale-90 hover:bg-gray-100 transition-transform cursor-pointer shadow-xs"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus size={18} strokeWidth={2.5} />
+                </button>
+
+                <span className="font-bold text-base text-white tracking-wide select-none">
+                  {selectedQty} in cart
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleIncreaseQty}
+                  className="w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center active:scale-90 hover:bg-gray-100 transition-transform cursor-pointer shadow-xs"
+                  aria-label="Increase quantity"
+                >
+                  <Plus size={18} strokeWidth={2.5} />
+                </button>
+              </div>
+
+              {/* Instant High-Conversion CTAs (Desktop / Tablet: Inline; Mobile: Fixed Bottom Bar) */}
+              <div className="pt-1 hidden sm:flex flex-row gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => onToggleWishlist(product.id)}
+                  className={`h-12 w-12 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 ${
+                    isWishlisted
+                      ? "border-[#C85A32] text-[#C85A32] bg-[#FAF0E6]"
+                      : "border-gray-200 text-gray-700 hover:border-[#C85A32] hover:text-[#C85A32]"
+                  }`}
+                  aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+                  title={isWishlisted ? "Saved in wishlist" : "Add to wishlist"}
+                >
+                  <Heart size={20} className={isWishlisted ? "fill-[#C85A32]" : ""} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddToCart}
+                  className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 active:scale-98 text-gray-900 font-bold text-[15px] sm:text-[16px] rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <ShoppingCart size={18} />
+                  <span>Add to Cart</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBuyNow}
+                  className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-[15px] sm:text-[16px] rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <ShoppingBag size={18} />
+                  <span>Buy Now</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabbed Info Section (Details | Specifications | Reviews) with Green Underline Indicator */}
+        <div id="reviews-tab-section" className="border-t border-gray-100 bg-white flex-1 pb-28 sm:pb-16">
+          {/* Tab Headers */}
+          <div className="flex border-b border-gray-200 px-5 sm:px-8 lg:px-12 overflow-x-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("details")}
+              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "details"
+                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
+              }`}
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("specs")}
+              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === "specs"
+                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
+              }`}
+            >
+              Specifications
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("reviews")}
+              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${
+                activeTab === "reviews"
+                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
+              }`}
+            >
+              <span>Reviews</span>
+              <span className="text-[#2874f0] text-xs font-extrabold px-1">
+                ({reviews.length})
+              </span>
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-5 sm:p-8 lg:p-12">
+            {activeTab === "details" && (
+              <div className="space-y-6 text-[13.5px] md:text-[14.5px] leading-relaxed text-gray-700 w-full">
+                <p>
+                  Whether you're running a bustling cafe, medical clinic, boutique salon, or retail showroom, you'll love having the Melody Smart NFC & QR Google Review Countertop Stand at your checkout counter. With a single tap or quick camera scan, customers are instantly directed to your official Google Maps 5-star review page—no typing URLs, searching, or app downloads needed.
+                </p>
+
+                {/* Highlights grid */}
+                <div className="pt-2 bg-transparent border-0 outline-none">
+                  <h4 className="font-bold text-gray-900 text-sm mb-3">Highlights</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {product.highlights.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2.5 py-2 px-0 bg-transparent rounded-none border-0">
+                        <Check size={16} className="text-[#2874f0] shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <span className="text-xs sm:text-sm font-medium text-gray-800">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "specs" && (
+              <div className="space-y-6 max-w-4xl text-xs sm:text-sm">
+                {product.specGroups && product.specGroups.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {product.specGroups.map((group, idx) => (
+                      <div key={idx} className="space-y-2 bg-transparent rounded-none p-0 border-0">
+                        <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
+                          {group.title}
+                        </h4>
+                        <div className="divide-y divide-gray-200">
+                          {Object.entries(group.specs).map(([k, v], i) => (
+                            <div key={i} className="py-2.5 flex justify-between gap-4">
+                              <span className="text-gray-500 font-medium">{k}</span>
+                              <span className="text-gray-900 font-bold text-right">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-transparent rounded-none p-0 border-0 space-y-2 text-xs sm:text-sm max-w-lg">
+                    <div className="flex justify-between py-2 border-b border-gray-200">
+                      <span className="text-gray-500">Brand</span>
+                      <span className="font-bold text-gray-900">Melody</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-200">
+                      <span className="text-gray-500">NFC Chip</span>
+                      <span className="font-bold text-gray-900">NTAG216 High Speed</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-200">
+                      <span className="text-gray-500">Compatibility</span>
+                      <span className="font-bold text-gray-900">iPhone & Android</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-gray-500">Power Source</span>
+                      <span className="font-bold text-gray-900">Passive (No Battery Needed)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "reviews" && (
+              <div className="space-y-5 max-w-4xl">
+                {/* Rating & Review Summary Banner */}
+                <div className="bg-transparent rounded-none p-0 border-0 grid grid-cols-1 md:grid-cols-3 gap-6 items-center pb-5 border-b border-gray-100">
+                  <div className="text-center md:text-left space-y-2 md:border-r border-gray-200 pr-0 md:pr-6">
+                    <div className="flex items-baseline justify-center md:justify-start gap-2">
+                      <span className="text-4xl font-extrabold text-gray-900">{avgRating}</span>
+                      <span className="text-sm font-semibold text-gray-500">out of 5</span>
+                    </div>
+                    <div className="flex items-center justify-center md:justify-start gap-1 text-amber-400">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          size={18}
+                          className={
+                            star <= Math.round(Number(avgRating))
+                              ? "fill-current text-amber-400"
+                              : "text-gray-200"
+                          }
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-600 font-medium">
+                      Based on {reviews.length} authentic customer reviews
+                    </p>
+                  </div>
+
+                  {/* Rating Breakdown Bars */}
+                  <div className="space-y-2 md:col-span-2 text-xs">
+                    {[5, 4, 3, 2, 1].map((stars) => {
+                      const count = ratingCounts[stars] || 0;
+                      const pct = reviews.length > 0 ? Math.round((count / reviews.length) * 100) : 0;
+                      const isSelected = ratingFilter === stars;
+                      return (
+                        <button
+                          key={stars}
+                          type="button"
+                          onClick={() => setRatingFilter(isSelected ? "all" : stars)}
+                          className={`w-full flex items-center gap-3 p-1 rounded-lg transition-colors cursor-pointer text-left ${
+                            isSelected ? "bg-blue-50/70" : "hover:bg-gray-100/70"
+                          }`}
+                        >
+                          <span className={`w-14 font-bold text-right ${isSelected ? "text-[#2874f0]" : "text-gray-700"}`}>
+                            {stars} {stars === 1 ? "Star" : "Stars"}
+                          </span>
+                          <div className="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-[#2874f0] h-full rounded-full transition-all duration-500"
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="w-12 text-gray-500 text-right font-medium">
+                            {count} ({pct}%)
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Filter Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-gray-500 mr-1 flex items-center gap-1">
+                      <Filter size={13} /> Filter:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setRatingFilter("all")}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                        ratingFilter === "all"
+                          ? "bg-gray-900 text-white shadow-xs"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      All ({reviews.length})
+                    </button>
+                    {[5, 4, 3, 2, 1].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingFilter(ratingFilter === star ? "all" : star)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                          ratingFilter === star
+                            ? "bg-[#2874f0] text-white shadow-xs"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        <span>{star}</span>
+                        <Star size={11} className="fill-current" />
+                        <span>({ratingCounts[star] || 0})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Review Submission Section: only available when confirmed order id present is true */}
+                {hasPurchased && (
+                  <div id="verified-purchaser-review-section" className="space-y-2.5 pb-4 border-b border-gray-100">
+                    {/* 5-Star section on top of input: stars without background, without border */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-gray-700">Rating:</span>
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => {
+                            const isSelected = star <= (hoverRating || newRating);
+                            return (
+                              <button
+                                key={star}
+                                type="button"
+                                id={`verified-rating-star-${star}`}
+                                onClick={() => setNewRating(star)}
+                                onMouseEnter={() => setHoverRating(star)}
+                                onMouseLeave={() => setHoverRating(0)}
+                                className="p-0.5 transition-transform hover:scale-115 cursor-pointer bg-transparent border-0 focus:outline-none"
+                                title={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                                aria-label={`Rate ${star} star${star > 1 ? "s" : ""}`}
+                              >
+                                <Star
+                                  size={18}
+                                  className={`transition-colors ${
+                                    isSelected
+                                      ? "text-amber-400 fill-amber-400"
+                                      : "text-gray-300 fill-none hover:text-amber-300"
+                                  }`}
+                                />
+                              </button>
+                            );
+                          })}
+                          <span className="text-xs font-semibold text-gray-600 ml-1">
+                            {hoverRating || newRating} / 5 Stars
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-medium text-gray-400 shrink-0">
+                        {wordCount} / 500 words
+                      </span>
+                    </div>
+
+                    {/* Single-line comment input section (not a box, single line with icon button) */}
+                    <div className="flex items-center gap-2 border-b border-gray-300 focus-within:border-[#2874f0] transition-colors pb-1">
+                      <input
+                        type="text"
+                        id="verified-comment-input"
+                        value={newComment}
+                        maxLength={3000}
+                        onChange={handleCommentChange}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && newComment.trim() && !submittingReview) {
+                            e.preventDefault();
+                            handleSubmitReview();
+                          }
+                        }}
+                        placeholder="Write your review in a single line (up to 500 words)..."
+                        className="flex-1 text-xs sm:text-sm py-2 px-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-gray-900 placeholder:text-gray-400"
+                      />
+                      {newComment.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setNewComment("")}
+                          className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer shrink-0"
+                          aria-label="Clear review"
+                          title="Clear"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        id="submit-verified-review-btn"
+                        onClick={() => handleSubmitReview()}
+                        disabled={submittingReview || !newComment.trim()}
+                        title="Post Review"
+                        aria-label="Post Review"
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-[#2874f0] hover:bg-blue-50 active:bg-blue-100 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+
+                    {/* Review submission success message: without background and outline container */}
+                    {reviewSuccessMsg && (
+                      <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 pt-1 transition-all">
+                        <Check size={15} className="text-emerald-600 shrink-0" />
+                        <span>{reviewSuccessMsg}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback Review submission success message if not in hasPurchased container */}
+                {!hasPurchased && reviewSuccessMsg && (
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 py-1 transition-all">
+                    <Check size={15} className="text-emerald-600 shrink-0" />
+                    <span>{reviewSuccessMsg}</span>
+                  </div>
+                )}
+
+                {/* Customer Reviews Feed */}
+                <div className="space-y-4 pt-1">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                    <h4 className="font-bold text-gray-900 text-sm">
+                      Customer Reviews ({displayedReviews.length})
+                    </h4>
+                    {ratingFilter !== "all" && (
+                      <button
+                        type="button"
+                        onClick={() => setRatingFilter("all")}
+                        className="text-xs font-semibold text-[#2874f0] hover:underline cursor-pointer"
+                      >
+                        Clear {ratingFilter}-star filter
+                      </button>
+                    )}
+                  </div>
+
+                  {displayedReviews.length === 0 ? (
+                    <div className="text-center py-10 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-2">
+                      <MessageSquare size={28} className="mx-auto text-gray-400" />
+                      <p className="text-sm font-bold text-gray-700">No reviews found for this filter</p>
+                      <p className="text-xs text-gray-500">Try selecting a different star rating or clear the filter.</p>
+                      <button
+                        type="button"
+                        onClick={() => setRatingFilter("all")}
+                        className="mt-2 px-4 py-1.5 bg-white border border-gray-300 text-gray-800 text-xs font-bold rounded-lg hover:bg-gray-100 cursor-pointer"
+                      >
+                        Show All Reviews
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100 space-y-4">
+                      {displayedReviews.map((rev) => (
+                        <div key={rev.id} className="pt-4 first:pt-0 space-y-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              {/* User Avatar */}
+                              <div className="w-9 h-9 rounded-full text-[#2874f0] font-bold text-xs flex items-center justify-center shrink-0">
+                                {rev.userName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-gray-900 text-sm">{rev.userName}</span>
+                                </div>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <div className="flex items-center text-amber-400">
+                                    {[1, 2, 3, 4, 5].map((s) => (
+                                      <Star
+                                        key={s}
+                                        size={12}
+                                        className={
+                                          s <= rev.rating
+                                            ? "fill-current text-amber-400"
+                                            : "text-gray-200"
+                                        }
+                                      />
+                                    ))}
+                                  </div>
+                                  <span className="text-[11px] text-gray-400 font-medium">• {rev.date}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Comment text */}
+                          <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-medium pl-12">
+                            {rev.comment}
+                          </p>
+
+                          {/* Helpful button */}
+                          <div className="pl-12 flex items-center gap-3 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleHelpful(rev.id)}
+                              className={`flex items-center gap-1.5 text-xs font-semibold py-1 px-2.5 rounded-lg border transition-colors cursor-pointer bg-transparent hover:bg-transparent active:bg-transparent outline-none focus:outline-none focus:ring-0 select-none ${
+                                helpfulVotes[rev.id]
+                                  ? "text-[#2874f0] border-blue-200 hover:border-blue-300"
+                                  : "text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-800"
+                              }`}
+                            >
+                              <ThumbsUp
+                                size={13}
+                                className={helpfulVotes[rev.id] ? "fill-[#2874f0]" : ""}
+                              />
+                              <span>Helpful ({rev.helpfulCount})</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+      {/* Mobile Native-App Fixed Bottom Action Bar (Mobile Only) */}
+      <div 
+        id="mobile-bottom-action-bar"
+        className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="flex items-center gap-2.5 w-full max-w-md mx-auto">
+          <button
+            type="button"
+            onClick={() => onToggleWishlist(product.id)}
+            className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 ${
+              isWishlisted
+                ? "border-[#C85A32] text-[#C85A32] bg-[#FAF0E6]"
+                : "border-gray-200 text-gray-700 bg-gray-50"
+            }`}
+            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
+          >
+            <Heart size={20} className={isWishlisted ? "fill-[#C85A32]" : ""} />
+          </button>
+          <button
+            type="button"
+            id="mobile-add-to-cart-btn"
+            onClick={handleAddToCart}
+            className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 active:scale-98 text-gray-900 font-bold text-[15px] rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer border border-gray-200/80 shadow-2xs"
+            aria-label="Add to cart"
+          >
+            <ShoppingCart size={18} />
+            <span>Add to Cart</span>
+          </button>
+          <button
+            type="button"
+            id="mobile-buy-now-btn"
+            onClick={handleBuyNow}
+            className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-[15px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            aria-label="Buy now"
+          >
+            <ShoppingBag size={18} />
+            <span>Buy Now</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  );
+};
+
+export default ProductDetail;

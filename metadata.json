@@ -1,0 +1,10 @@
+{
+  "name": "MArts",
+  "description": "MArts - Handcrafted Pottery & Statues. Exquisite artisanal terracotta pots, ceramic vases, hand-carved stone and brass sculptures, and heritage home decor.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
