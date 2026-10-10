@@ -471,7 +471,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             >
               <ShoppingCart size={20} strokeWidth={2} />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#2874f0] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#C85A32] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
                   {cartCount}
                 </span>
               )}
@@ -519,9 +519,9 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           {/* Right Column: Metadata, Pricing, Stepper & Purchase Flow */}
           <div className="md:col-span-6 lg:col-span-6 px-5 sm:px-6 lg:px-10 pt-3 md:pt-6 lg:pt-10 pb-6 flex flex-col gap-3.5 bg-white justify-between">
             <div className="flex flex-col gap-3.5">
-              {/* Eyebrow / Brand (Purple bold text) */}
-              <div className="text-[#3B125B] font-bold text-sm tracking-tight">
-                <span>{product.brand || "Melody"}</span>
+              {/* Eyebrow / Brand */}
+              <div className="text-[#C85A32] font-bold text-xs uppercase tracking-wider">
+                <span>{product.brand || "MArts"}</span>
               </div>
 
               {/* Product Title */}
@@ -561,7 +561,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       el.scrollIntoView({ behavior: "smooth" });
                     }
                   }}
-                  className="flex items-center gap-1.5 text-gray-800 hover:text-[#2874f0] transition-colors cursor-pointer group text-left"
+                  className="flex items-center gap-1.5 text-gray-800 hover:text-[#C85A32] transition-colors cursor-pointer group text-left"
                   aria-label={`View ${reviews.length} ratings and reviews`}
                 >
                   <span className="font-bold">{avgRating}</span>
@@ -578,20 +578,13 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       />
                     ))}
                   </div>
-                  <span className="text-gray-600 group-hover:text-[#2874f0] group-hover:underline text-xs ml-0.5 font-medium">
+                  <span className="text-gray-600 group-hover:text-[#C85A32] group-hover:underline text-xs ml-0.5 font-medium">
                     ({reviews.length} {reviews.length === 1 ? "rating" : "ratings"})
                   </span>
                 </button>
               </div>
 
-              {/* Badge Pill (Dark teal like EBT in screenshot) */}
-              <div>
-                <span className="inline-block bg-[#0D4B3E] text-white text-[11px] font-black px-2.5 py-0.5 rounded-md tracking-wider">
-                  NTAG216 NFC
-                </span>
-              </div>
-
-              {/* Delivery & Melody Branding Card */}
+              {/* Delivery & Artisan Branding Card */}
               <div className="rounded-2xl border border-gray-200/90 p-3.5 sm:p-4 flex flex-col gap-3">
                 {/* Delivery Information */}
                 <div className="flex items-start gap-3">
@@ -618,53 +611,40 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
 
                 {/* Brand Row */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  {/* Melody Store Branding */}
+                  {/* MArts Store Branding without Studio Tag */}
                   <div className="flex items-center gap-1.5">
-                    <Logo variant="dark" size="sm" showStoreTag={true} />
+                    <Logo variant="dark" size="sm" showStoreTag={false} />
                   </div>
                 </div>
               </div>
 
-              {/* Large Pill Stepper (Deep purple container with white circular buttons) */}
-              <div className="mt-2 w-full bg-[#1F132E] text-white h-[54px] rounded-full px-2 hidden sm:flex items-center justify-between shadow-md">
+              {/* Quantity Stepper with theme terracotta styling */}
+              <div className="mt-1 w-full bg-[#FAF5EE] border border-[#EADBCC] text-[#2B221B] h-[48px] rounded-xl px-2.5 hidden sm:flex items-center justify-between shadow-2xs">
                 <button
                   type="button"
                   onClick={handleDecreaseQty}
-                  className="w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center active:scale-90 hover:bg-gray-100 transition-transform cursor-pointer shadow-xs"
+                  className="w-8 h-8 rounded-lg bg-white border border-[#E5D7CA] text-[#2B221B] flex items-center justify-center active:scale-90 hover:bg-[#FAF0E6] transition-transform cursor-pointer shadow-2xs"
                   aria-label="Decrease quantity"
                 >
-                  <Minus size={18} strokeWidth={2.5} />
+                  <Minus size={16} strokeWidth={2.5} />
                 </button>
 
-                <span className="font-bold text-base text-white tracking-wide select-none">
+                <span className="font-bold text-sm text-[#2B221B] tracking-wide select-none">
                   {selectedQty} in cart
                 </span>
 
                 <button
                   type="button"
                   onClick={handleIncreaseQty}
-                  className="w-10 h-10 rounded-full bg-white text-gray-900 flex items-center justify-center active:scale-90 hover:bg-gray-100 transition-transform cursor-pointer shadow-xs"
+                  className="w-8 h-8 rounded-lg bg-white border border-[#E5D7CA] text-[#2B221B] flex items-center justify-center active:scale-90 hover:bg-[#FAF0E6] transition-transform cursor-pointer shadow-2xs"
                   aria-label="Increase quantity"
                 >
-                  <Plus size={18} strokeWidth={2.5} />
+                  <Plus size={16} strokeWidth={2.5} />
                 </button>
               </div>
 
               {/* Instant High-Conversion CTAs (Desktop / Tablet: Inline; Mobile: Fixed Bottom Bar) */}
               <div className="pt-1 hidden sm:flex flex-row gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => onToggleWishlist(product.id)}
-                  className={`h-12 w-12 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 ${
-                    isWishlisted
-                      ? "border-[#C85A32] text-[#C85A32] bg-[#FAF0E6]"
-                      : "border-gray-200 text-gray-700 hover:border-[#C85A32] hover:text-[#C85A32]"
-                  }`}
-                  aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-                  title={isWishlisted ? "Saved in wishlist" : "Add to wishlist"}
-                >
-                  <Heart size={20} className={isWishlisted ? "fill-[#C85A32]" : ""} />
-                </button>
                 <button
                   type="button"
                   onClick={handleAddToCart}
@@ -676,7 +656,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                 <button
                   type="button"
                   onClick={handleBuyNow}
-                  className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-[15px] sm:text-[16px] rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:scale-98 text-white font-bold text-[15px] sm:text-[16px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <ShoppingBag size={18} />
                   <span>Buy Now</span>
@@ -695,7 +675,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               onClick={() => setActiveTab("details")}
               className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "details"
-                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
               }`}
             >
@@ -706,7 +686,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               onClick={() => setActiveTab("specs")}
               className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "specs"
-                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
               }`}
             >
@@ -717,12 +697,12 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               onClick={() => setActiveTab("reviews")}
               className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${
                 activeTab === "reviews"
-                  ? "text-gray-900 border-b-[2.5px] border-[#2874f0]"
+                  ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
               }`}
             >
               <span>Reviews</span>
-              <span className="text-[#2874f0] text-xs font-extrabold px-1">
+              <span className="text-[#C85A32] text-xs font-extrabold px-1">
                 ({reviews.length})
               </span>
             </button>
@@ -733,7 +713,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             {activeTab === "details" && (
               <div className="space-y-6 text-[13.5px] md:text-[14.5px] leading-relaxed text-gray-700 w-full">
                 <p>
-                  Whether you're running a bustling cafe, medical clinic, boutique salon, or retail showroom, you'll love having the Melody Smart NFC & QR Google Review Countertop Stand at your checkout counter. With a single tap or quick camera scan, customers are instantly directed to your official Google Maps 5-star review page—no typing URLs, searching, or app downloads needed.
+                  Handcrafted with generational skill by master heritage artisans, each {product.name.toLowerCase()} is individually wheel-thrown, sculpted, and fired using traditional techniques. Finished with natural organic patinas and mineral glazes, it brings timeless artistic elegance and cultural heritage to your living spaces, temples, gardens, or collector galleries.
                 </p>
 
                 {/* Highlights grid */}
@@ -742,7 +722,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {product.highlights.map((item, idx) => (
                       <div key={idx} className="flex items-start gap-2.5 py-2 px-0 bg-transparent rounded-none border-0">
-                        <Check size={16} className="text-[#2874f0] shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <Check size={16} className="text-[#C85A32] shrink-0 mt-0.5" strokeWidth={2.5} />
                         <span className="text-xs sm:text-sm font-medium text-gray-800">{item}</span>
                       </div>
                     ))}
@@ -775,19 +755,19 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   <div className="bg-transparent rounded-none p-0 border-0 space-y-2 text-xs sm:text-sm max-w-lg">
                     <div className="flex justify-between py-2 border-b border-gray-200">
                       <span className="text-gray-500">Brand</span>
-                      <span className="font-bold text-gray-900">Melody</span>
+                      <span className="font-bold text-gray-900">MArts</span>
                     </div>
                     <div className="flex justify-between py-2 border-b border-gray-200">
-                      <span className="text-gray-500">NFC Chip</span>
-                      <span className="font-bold text-gray-900">NTAG216 High Speed</span>
+                      <span className="text-gray-500">Craftsmanship</span>
+                      <span className="font-bold text-gray-900">Generational Handcrafted</span>
                     </div>
                     <div className="flex justify-between py-2 border-b border-gray-200">
-                      <span className="text-gray-500">Compatibility</span>
-                      <span className="font-bold text-gray-900">iPhone & Android</span>
+                      <span className="text-gray-500">Material</span>
+                      <span className="font-bold text-gray-900">{product.category || "Alluvial Clay & Natural Minerals"}</span>
                     </div>
                     <div className="flex justify-between py-2">
-                      <span className="text-gray-500">Power Source</span>
-                      <span className="font-bold text-gray-900">Passive (No Battery Needed)</span>
+                      <span className="text-gray-500">Origin</span>
+                      <span className="font-bold text-gray-900">Indian Artisan Guilds</span>
                     </div>
                   </div>
                 )}
@@ -833,15 +813,15 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                           type="button"
                           onClick={() => setRatingFilter(isSelected ? "all" : stars)}
                           className={`w-full flex items-center gap-3 p-1 rounded-lg transition-colors cursor-pointer text-left ${
-                            isSelected ? "bg-blue-50/70" : "hover:bg-gray-100/70"
+                            isSelected ? "bg-[#FAF0E6]" : "hover:bg-gray-100/70"
                           }`}
                         >
-                          <span className={`w-14 font-bold text-right ${isSelected ? "text-[#2874f0]" : "text-gray-700"}`}>
+                          <span className={`w-14 font-bold text-right ${isSelected ? "text-[#C85A32]" : "text-gray-700"}`}>
                             {stars} {stars === 1 ? "Star" : "Stars"}
                           </span>
                           <div className="flex-1 bg-gray-200 h-2.5 rounded-full overflow-hidden">
                             <div
-                              className="bg-[#2874f0] h-full rounded-full transition-all duration-500"
+                              className="bg-[#C85A32] h-full rounded-full transition-all duration-500"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -878,7 +858,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                         onClick={() => setRatingFilter(ratingFilter === star ? "all" : star)}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                           ratingFilter === star
-                            ? "bg-[#2874f0] text-white shadow-xs"
+                            ? "bg-[#C85A32] text-white shadow-xs"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                       >
@@ -934,7 +914,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                     </div>
 
                     {/* Single-line comment input section (not a box, single line with icon button) */}
-                    <div className="flex items-center gap-2 border-b border-gray-300 focus-within:border-[#2874f0] transition-colors pb-1">
+                    <div className="flex items-center gap-2 border-b border-gray-300 focus-within:border-[#C85A32] transition-colors pb-1">
                       <input
                         type="text"
                         id="verified-comment-input"
@@ -968,7 +948,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                         disabled={submittingReview || !newComment.trim()}
                         title="Post Review"
                         aria-label="Post Review"
-                        className="w-8 h-8 flex items-center justify-center rounded-full text-[#2874f0] hover:bg-blue-50 active:bg-blue-100 disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
+                        className="w-8 h-8 flex items-center justify-center rounded-full text-[#C85A32] hover:bg-[#FAF0E6] active:bg-[#F2E4D8] disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-all cursor-pointer shrink-0"
                       >
                         <Send size={16} />
                       </button>
@@ -1002,7 +982,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       <button
                         type="button"
                         onClick={() => setRatingFilter("all")}
-                        className="text-xs font-semibold text-[#2874f0] hover:underline cursor-pointer"
+                        className="text-xs font-semibold text-[#C85A32] hover:underline cursor-pointer"
                       >
                         Clear {ratingFilter}-star filter
                       </button>
@@ -1029,7 +1009,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
                               {/* User Avatar */}
-                              <div className="w-9 h-9 rounded-full text-[#2874f0] font-bold text-xs flex items-center justify-center shrink-0">
+                              <div className="w-9 h-9 rounded-full bg-[#FAF0E6] text-[#C85A32] font-bold text-xs flex items-center justify-center shrink-0">
                                 {rev.userName.charAt(0).toUpperCase()}
                               </div>
                               <div>
@@ -1068,13 +1048,13 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                               onClick={() => handleToggleHelpful(rev.id)}
                               className={`flex items-center gap-1.5 text-xs font-semibold py-1 px-2.5 rounded-lg border transition-colors cursor-pointer bg-transparent hover:bg-transparent active:bg-transparent outline-none focus:outline-none focus:ring-0 select-none ${
                                 helpfulVotes[rev.id]
-                                  ? "text-[#2874f0] border-blue-200 hover:border-blue-300"
+                                  ? "text-[#C85A32] border-[#C85A32] bg-[#FAF0E6]"
                                   : "text-gray-600 border-gray-200 hover:border-gray-300 hover:text-gray-800"
                               }`}
                             >
                               <ThumbsUp
                                 size={13}
-                                className={helpfulVotes[rev.id] ? "fill-[#2874f0]" : ""}
+                                className={helpfulVotes[rev.id] ? "fill-[#C85A32]" : ""}
                               />
                               <span>Helpful ({rev.helpfulCount})</span>
                             </button>
@@ -1094,19 +1074,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
         id="mobile-bottom-action-bar"
         className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200/90 px-4 py-2.5 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] pb-[max(0.625rem,env(safe-area-inset-bottom))]"
       >
-        <div className="flex items-center gap-2.5 w-full max-w-md mx-auto">
-          <button
-            type="button"
-            onClick={() => onToggleWishlist(product.id)}
-            className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 shrink-0 ${
-              isWishlisted
-                ? "border-[#C85A32] text-[#C85A32] bg-[#FAF0E6]"
-                : "border-gray-200 text-gray-700 bg-gray-50"
-            }`}
-            aria-label={isWishlisted ? "Remove from wishlist" : "Add to wishlist"}
-          >
-            <Heart size={20} className={isWishlisted ? "fill-[#C85A32]" : ""} />
-          </button>
+        <div className="flex items-center gap-3 w-full max-w-md mx-auto">
           <button
             type="button"
             id="mobile-add-to-cart-btn"
@@ -1121,7 +1089,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             type="button"
             id="mobile-buy-now-btn"
             onClick={handleBuyNow}
-            className="flex-1 h-12 bg-blue-600 hover:bg-blue-700 active:scale-98 text-white font-bold text-[15px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:scale-98 text-white font-bold text-[15px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
             aria-label="Buy now"
           >
             <ShoppingBag size={18} />

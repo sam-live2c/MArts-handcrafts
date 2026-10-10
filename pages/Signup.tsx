@@ -36,7 +36,6 @@ const GoogleIcon = () => (
 
 const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   const [fullName, setFullName] = useState('');
-  const [businessName, setBusinessName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -106,7 +105,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
     const trimmedEmail = email.trim().toLowerCase();
     const newUser: User = {
       name: fullName.trim(),
-      businessName: businessName.trim() || undefined,
       email: trimmedEmail,
       phone: '',
       address: '',
@@ -114,24 +112,46 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
     };
 
     try {
+      const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      const firebaseUser = userCredential.user;
+
+      await updateProfile(firebaseUser, {
+        displayName: fullName.trim()
+      });
+
+      const userProfile: User = {
+        name: fullName.trim(),
+        displayName: fullName.trim(),
+        email: trimmedEmail,
+        phone: '',
+        address: '',
+        orders: [],
+        role: 'customer'
+      };
+
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
-        const firebaseUser = userCredential.user;
-
-        await updateProfile(firebaseUser, {
-          displayName: fullName.trim()
-        });
-
-        await setDoc(doc(db, 'users', firebaseUser.uid), newUser).catch(() => {});
-      } catch (backendErr) {
-        // Safe local client persistence (backend removed / offline)
+        await setDoc(doc(db, 'users', firebaseUser.uid), userProfile, { merge: true });
+      } catch (firestoreErr) {
+        console.warn('Firestore profile save note:', firestoreErr);
       }
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(newUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(newUser));
-      handlePostAuthRedirect(newUser);
+      localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
+      localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
+      handlePostAuthRedirect(userProfile);
     } catch (err: any) {
-      setFieldErrors({ email: err?.message || 'Failed to create account' });
+      let errorMessage = 'Failed to create account. Please try again.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMessage = 'An account with this email already exists. Please sign in instead.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMessage = 'Password is too weak. Please choose at least 6 characters.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/operation-not-allowed') {
+        errorMessage = 'Email/password sign-in is not enabled in the Firebase console yet.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      setFieldErrors({ email: errorMessage });
     } finally {
       setIsLoading(false);
     }
@@ -139,35 +159,36 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
 
   const handleGoogleSignUp = async () => {
     setIsGoogleLoading(true);
+    setFieldErrors({});
     try {
-      let newUser: User;
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const gUser = result.user;
+
+      const newUser: User = {
+        name: gUser.displayName || 'Artisan Collector',
+        displayName: gUser.displayName || 'Artisan Collector',
+        email: gUser.email || '',
+        phone: gUser.phoneNumber || '',
+        avatar: gUser.photoURL || undefined,
+        address: '',
+        orders: [],
+        role: 'customer'
+      };
+
       try {
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        const gUser = result.user;
-        newUser = {
-          name: gUser.displayName || 'Artisan Collector',
-          email: gUser.email || '',
-          phone: gUser.phoneNumber || '',
-          avatar: gUser.photoURL || undefined,
-          address: '',
-          orders: []
-        };
-      } catch {
-        newUser = {
-          name: 'Artisan Collector',
-          email: 'collector@marts.com',
-          phone: '',
-          address: '',
-          orders: []
-        };
+        await setDoc(doc(db, 'users', gUser.uid), newUser, { merge: true });
+      } catch (firestoreErr) {
+        console.warn('Firestore Google user profile sync note:', firestoreErr);
       }
 
       localStorage.setItem('melody_user_profile', JSON.stringify(newUser));
       localStorage.setItem('marts_user_profile', JSON.stringify(newUser));
       handlePostAuthRedirect(newUser);
-    } catch (e) {
-      console.error(e);
+    } catch (err: any) {
+      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+        setFieldErrors({ email: err.message || 'Google Sign-Up failed. Please try again.' });
+      }
     } finally {
       setIsGoogleLoading(false);
     }
@@ -180,36 +201,14 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       <div className="w-full max-w-md bg-white rounded-3xl border border-[#EADBCC] shadow-xl p-6 sm:p-8 relative z-10">
         <div className="text-center flex flex-col items-center mb-6">
           <Link to="/" className="mb-3 hover:opacity-95 transition-opacity">
-            <Logo variant="dark" size="md" />
+            <Logo variant="dark" size="md" showStoreTag={false} />
           </Link>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FAF3EA] text-[#8C3F1E] text-xs font-semibold mb-2 border border-[#EADBCC]">
-            <Sparkles size={12} className="text-[#C85A32]" />
-            <span>Join the MArts Collector Guild</span>
-          </div>
           <h1 className="text-2xl font-serif font-black text-[#2B221B]">
             Create an Account
           </h1>
           <p className="text-xs sm:text-sm text-[#735A4C] mt-1">
             Enjoy bespoke artisan pottery, order tracking &amp; priority releases.
           </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={handleGoogleSignUp}
-          disabled={isGoogleLoading}
-          className="w-full py-2.5 px-4 rounded-xl border border-[#E5D7CA] bg-white hover:bg-[#FAF6F0] text-[#4E392D] text-sm font-semibold flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-2xs mb-4"
-        >
-          {isGoogleLoading ? <Loader2 size={16} className="animate-spin text-[#C85A32]" /> : <GoogleIcon />}
-          <span>Sign up with Google</span>
-        </button>
-
-        <div className="relative flex items-center justify-center mb-4">
-          <div className="border-t border-[#EADBCC] w-full"></div>
-          <span className="bg-white px-3 text-xs text-[#8C6D58] font-medium uppercase tracking-wider">
-            Or with email
-          </span>
-          <div className="border-t border-[#EADBCC] w-full"></div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3.5">
@@ -222,7 +221,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="e.g. Maya Sharma"
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white transition-all outline-none ${
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none ${
                 fieldErrors.fullName
                   ? 'border-red-400 focus:border-red-500'
                   : 'border-[#E5D7CA] focus:border-[#C85A32]'
@@ -242,7 +241,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="e.g. maya@example.com"
-              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white transition-all outline-none ${
+              className={`w-full px-3.5 py-2.5 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none ${
                 fieldErrors.email
                   ? 'border-red-400 focus:border-red-500'
                   : 'border-[#E5D7CA] focus:border-[#C85A32]'
@@ -255,19 +254,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
 
           <div>
             <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
-              Interior / Studio Name <span className="text-gray-400 font-normal">(Optional)</span>
-            </label>
-            <input
-              type="text"
-              value={businessName}
-              onChange={(e) => setBusinessName(e.target.value)}
-              placeholder="e.g. Studio Maya Interiors"
-              className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] focus:border-[#C85A32] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white transition-all outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
               Password *
             </label>
             <div className="relative">
@@ -276,7 +262,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white transition-all outline-none ${
+                className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none ${
                   fieldErrors.password
                     ? 'border-red-400 focus:border-red-500'
                     : 'border-[#E5D7CA] focus:border-[#C85A32]'
@@ -306,7 +292,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter your password"
-                className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white transition-all outline-none ${
+                className={`w-full px-3.5 py-2.5 pr-10 rounded-xl border text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none ${
                   fieldErrors.confirmPassword
                     ? 'border-red-400 focus:border-red-500'
                     : 'border-[#E5D7CA] focus:border-[#C85A32]'
@@ -341,6 +327,30 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
             )}
           </button>
         </form>
+
+        {/* Divider: Single Line (Strictly NO line break) */}
+        <div className="flex items-center my-5 w-full">
+          <div className="flex-1 border-t border-[#EADBCC]"></div>
+          <span className="px-3 text-xs text-[#8C6D58] font-medium uppercase tracking-wider whitespace-nowrap shrink-0">
+            Or continue with Google
+          </span>
+          <div className="flex-1 border-t border-[#EADBCC]"></div>
+        </div>
+
+        {/* Google Sign Up (Below) */}
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={isGoogleLoading}
+          className="w-full py-2.5 px-4 rounded-xl border border-[#E5D7CA] bg-white hover:bg-[#FAF6F0] text-[#4E392D] text-sm font-semibold flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-2xs disabled:opacity-75"
+        >
+          {isGoogleLoading ? (
+            <Loader2 size={16} className="animate-spin text-[#C85A32]" />
+          ) : (
+            <GoogleIcon />
+          )}
+          <span>Sign up with Google</span>
+        </button>
 
         <div className="mt-6 pt-5 border-t border-[#F0E6DC] text-center text-xs text-[#735A4C]">
           <span>Already have an account? </span>

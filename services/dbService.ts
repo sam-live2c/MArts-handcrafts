@@ -161,8 +161,8 @@ export interface PaymentRecord {
   createdAt: number;
 }
 
-// Timeout helper to ensure instant local fallbacks if Firestore network is delayed or unreachable
-const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 2500): Promise<T> => {
+// Timeout helper to allow reliable Firestore queries while retaining graceful fallback
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10000): Promise<T> => {
   let timer: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('Firestore operation timed out')), timeoutMs);

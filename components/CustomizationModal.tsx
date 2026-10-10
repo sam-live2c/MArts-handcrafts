@@ -288,10 +288,10 @@ export const CustomizationModal: React.FC<CustomizationModalProps> = ({
                         handleFiles(e.dataTransfer.files);
                       }
                     }}
-                    className="aspect-square rounded-xl border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/80 flex flex-col items-center justify-center p-2 text-center transition-all cursor-pointer group"
+                    className="aspect-square rounded-xl border-2 border-dashed border-[#C85A32]/50 hover:border-[#C85A32] bg-[#FAF0E6]/50 hover:bg-[#FAF0E6] flex flex-col items-center justify-center p-2 text-center transition-all cursor-pointer group"
                   >
-                    <Upload size={24} className="text-blue-600 group-hover:scale-110 transition-transform mb-1.5" />
-                    <span className="text-xs font-bold text-blue-700 leading-tight">Upload</span>
+                    <Upload size={24} className="text-[#C85A32] group-hover:scale-110 transition-transform mb-1.5" />
+                    <span className="text-xs font-bold text-[#8C3F1E] leading-tight">Upload</span>
                     <span className="text-[10px] text-gray-500 mt-0.5">PDF or JPG</span>
                   </button>
                 );
@@ -317,19 +317,19 @@ export const CustomizationModal: React.FC<CustomizationModalProps> = ({
           <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 mb-4">
             <ul className="space-y-1.5 text-xs text-gray-600">
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">•</span>
+                <span className="text-[#C85A32] font-bold">•</span>
                 <span>Upload your business logo, custom QR code, or vector artwork in PDF or JPG format.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">•</span>
+                <span className="text-[#C85A32] font-bold">•</span>
                 <span>Minimum 1 file required to proceed with personalized stand fabrication.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">•</span>
+                <span className="text-[#C85A32] font-bold">•</span>
                 <span>Our design specialists will optimize your artwork for ultra-durable UV printing.</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-blue-600 font-bold">•</span>
+                <span className="text-[#C85A32] font-bold">•</span>
                 <span>We will contact you on WhatsApp to confirm your design preview before printing.</span>
               </li>
             </ul>
@@ -341,7 +341,7 @@ export const CustomizationModal: React.FC<CustomizationModalProps> = ({
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C85A32] focus:ring-[#C85A32] cursor-pointer"
             />
             <span className="leading-snug">
               I agree to the{' '}
@@ -376,7 +376,7 @@ export const CustomizationModal: React.FC<CustomizationModalProps> = ({
               onClick={handleConfirm}
               className={`px-6 py-2.5 rounded-xl font-bold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
                 modalFiles.length >= 1 && termsAccepted
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white active:scale-98'
+                  ? 'bg-[#C85A32] hover:bg-[#A04724] text-white active:scale-98'
                   : 'bg-gray-200 text-gray-400 cursor-not-allowed'
               }`}
             >

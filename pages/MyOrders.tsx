@@ -233,7 +233,7 @@ Thank you for supporting master artisans at MArts!
                         className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
                       >
                         <span>Help & Support</span>
-                        <HelpCircle size={16} className="text-[#2874f0] shrink-0" />
+                        <HelpCircle size={16} className="text-[#C85A32] shrink-0" />
                       </button>
                     </div>
                   </>
@@ -258,7 +258,7 @@ Thank you for supporting master artisans at MArts!
                   onClick={() => setActiveFilter(filter.id as any)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-[#2874f0] text-white shadow-xs'
+                      ? 'bg-[#C85A32] text-white shadow-xs'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
@@ -282,7 +282,7 @@ Thank you for supporting master artisans at MArts!
               </p>
               <button
                 onClick={() => navigate('/')}
-                className="mt-5 bg-blue-600 text-white text-xs font-bold px-6 py-2.5 rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer shadow-sm"
+                className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-xl hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-sm"
               >
                 Start Shopping
               </button>
@@ -320,12 +320,12 @@ Thank you for supporting master artisans at MArts!
                             </span>
                           )}
                           {order.status === 'Processing' && (
-                            <span className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="bg-[#FAF0E6] text-[#8C3F1E] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               Processing
                             </span>
                           )}
                           {order.status === 'Shipped' && (
-                            <span className="bg-blue-50 text-blue-700 text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
+                            <span className="bg-[#FAF0E6] text-[#8C3F1E] text-[11px] font-semibold px-2 py-0.5 rounded flex items-center gap-1">
                               Shipped
                             </span>
                           )}
@@ -348,7 +348,7 @@ Thank you for supporting master artisans at MArts!
                         <button
                           type="button"
                           onClick={() => handleDownloadReceipt(order)}
-                          className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 px-2.5 py-1 rounded hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-[#C85A32] hover:text-[#A04724] px-2.5 py-1 rounded hover:bg-[#FAF0E6] transition-colors cursor-pointer"
                         >
                           <Download size={13} />
                           <span>Receipt</span>
@@ -378,7 +378,7 @@ Thank you for supporting master artisans at MArts!
                                   className="w-full text-left px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
                                 >
                                   <span>Download Receipt</span>
-                                  <Download size={14} className="text-blue-600 shrink-0" />
+                                  <Download size={14} className="text-[#C85A32] shrink-0" />
                                 </button>
                                 {isActiveOrder && (
                                   <button
@@ -443,13 +443,13 @@ Thank you for supporting master artisans at MArts!
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Discount</span>
-                        <span className="text-blue-700 font-medium">
+                        <span className="text-[#8C3F1E] font-medium">
                           {discount > 0 ? `- ₹${discount.toLocaleString()}` : '- ₹0'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">Delivery</span>
-                        <span className="text-blue-700 font-medium">Free</span>
+                        <span className="text-[#8C3F1E] font-medium">Free</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-500">18% GST</span>

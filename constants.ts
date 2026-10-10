@@ -45,7 +45,7 @@ export const PRODUCTS: Product[] = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCkdZmB2TSZqyF6v2ctk1ASc5_Z7pfeZcTfk-X5qWJDt60Anmf-n_ai7KiIaEn-2ZN3dm5-FTl9Oof2-qAGZoT9TMciBxPReGGDrJ1O8LTll6BIteLYiPUyS9kP-p0IAR9qR8_UVE-GS_caFUnpH_MeYOUZv4IeoNl8sKmMUta050G7x-YZI8c9HrKaAfw-1AwEziIBzmzZEhfEgvHJAUSFzf-Yc8IrSxxBFIpBTxAvPs9rOJL9sU_tYw'
     ],
     description: 'Handcrafted ceramic pouring pitcher with ergonomic handle and exposed raw stoneware rim, glazed in speckled sand matte tone. Centered manually on the potter wheel and vitrified at 1,250°C Cone 10 for enduring kitchen durability.',
-    brand: 'MArts Studio',
+    brand: 'MArts',
     highlights: [
       '100% Non-Toxic Natural Mineral Glaze',
       'Exposed Tactile Raw Stoneware Rim',
@@ -55,7 +55,7 @@ export const PRODUCTS: Product[] = [
     ],
     specGroups: [
       {
-        title: 'Studio Details',
+        title: 'Artisan Details',
         specs: {
           'Origin': 'MArts Family Atelier',
           'Firing': 'Cone 10 (1250°C) Reduction',
@@ -67,9 +67,9 @@ export const PRODUCTS: Product[] = [
     ],
     isAssured: true,
     stock: 18,
-    sellerName: 'MArts Studio Atelier',
+    sellerName: 'MArts Atelier',
     sellerRating: 5.0,
-    returnPolicy: '30-Day Studio Guarantee'
+    returnPolicy: '30-Day Guarantee'
   },
   {
     id: '2',
@@ -86,8 +86,8 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&w=1000&q=80',
       'https://images.unsplash.com/photo-1612196808214-b8e1d6145a8c?auto=format&fit=crop&w=1000&q=80'
     ],
-    description: 'An organic fluted ceramic vase crafted from speckled cream stoneware showing vertical throwing grooves in delicate daylight. Limited studio run of only 25 pieces.',
-    brand: 'MArts Studio',
+    description: 'An organic fluted ceramic vase crafted from speckled cream stoneware showing vertical throwing grooves in delicate daylight. Limited artisan run of only 25 pieces.',
+    brand: 'MArts',
     highlights: [
       'Limited Atelier Batch of 25 Numbered Pieces',
       'Subtle Tactile Vertical Throwing Ridges',
@@ -107,9 +107,9 @@ export const PRODUCTS: Product[] = [
     ],
     isAssured: true,
     stock: 7,
-    sellerName: 'MArts Studio Atelier',
+    sellerName: 'MArts Atelier',
     sellerRating: 5.0,
-    returnPolicy: '30-Day Studio Guarantee'
+    returnPolicy: '30-Day Guarantee'
   },
   {
     id: '3',
@@ -127,7 +127,7 @@ export const PRODUCTS: Product[] = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCTHEZpM4OIbBIoCk3IdiQeD5ejEQNybIQN6JygfR1OP-BhH9ihNsea0KSff2L2pPsrjnhG-1ASlT3O717vHiBf6gxVT08-HtfaPxph3PxVpZib3r1qWjmPwLtUbzZ54xr7UUSG9DunH7zr54_ACOWRdXIl-Y0EamyhKlPq0KTKYXGlfrgfj1H1mZYNVPkM6Jmj8Ih_WbAD8xpG9JzPdSlqZAkNo0Y5uRpDaMW6D0LwtsdhtbIyVEEHiA'
     ],
     description: 'Pair of tactile espresso ceramic tumblers with natural ribbed texture dipped in dark charcoal ash glaze standing side by side. Perfect thermal retention for double shots or ceremonial matcha.',
-    brand: 'MArts Studio',
+    brand: 'MArts',
     highlights: [
       'Set of Two Hand-Pinched Espresso Cups',
       'Real Wood-Ash Reduction Dip',
@@ -147,9 +147,9 @@ export const PRODUCTS: Product[] = [
     ],
     isAssured: true,
     stock: 22,
-    sellerName: 'MArts Studio Atelier',
+    sellerName: 'MArts Atelier',
     sellerRating: 5.0,
-    returnPolicy: '30-Day Studio Guarantee'
+    returnPolicy: '30-Day Guarantee'
   },
   {
     id: '4',
@@ -167,7 +167,7 @@ export const PRODUCTS: Product[] = [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCfWl-R75G3vwd7cC6G5vunxvKJx1uyPfpV_P-Ftxp7MBjrML31lrY8yuwhn7M4CUdNYDAN1XtMF3qri5zxoibUWW8lJz14ijCknJoF19dxrEftjXKIBxI8dMtpsNeKWwaUImMCF2SY6_A_ASTWGjj-jUe55ymzOp7nsiEWMoveEm2xHjO_vOOYiGwdL346HnA1hkJvgmo6s8jjCMGtx882URf-9zc-IBjR0mYdsGrZmZVcbZpu43BGdw'
     ],
     description: 'Wide shallow ceramic pasta bowl made from warm iron-rich terracotta clay with soft satin eggshell white interior glaze. Broad rim framed for serving pasta, grain salads, and slow stews.',
-    brand: 'MArts Studio',
+    brand: 'MArts',
     highlights: [
       'Broad Shallow Lip for Plating Comfort',
       'Dual Surface: Unglazed Outer Terra, Glazed Interior',
@@ -187,8 +187,8 @@ export const PRODUCTS: Product[] = [
     ],
     isAssured: true,
     stock: 14,
-    sellerName: 'MArts Studio Atelier',
+    sellerName: 'MArts Atelier',
     sellerRating: 5.0,
-    returnPolicy: '30-Day Studio Guarantee'
+    returnPolicy: '30-Day Guarantee'
   }
 ];

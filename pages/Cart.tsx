@@ -227,7 +227,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
              <button 
                type="button"
                onClick={() => navigate('/address')} 
-               className="text-sm font-semibold text-blue-600 hover:text-blue-700 px-3 py-1 hover:bg-blue-50 rounded transition-colors shrink-0 cursor-pointer"
+               className="text-sm font-semibold text-[#C85A32] hover:text-[#A04724] px-3 py-1 hover:bg-[#FAF0E6] rounded transition-colors shrink-0 cursor-pointer"
              >
                Change
              </button>
@@ -245,7 +245,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                <button
                  type="button"
                  onClick={() => navigate('/')}
-                 className="mt-5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-sm inline-flex items-center justify-center"
+                 className="mt-5 bg-[#C85A32] hover:bg-[#A04724] text-white text-xs font-bold px-6 py-2.5 rounded-xl transition-colors cursor-pointer shadow-md inline-flex items-center justify-center"
                >
                  Start Shopping
                </button>
@@ -288,7 +288,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                              <div className="flex flex-wrap items-center gap-2 mt-2.5">
                                 {item.oldPrice && item.oldPrice > item.price && (
                                   <>
-                                    <span className="text-blue-700 font-bold text-[13px] flex items-center tracking-tight">
+                                    <span className="text-[#C85A32] font-bold text-[13px] flex items-center tracking-tight">
                                       <ArrowDown size={14} strokeWidth={2.5} />
                                       {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)}%
                                     </span>
@@ -333,24 +333,6 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                                    </button>
                                 </div>
 
-                                {/* Customise button strictly side by side */}
-                                <button 
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    openCustomizationModal(item.id);
-                                  }}
-                                  className="h-8 px-3 sm:px-3.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white flex items-center gap-1.5 transition-colors cursor-pointer border-0 shadow-xs shrink-0 whitespace-nowrap"
-                                  aria-label="Customise item"
-                                >
-                                  <Upload size={13} strokeWidth={2.2} />
-                                  <span>
-                                    {customizations[item.id]?.confirmed && customizations[item.id]?.files?.length > 0
-                                      ? `Customised (${customizations[item.id].files.length})`
-                                      : 'Customise'}
-                                  </span>
-                                </button>
                              </div>
                           </div>
                        </div>
@@ -368,13 +350,13 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                      </div>
                      <div className="flex justify-between">
                        <span>Discount</span>
-                       <span className="text-blue-700 font-medium">
+                       <span className="text-[#C85A32] font-medium">
                          {totalSavings > 0 ? `- ₹${totalSavings.toLocaleString()}` : '- ₹0'}
                        </span>
                      </div>
                      <div className="flex justify-between">
                        <span>Delivery</span>
-                       <span className="text-blue-700 font-medium">{delivery === 0 ? 'Free' : `₹${delivery}`}</span>
+                       <span className="text-[#C85A32] font-medium">{delivery === 0 ? 'Free' : `₹${delivery}`}</span>
                      </div>
                      <div className="flex justify-between">
                        <span>18% GST</span>
@@ -392,14 +374,14 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
               {/* Desktop Bottom Action Row - Placed at the right matching payment page pay button */}
               <div className="hidden md:flex py-4 border-t border-gray-100 items-center justify-between gap-4 mt-6">
                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <ShieldCheck size={16} className="text-blue-600 shrink-0" />
+                    <ShieldCheck size={16} className="text-[#C85A32] shrink-0" />
                     <span>Safe and Secure Checkout • 100% Authentic Products</span>
                  </div>
                  <div>
                     <button 
                       type="button"
                       onClick={handlePlaceOrder} 
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[240px] shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[240px] shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                     >
                        Place Order
                     </button>
@@ -421,7 +403,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                    <Info size={13} className="text-gray-400 mb-0.5" />
                 </div>
              </div>
-             <button onClick={handlePlaceOrder} className="bg-blue-600 hover:bg-blue-700 text-white px-6 h-11 w-[170px] rounded-xl font-bold text-[15px] flex items-center justify-center shadow-sm cursor-pointer">
+             <button onClick={handlePlaceOrder} className="bg-[#C85A32] hover:bg-[#A04724] text-white px-6 h-11 w-[170px] rounded-xl font-bold text-[15px] flex items-center justify-center shadow-md cursor-pointer">
                 Place Order
              </button>
           </div>

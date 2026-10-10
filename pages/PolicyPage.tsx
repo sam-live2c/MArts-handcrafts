@@ -26,7 +26,7 @@ const PolicyPage: React.FC<PolicyPageProps> = ({ type }) => {
   };
 
   return (
-    <div className="w-full bg-white min-h-screen text-gray-800 font-sans selection:bg-blue-100 flex flex-col">
+    <div className="w-full bg-white min-h-screen text-gray-800 font-sans selection:bg-[#F2E4D8] selection:text-[#2B221B] flex flex-col">
       {/* Top Header Bar with separation line and page-specific headline beside back button */}
       <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
         <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 sm:py-3.5 flex items-center">
@@ -51,58 +51,6 @@ const PolicyPage: React.FC<PolicyPageProps> = ({ type }) => {
         {type === 'terms' && <TermsConditionsContent />}
         {type === 'shipping' && <ShippingPolicyContent />}
       </main>
-
-      {/* Standard Merchant Legal Compliance Footer */}
-      <footer className="w-full bg-[#FAF7F2] border-t border-[#EADBCC] py-10 px-4 sm:px-8 text-xs text-[#735A4C]">
-        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 pb-8 border-b border-[#EADBCC]">
-          <div>
-            <h4 className="font-semibold text-[#2B221B] mb-2">Registered Atelier</h4>
-            <p className="leading-relaxed">
-              MArts Handcrafted Studio • Heritage Crafts Guild<br />
-              Plot 14, Heritage Artisan Guild Enclave, Pottery &amp; Sculpture Crafts Zone,<br />
-              Sector 4, Khurja / Bengal Craft Belt – 203131, India
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-[#2B221B] mb-2">Customer &amp; Atelier Support</h4>
-            <p className="leading-relaxed">
-              Phone &amp; WhatsApp:{' '}
-              <a href="tel:+919876543210" className="text-[#C85A32] hover:underline font-medium">
-                +91 98765 43210
-              </a>
-              <br />
-              Email:{' '}
-              <a href="mailto:atelier@marts.com" className="text-[#C85A32] hover:underline">
-                atelier@marts.com
-              </a>
-              <br />
-              Hours: Mon – Sat (10:00 AM – 7:00 PM IST)
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-[#2B221B] mb-2">Artisan Heritage &amp; Trust</h4>
-            <p className="leading-relaxed">
-              MArts Handcrafted Guild Ecosystem<br />
-              100% Genuine Handcrafted Pieces<br />
-              Eco-Friendly Kiln Ceramics &amp; Natural Stone<br />
-              Compliant with DPDPA 2023 &amp; IT Act 2000
-            </p>
-          </div>
-        </div>
-
-        <div className="max-w-4xl mx-auto pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-[#A89283]">
-          <p>© {new Date().getFullYear()} MArts Handcrafted Studio. All rights reserved.</p>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <Link to="/contact" className="hover:text-[#C85A32] transition-colors">Contact</Link>
-            <Link to="/privacy-policy" className="hover:text-[#C85A32] transition-colors">Privacy Policy</Link>
-            <Link to="/terms-and-conditions" className="hover:text-[#C85A32] transition-colors">Terms and Conditions</Link>
-            <Link to="/about" className="hover:text-[#C85A32] transition-colors">About</Link>
-            <Link to="/location" className="hover:text-[#C85A32] transition-colors">Location</Link>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };
@@ -122,7 +70,7 @@ const PrivacyPolicyContent: React.FC = () => {
           How we collect, utilize, and safeguard your merchant information and payment transactions in compliance with Indian and international privacy standards.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted Studio under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
         </p>
       </div>
 
@@ -142,7 +90,7 @@ const PrivacyPolicyContent: React.FC = () => {
           Payment Security &amp; Zero Card Storage Guarantee
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 mt-2 leading-relaxed">
-          All monetary transactions on <span className="font-semibold text-gray-900">MArts</span> are handled exclusively through <span className="font-semibold text-gray-900">Secure Payment Processing</span>, which adheres strictly to PCI-DSS Level 1 security standards. <span className="font-semibold text-gray-900">MArts Handcrafted Studio</span> does NOT record, retain, or store your credit/debit card numbers, CVVs, net banking credentials, or UPI PINs. All card transmissions take place over 256-bit TLS encrypted channels.
+          All monetary transactions on <span className="font-semibold text-gray-900">MArts</span> are handled exclusively through <span className="font-semibold text-gray-900">Secure Payment Processing</span>, which adheres strictly to PCI-DSS Level 1 security standards. <span className="font-semibold text-gray-900">MArts Handcrafted</span> does NOT record, retain, or store your credit/debit card numbers, CVVs, net banking credentials, or UPI PINs. All card transmissions take place over 256-bit TLS encrypted channels.
         </p>
         <p className="text-xs text-gray-500 mt-2.5">
           Applicable Laws: Digital Personal Data Protection Act 2023 (DPDPA) • IT Act 2000 Section 43A &amp; SPDI Rules 2011.
@@ -282,7 +230,7 @@ const PrivacyPolicyContent: React.FC = () => {
           <p className="font-semibold text-gray-900">
             Sahanur Molla (Grievance Redressal &amp; Privacy Officer)
           </p>
-          <p>MArts Handcrafted Studio</p>
+          <p>MArts Handcrafted</p>
           <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
           <p>
             Email:{' '}
@@ -316,7 +264,7 @@ const RefundPolicyContent: React.FC = () => {
           Our merchant-first guarantee, transparent return timelines, and automated refund processing protocols for physical NFC hardware and custom engraving.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted Studio under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
         </p>
       </div>
 
@@ -474,7 +422,7 @@ const RefundPolicyContent: React.FC = () => {
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
           <p className="font-semibold text-gray-900">Sahanur Molla (Merchant Support &amp; Logistics)</p>
-          <p>MArts Handcrafted Studio</p>
+          <p>MArts Handcrafted</p>
           <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
           <p>
             Email:{' '}
@@ -508,7 +456,7 @@ const TermsConditionsContent: React.FC = () => {
           The legal contract governing the purchase of handcrafted pottery, ceramic vessels, monolithic stone statues, and the use of the MArts store.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted Studio under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
         </p>
       </div>
 
@@ -518,7 +466,7 @@ const TermsConditionsContent: React.FC = () => {
           Binding Merchant Agreement &amp; Commercial Terms
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 mt-2 leading-relaxed">
-          By accessing the MArts website, placing an order for handcrafted terracotta pottery, statues, or art decor, you enter into a legally binding agreement with <span className="font-semibold text-gray-900">MArts Handcrafted Studio</span>. If you do not agree with any part of these terms, please refrain from transacting on this platform.
+          By accessing the MArts website, placing an order for handcrafted terracotta pottery, statues, or art decor, you enter into a legally binding agreement with <span className="font-semibold text-gray-900">MArts Handcrafted</span>. If you do not agree with any part of these terms, please refrain from transacting on this platform.
         </p>
         <p className="text-xs text-gray-500 mt-2.5">
           Governing Law: Information Technology Act 2000 • Indian Contract Act 1872 • Jurisdiction: Kolkata, West Bengal.
@@ -618,10 +566,10 @@ const TermsConditionsContent: React.FC = () => {
           6. Google LLC Disclaimer &amp; Intellectual Property
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Google, Google Maps, Google Reviews, and the Google "G" emblem are registered trademarks of Google LLC. MArts Handcrafted Studio is an independent hardware manufacturer and software provider and is not affiliated with, endorsed by, or an official agent of Google LLC.
+          Google, Google Maps, Google Reviews, and the Google "G" emblem are registered trademarks of Google LLC. MArts Handcrafted is an independent hardware manufacturer and software provider and is not affiliated with, endorsed by, or an official agent of Google LLC.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          The proprietary hardware designs, structural acrylic contours, website user interface, and branding of MArts are the intellectual property of MArts Handcrafted Studio.
+          The proprietary hardware designs, structural acrylic contours, website user interface, and branding of MArts are the intellectual property of MArts Handcrafted.
         </p>
       </section>
 
@@ -665,7 +613,7 @@ const TermsConditionsContent: React.FC = () => {
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
           <p className="font-semibold text-gray-900">Sahanur Molla (Proprietor &amp; Grievance Officer)</p>
-          <p>MArts Handcrafted Studio</p>
+          <p>MArts Handcrafted</p>
           <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
           <p>
             WhatsApp Support:{' '}
@@ -705,7 +653,7 @@ const ShippingPolicyContent: React.FC = () => {
           Turnaround schedules, pan-India courier logistics, dispatch tracking, and parcel delivery commitments for custom smart hardware.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted Studio under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
         </p>
       </div>
 
@@ -805,7 +753,7 @@ const ShippingPolicyContent: React.FC = () => {
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
           <p className="font-semibold text-gray-900">Sahanur Molla (Logistics &amp; Dispatch)</p>
-          <p>MArts Handcrafted Studio</p>
+          <p>MArts Handcrafted</p>
           <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
           <p>
             WhatsApp Support:{' '}

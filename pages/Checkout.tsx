@@ -457,7 +457,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                      <h1 className="text-lg font-bold text-gray-900 leading-tight">Payments</h1>
                    </div>
                 </div>
-                <div className="text-[11px] flex items-center gap-1.5 text-blue-600 font-extrabold italic">
+                <div className="text-[11px] flex items-center gap-1.5 text-[#C85A32] font-extrabold italic">
                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 100 100">
                       <path d="M50 8 C68 18 82 18 88 23 C88 53 75 78 50 95 C25 78 12 53 12 23 C18 18 32 18 50 8 Z" fill="currentColor" />
                       <path d="M36 48 L46 58 L66 36" stroke="white" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" fill="none" />
@@ -489,14 +489,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           {step < 3 && (
             <div className="bg-white px-4 sm:px-8 lg:px-12 py-3.5 sm:py-4 flex items-center justify-between relative z-1 border-b border-gray-100">
                <div className="flex flex-col items-center">
-                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step > 1 ? 'bg-blue-600 text-white border border-blue-600' : 'border border-blue-600 text-blue-600 bg-blue-50'}`}>
+                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step > 1 ? 'bg-[#C85A32] text-white border border-[#C85A32]' : 'border border-[#C85A32] text-[#C85A32] bg-[#FAF0E6]'}`}>
                    {step > 1 ? <Check size={12} strokeWidth={3} /> : '1'}
                  </div>
                  <span className={`text-[10px] mt-1 font-medium ${step >= 1 ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}>Address</span>
                </div>
-               <div className={`flex-1 h-[1.5px] mx-2 -mt-3 ${step > 1 ? 'bg-blue-600' : 'bg-gray-200'}`}></div>
+               <div className={`flex-1 h-[1.5px] mx-2 -mt-3 ${step > 1 ? 'bg-[#C85A32]' : 'bg-gray-200'}`}></div>
                <div className="flex flex-col items-center">
-                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 2 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                 <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${step === 2 ? 'bg-[#C85A32] text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                    2
                  </div>
                  <span className={`text-[10px] mt-1 whitespace-nowrap font-medium ${step >= 2 ? 'text-gray-900 font-semibold' : 'text-gray-400'}`}>Order Summary</span>
@@ -524,7 +524,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                      <button 
                        type="button"
                        onClick={() => navigate('/address')} 
-                       className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors px-3 py-1.5 hover:bg-blue-50 rounded shrink-0 cursor-pointer text-right"
+                       className="text-sm font-semibold text-[#C85A32] hover:text-[#A04724] transition-colors px-3 py-1.5 hover:bg-[#FAF0E6] rounded shrink-0 cursor-pointer text-right"
                      >
                        + Add new address
                      </button>
@@ -551,7 +551,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                      <button 
                        type="button"
                        onClick={() => navigate('/address')} 
-                       className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors px-3 py-1.5 hover:bg-blue-50 rounded shrink-0 cursor-pointer"
+                       className="text-sm font-semibold text-[#C85A32] hover:text-[#A04724] transition-colors px-3 py-1.5 hover:bg-[#FAF0E6] rounded shrink-0 cursor-pointer"
                      >
                         Change
                      </button>
@@ -561,7 +561,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                      <button 
                        type="button"
                        onClick={() => setStep(2)} 
-                       className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 h-12 rounded-xl text-[16px] min-w-[200px] shadow-sm transition-colors flex items-center justify-center cursor-pointer"
+                       className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-8 h-12 rounded-xl text-[16px] min-w-[200px] shadow-sm transition-colors flex items-center justify-center cursor-pointer"
                      >
                         Deliver Here
                      </button>
@@ -586,7 +586,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                          <button 
                            type="button"
                            onClick={() => navigate('/address')} 
-                           className="text-sm font-semibold text-blue-600 hover:text-blue-700 px-3 py-1 hover:bg-blue-50 rounded transition-colors shrink-0 cursor-pointer"
+                           className="text-sm font-semibold text-[#C85A32] hover:text-[#A04724] px-3 py-1 hover:bg-[#FAF0E6] rounded transition-colors shrink-0 cursor-pointer"
                          >
                             Change
                          </button>
@@ -608,7 +608,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                                    <div className="flex flex-wrap items-center gap-2 mt-2">
                                       {item.oldPrice && item.oldPrice > item.price && (
                                         <>
-                                          <span className="text-blue-700 font-bold text-[13px] flex items-center tracking-tight"><ArrowDown size={14} strokeWidth={2.5} />{Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)}%</span>
+                                          <span className="text-[#C85A32] font-bold text-[13px] flex items-center tracking-tight"><ArrowDown size={14} strokeWidth={2.5} />{Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)}%</span>
                                           <del className="text-gray-400 text-sm font-normal" aria-label="Maximum retail price">₹{(item.oldPrice * item.quantity).toLocaleString()}</del>
                                         </>
                                       )}
@@ -649,24 +649,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                                          </button>
                                       </div>
 
-                                      {/* Customise button in same line: blue background, without border style */}
-                                      <button 
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.preventDefault();
-                                          e.stopPropagation();
-                                          openCustomizationModal(item.id);
-                                        }}
-                                        className="h-8 px-3.5 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white flex items-center gap-1.5 transition-colors cursor-pointer border-0 shadow-xs"
-                                        aria-label="Customise item"
-                                      >
-                                        <Upload size={13} strokeWidth={2.2} />
-                                        <span>
-                                          {customizations[item.id]?.confirmed && customizations[item.id]?.files?.length > 0
-                                            ? `Customised (${customizations[item.id].files.length})`
-                                            : 'Customise'}
-                                        </span>
-                                      </button>
                                    </div>
                                 </div>
                              </div>
@@ -685,7 +667,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                           </div>
                           <div className="flex justify-between">
                              <span>Discount</span>
-                             <span className="text-blue-700 font-medium">
+                             <span className="text-[#C85A32] font-medium">
                                {savings > 0 ? `- ₹${savings.toLocaleString()}` : '- ₹0'}
                              </span>
                           </div>
@@ -697,7 +679,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                           )}
                           <div className="flex justify-between">
                              <span>Delivery</span>
-                             <span className="text-blue-700 font-medium">Free</span>
+                             <span className="text-[#C85A32] font-medium">Free</span>
                           </div>
                           <div className="flex justify-between">
                              <span>18% GST</span>
@@ -714,14 +696,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                  {/* Desktop Bottom Action Row - Placed at the right matching payment page pay button */}
                  <div className="hidden md:flex py-4 border-t border-gray-100 items-center justify-between gap-4 mt-6">
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                       <ShieldCheck size={16} className="text-blue-600 shrink-0" />
-                       <span>100% Authentic Products • Verified Melody Store Partner</span>
+                       <ShieldCheck size={16} className="text-[#C85A32] shrink-0" />
+                       <span>100% Authentic Products • Verified MArts Artisan Partner</span>
                     </div>
                     <div>
                        <button 
                          type="button"
                          onClick={() => setStep(3)} 
-                         className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[240px] shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                         className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[240px] shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer"
                        >
                           Continue
                        </button>
@@ -739,7 +721,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                          <h2 className="text-base font-bold text-gray-900">Total Amount Payable</h2>
                          <p className="text-xs text-gray-500 mt-0.5">Includes all taxes and free delivery</p>
                        </div>
-                       <span className="text-2xl font-extrabold text-[#2874f0]">₹{total.toLocaleString()}</span>
+                       <span className="text-2xl font-extrabold text-[#C85A32]">₹{total.toLocaleString()}</span>
                     </div>
 
                     {/* Payment Options Section - flush, clean dividers */}
@@ -760,7 +742,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                           <div className="flex-1">
                              <div className="flex items-center justify-between">
                                <h3 className="font-bold text-gray-900 text-sm sm:text-base">Instant Online Payment</h3>
-                               <span className="text-[11px] font-bold text-[#C85A32] bg-[#F4E8DF] px-2 py-0.5 rounded-full">Recommended</span>
                              </div>
                              <p className="text-xs text-gray-600 mt-1">
                                 Instant checkout with UPI (Google Pay, PhonePe, Paytm), Debit/Credit Cards &amp; NetBanking
@@ -864,12 +845,12 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                    <p className="text-lg font-bold flex items-center gap-1 text-gray-900 leading-none">₹{total.toLocaleString()} <HelpCircle size={12} className="text-gray-400 mb-0.5" strokeWidth={2.5}/></p>
                  </div>
                  {step === 1 && (
-                   <button onClick={() => setStep(2)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 h-11 rounded-xl text-[15px] w-[170px] shadow-sm transition-colors flex items-center justify-center cursor-pointer">
+                   <button onClick={() => setStep(2)} className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-6 h-11 rounded-xl text-[15px] w-[170px] shadow-md transition-colors flex items-center justify-center cursor-pointer">
                       Deliver Here
                    </button>
                  )}
                  {step === 2 && (
-                   <button onClick={() => setStep(3)} className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 h-11 rounded-xl text-[15px] w-[170px] shadow-sm transition-colors flex items-center justify-center cursor-pointer">
+                   <button onClick={() => setStep(3)} className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-6 h-11 rounded-xl text-[15px] w-[170px] shadow-md transition-colors flex items-center justify-center cursor-pointer">
                       Continue
                    </button>
                  )}
@@ -877,7 +858,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                    <button 
                      onClick={handlePlaceOrder} 
                      disabled={isProcessing} 
-                     className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 h-11 rounded-xl text-[15px] w-[170px] shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                     className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-4 h-11 rounded-xl text-[15px] w-[170px] shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
                    >
                       {isProcessing ? (
                         <span className="flex items-center justify-center gap-2 whitespace-nowrap">
@@ -1049,10 +1030,10 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                                 handleFiles(e.dataTransfer.files);
                               }
                             }}
-                            className="aspect-square rounded-xl border-2 border-dashed border-blue-400 hover:border-blue-600 bg-blue-50/40 hover:bg-blue-50/80 flex flex-col items-center justify-center p-2 text-center transition-all cursor-pointer group"
+                            className="aspect-square rounded-xl border-2 border-dashed border-[#C85A32]/50 hover:border-[#C85A32] bg-[#FAF0E6]/50 hover:bg-[#FAF0E6] flex flex-col items-center justify-center p-2 text-center transition-all cursor-pointer group"
                           >
-                            <Upload size={24} className="text-blue-600 group-hover:scale-110 transition-transform mb-1.5" />
-                            <span className="text-xs font-bold text-blue-700 leading-tight">Upload</span>
+                            <Upload size={24} className="text-[#C85A32] group-hover:scale-110 transition-transform mb-1.5" />
+                            <span className="text-xs font-bold text-[#8C3F1E] leading-tight">Upload</span>
                             <span className="text-[10px] text-gray-500 mt-0.5">PDF or JPG</span>
                           </button>
                         );
@@ -1078,19 +1059,19 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                   <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100 mb-4">
                     <ul className="space-y-1.5 text-xs text-gray-600">
                       <li className="flex items-start gap-2">
-                        <span className="text-blue-600 font-bold">•</span>
+                        <span className="text-[#C85A32] font-bold">•</span>
                         <span>Upload your business logo, custom QR code, or vector artwork in PDF or JPG format.</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="text-blue-600 font-bold">•</span>
+                        <span className="text-[#C85A32] font-bold">•</span>
                         <span>Minimum 1 file required to proceed with personalized stand fabrication.</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="text-blue-600 font-bold">•</span>
+                        <span className="text-[#C85A32] font-bold">•</span>
                         <span>Our design specialists will optimize your artwork for ultra-durable UV printing.</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="text-blue-600 font-bold">•</span>
+                        <span className="text-[#C85A32] font-bold">•</span>
                         <span>We will contact you on WhatsApp to confirm your design preview before printing.</span>
                       </li>
                     </ul>
@@ -1102,7 +1083,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                       type="checkbox"
                       checked={termsAccepted}
                       onChange={(e) => setTermsAccepted(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#C85A32] focus:ring-[#C85A32] cursor-pointer"
                     />
                     <span className="leading-snug">
                       I agree to the{' '}
@@ -1135,7 +1116,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                       type="button"
                       disabled={modalFiles.length < 1 || !termsAccepted}
                       onClick={handleConfirmCustomization}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold px-6 h-10 rounded-xl text-xs sm:text-sm shadow-sm transition-colors cursor-pointer flex items-center gap-2"
+                      className="bg-[#C85A32] hover:bg-[#A04724] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-bold px-6 h-10 rounded-xl text-xs sm:text-sm shadow-md transition-colors cursor-pointer flex items-center gap-2"
                     >
                       Confirm Customization
                     </button>

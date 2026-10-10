@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ChevronRight,
   ShoppingBag,
-  Sparkles,
   Star,
   Check,
   AlertCircle
@@ -62,11 +61,6 @@ const Wishlist: React.FC<WishlistProps> = ({
   // Filter products that exist in the wishlist
   const wishlistProducts = useMemo(() => {
     return allProducts.filter((product) => wishlist.includes(product.id));
-  }, [allProducts, wishlist]);
-
-  // Featured suggestions when wishlist is empty or for extra inspiration
-  const suggestedProducts = useMemo(() => {
-    return allProducts.filter((p) => !wishlist.includes(p.id)).slice(0, 4);
   }, [allProducts, wishlist]);
 
   const handleMoveToCart = (product: Product) => {
@@ -394,45 +388,6 @@ const Wishlist: React.FC<WishlistProps> = ({
                 Return to Home
               </Link>
             </div>
-
-            {/* Recommendations Section */}
-            {suggestedProducts.length > 0 && (
-              <div className="mt-14 w-full text-left pt-10 border-t border-[#EADBCC]">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles size={16} className="text-[#C85A32]" />
-                  <h3 className="font-serif font-bold text-base sm:text-lg text-[#2B221B]">
-                    Recommended Artisan Pieces
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                  {suggestedProducts.map((item) => (
-                    <div
-                      key={item.id}
-                      onClick={() => navigate(`/product/${item.id}`)}
-                      className="bg-white rounded-xl border border-[#EADBCC] p-2.5 hover:shadow-md transition-shadow cursor-pointer flex flex-col justify-between group"
-                    >
-                      <div className="aspect-square bg-[#FAF6F0] rounded-lg overflow-hidden mb-2">
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-[#2B221B] line-clamp-1 group-hover:text-[#C85A32] transition-colors">
-                          {item.name}
-                        </p>
-                        <p className="text-xs font-bold text-[#2B221B] mt-1">
-                          ₹{item.price.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

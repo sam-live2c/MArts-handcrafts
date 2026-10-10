@@ -35,7 +35,7 @@ const Location: React.FC = () => {
       <section className="w-full bg-[#2B221B] text-[#FAF6F0] py-14 sm:py-20 px-4 sm:px-8 relative overflow-hidden">
         <div className="max-w-4xl mx-auto text-center space-y-4 relative z-10">
           <span className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-semibold uppercase tracking-wider text-amber-200 border border-white/20">
-            Studio &amp; Showroom Location
+            Atelier &amp; Showroom Location
           </span>
           <h1 className="text-3xl sm:text-5xl font-serif font-black tracking-tight leading-tight">
             Visit MArts Atelier &amp; Sculpture Garden
@@ -57,7 +57,7 @@ const Location: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-[#C85A32] uppercase tracking-wider">Flagship Atelier &amp; Kiln</span>
-                <h2 className="text-xl font-serif font-bold text-[#2B221B]">MArts Heritage Pottery Studio</h2>
+                <h2 className="text-xl font-serif font-bold text-[#2B221B]">MArts Heritage Pottery Atelier</h2>
               </div>
             </div>
 
@@ -137,7 +137,7 @@ const Location: React.FC = () => {
                 <div>
                   <p className="font-semibold text-[#2B221B]">Gallery Hours</p>
                   <p>Tuesday – Sunday: 11:00 AM – 8:00 PM</p>
-                  <p className="text-xs text-[#8C6D58]">Closed on Mondays for Studio Inventory</p>
+                  <p className="text-xs text-[#8C6D58]">Closed on Mondays for Kiln Inventory</p>
                 </div>
               </div>
 

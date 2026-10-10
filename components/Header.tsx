@@ -273,7 +273,7 @@ const Header: React.FC<HeaderProps> = ({
                 className="flex items-center transition-transform active:scale-98"
                 aria-label="MArts Home"
               >
-                <Logo variant="dark" size="sm" showStoreTag={true} />
+                <Logo variant="dark" size="sm" showStoreTag={false} />
               </Link>
             )}
           </div>

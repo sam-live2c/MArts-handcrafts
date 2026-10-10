@@ -35,7 +35,7 @@ const About: React.FC = () => {
       <section className="w-full bg-[#2B221B] text-[#FAF6F0] py-14 sm:py-20 px-4 sm:px-8 relative overflow-hidden">
         <div className="max-w-4xl mx-auto text-center space-y-4 relative z-10">
           <span className="inline-block px-3 py-1 rounded-full bg-white/10 text-xs font-semibold uppercase tracking-wider text-amber-200 border border-white/20">
-            About MArts Studio
+            About MArts
           </span>
           <h1 className="text-3xl sm:text-5xl font-serif font-black tracking-tight leading-tight">
             Earth, Chisel, Water &amp; Fire.
@@ -97,7 +97,7 @@ const About: React.FC = () => {
         {/* Quick Links Card */}
         <section className="bg-[#FAF3EA] border border-[#EADBCC] rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="space-y-1 text-center sm:text-left">
-            <h3 className="font-serif font-bold text-xl text-[#2B221B]">Visit Our Studio Showroom</h3>
+            <h3 className="font-serif font-bold text-xl text-[#2B221B]">Visit Our Atelier Showroom</h3>
             <p className="text-xs sm:text-sm text-[#735A4C]">
               Experience our tactile pottery and stone sculptures in person at our atelier.
             </p>

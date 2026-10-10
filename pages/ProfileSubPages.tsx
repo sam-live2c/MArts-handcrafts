@@ -211,7 +211,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
         </div>
         <button 
           onClick={() => navigate('/address')}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl shadow-sm active:scale-95 transition-all text-xs font-bold uppercase tracking-wider cursor-pointer"
+          className="flex items-center gap-2 bg-[#C85A32] hover:bg-[#A04724] text-white px-6 py-2.5 rounded-xl shadow-sm active:scale-95 transition-all text-xs font-bold uppercase tracking-wider cursor-pointer"
         >
           <Plus size={16} /> Manage Addresses
         </button>
@@ -223,7 +223,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
             <p className="text-sm text-gray-500 mb-3">No addresses saved yet.</p>
             <button
               onClick={() => navigate('/address')}
-              className="bg-[#2874f0] text-white px-5 py-2 rounded-lg text-xs font-bold"
+              className="bg-[#C85A32] hover:bg-[#A04724] text-white px-5 py-2 rounded-lg text-xs font-bold"
             >
               Add New Address
             </button>
@@ -240,14 +240,14 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                      {item.type}
                    </span>
                    {item.isDefault && (
-                     <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                     <span className="text-xs font-bold text-[#C85A32] bg-[#FAF0E6] px-2.5 py-0.5 rounded-full flex items-center gap-1">
                        <Check size={12} /> Universal Default
                      </span>
                    )}
                  </div>
                  <button
                    onClick={() => navigate('/address')}
-                   className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+                   className="text-xs font-bold text-[#C85A32] hover:underline flex items-center gap-1 cursor-pointer"
                  >
                    <Edit2 size={13} /> Edit
                  </button>
@@ -274,7 +274,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Card Visual */}
-        <div className="bg-gradient-to-br from-[#1a1a3a] to-[#2874f0] text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden aspect-[1.6/1] flex flex-col justify-between">
+        <div className="bg-gradient-to-br from-[#2B221B] to-[#964328] text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden aspect-[1.6/1] flex flex-col justify-between">
            <div className="flex justify-between items-start">
               <CreditCard size={32} strokeWidth={1.5} />
               <span className="text-[10px] font-black tracking-[0.2em] italic opacity-60 uppercase">Platinum Swift</span>
@@ -283,11 +283,11 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
               <p className="text-xl tracking-[0.3em] font-black mb-6">•••• •••• •••• 4242</p>
               <div className="flex justify-between items-end">
                  <div>
-                    <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest mb-1">Valid Thru</p>
+                    <p className="text-[8px] font-black text-amber-100 uppercase tracking-widest mb-1">Valid Thru</p>
                     <p className="text-xs font-bold uppercase">12 / 28</p>
                  </div>
                  <div className="text-right">
-                    <p className="text-[8px] font-black text-blue-200 uppercase tracking-widest mb-1">Card Holder</p>
+                    <p className="text-[8px] font-black text-amber-100 uppercase tracking-widest mb-1">Card Holder</p>
                     <p className="text-xs font-bold uppercase truncate max-w-[120px]">{user.name}</p>
                  </div>
               </div>
@@ -296,19 +296,19 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
         </div>
 
         {/* UPI Shortcut */}
-        <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-[#2874f0] transition-colors">
+        <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-8 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-[#C85A32] transition-colors">
            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">
-              <Plus className="text-[#2874f0]" />
+              <Plus className="text-[#C85A32]" />
            </div>
            <h3 className="font-bold text-gray-800">Add New Card</h3>
            <p className="text-[10px] text-gray-400 uppercase tracking-widest mt-1">Visa, Mastercard, RuPay</p>
         </div>
       </div>
 
-      <div className="bg-blue-50 rounded-2xl p-6 flex items-center gap-4">
-         <ShieldCheck size={24} className="text-[#2874f0] shrink-0" />
-         <div className="text-[10px] text-blue-800 font-bold uppercase leading-relaxed tracking-tight">
-            Melody Payments is 100% PCI-DSS compliant. Your security is our highest priority.
+      <div className="bg-[#FAF0E6] rounded-2xl p-6 flex items-center gap-4">
+         <ShieldCheck size={24} className="text-[#C85A32] shrink-0" />
+         <div className="text-[10px] text-[#8C3F1E] font-bold uppercase leading-relaxed tracking-tight">
+            MArts Payments is 100% PCI-DSS compliant. Your security is our highest priority.
          </div>
       </div>
     </div>
@@ -331,7 +331,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
             </div>
          </div>
          <div>
-           <button className="text-[#2874f0] font-bold text-sm hover:underline">Change Profile Picture</button>
+           <button className="text-[#C85A32] font-bold text-sm hover:underline">Change Profile Picture</button>
            <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest">JPG, PNG or GIF. Max 1MB.</p>
          </div>
       </div>
@@ -350,7 +350,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                     value={fullName} 
                     onChange={e => setFullName(e.target.value)} 
                     placeholder="Enter your full name (e.g. Rahul Sharma)"
-                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                   />
                   {fullName.length > 0 && (
                     <button
@@ -377,7 +377,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                     value={phoneNum} 
                     onChange={e => setPhoneNum(e.target.value.replace(/\D/g, '').slice(0, 10))} 
                     placeholder="Enter 10-digit mobile number"
-                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                   />
                   {phoneNum.length > 0 && (
                     <button
@@ -400,7 +400,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                   <span>Account Email</span>
                   {auth.currentUser?.providerData?.some(p => p.providerId === 'google.com') && (
-                     <span className="text-[9px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">
+                     <span className="text-[9px] text-[#C85A32] bg-[#FAF0E6] px-1.5 py-0.5 rounded font-bold">
                         Google Verified
                      </span>
                   )}
@@ -431,7 +431,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
          {/* Delivery Address Section */}
          <div className="border-t border-gray-100 pt-6 space-y-4">
             <div className="flex items-center gap-2">
-               <MapPin size={18} className="text-[#2874f0]" />
+               <MapPin size={18} className="text-[#C85A32]" />
                <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">Default Delivery Address</h3>
             </div>
             <div className="space-y-1.5">
@@ -446,7 +446,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                     value={houseNo} 
                     onChange={e => setHouseNo(e.target.value)} 
                     placeholder="Flat / House no., floor, building name"
-                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                    className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                   />
                   {houseNo.length > 0 && (
                     <button
@@ -474,7 +474,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                        value={area} 
                        onChange={e => setArea(e.target.value)} 
                        placeholder="Area, street, sector, landmark"
-                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                      />
                      {area.length > 0 && (
                        <button
@@ -501,7 +501,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                        onChange={e => setPincode(e.target.value.replace(/\D/g, '').slice(0, 6))} 
                        maxLength={6}
                        placeholder="Enter 6-digit pincode (e.g. 560001)"
-                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                      />
                      {pincode.length > 0 && (
                        <button
@@ -530,7 +530,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                        value={city} 
                        onChange={e => setCity(e.target.value)} 
                        placeholder="City or District (e.g. Bengaluru)"
-                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                      />
                      {city.length > 0 && (
                        <button
@@ -557,7 +557,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
                        value={stateName} 
                        onChange={e => setStateName(e.target.value)} 
                        placeholder="State (e.g. Karnataka)"
-                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#2874f0] font-bold text-sm transition-colors" 
+                       className="w-full h-12 pl-4 pr-10 bg-gray-50 border rounded-xl outline-none focus:border-[#C85A32] font-bold text-sm transition-colors" 
                      />
                      {stateName.length > 0 && (
                        <button
@@ -579,8 +579,8 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Gender</label>
             <div className="flex gap-4">
               {['Male', 'Female', 'Other'].map(g => (
-                <label key={g} className="flex-1 flex items-center justify-center gap-2 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 peer-checked:bg-blue-50 transition-colors">
-                  <input type="radio" name="gender" className="accent-[#2874f0]" defaultChecked={g === 'Male'} />
+                <label key={g} className="flex-1 flex items-center justify-center gap-2 p-3 border rounded-xl cursor-pointer hover:bg-gray-50 peer-checked:bg-[#FAF0E6] transition-colors">
+                  <input type="radio" name="gender" className="accent-[#C85A32]" defaultChecked={g === 'Male'} />
                   <span className="text-xs font-bold">{g}</span>
                 </label>
               ))}

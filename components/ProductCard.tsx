@@ -108,7 +108,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {product.discount && (
-          <div className="text-[10px] font-medium text-blue-600 mt-0.5">
+          <div className="text-[10px] font-medium text-[#C85A32] mt-0.5">
             <b>{product.discount.replace(/[^0-9%]/g, "")} Off</b> with Bank
             offer
           </div>

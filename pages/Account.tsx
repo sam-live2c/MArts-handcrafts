@@ -23,8 +23,8 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
   });
 
   const gridOptions = [
-    { id: 'addresses', label: 'Addresses', icon: <MapPin className="text-[#2874f0]" size={22} />, path: '/address' },
-    { id: 'orders', label: 'My Orders', icon: <Package className="text-[#2874f0]" size={22} />, path: '/orders' },
+    { id: 'addresses', label: 'Addresses', icon: <MapPin className="text-[#C85A32]" size={22} />, path: '/address' },
+    { id: 'orders', label: 'My Orders', icon: <Package className="text-[#C85A32]" size={22} />, path: '/orders' },
     { id: 'wishlist', label: 'My Wishlist', icon: <Heart className="text-[#C85A32]" size={22} />, path: '/wishlist' }
   ];
 
@@ -107,7 +107,7 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
                 <button
                   type="button"
                   onClick={() => navigate('/login')}
-                  className="w-full sm:w-auto sm:min-w-[170px] bg-[#2874f0] hover:bg-[#1a62d6] text-white py-2.5 px-6 rounded-lg font-bold text-sm shadow-xs hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  className="w-full sm:w-auto sm:min-w-[170px] bg-[#C85A32] hover:bg-[#A04724] text-white py-2.5 px-6 rounded-lg font-bold text-sm shadow-xs hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
                 >
                   <span>Login / Signup</span>
                   <ChevronRight size={18} />
@@ -124,10 +124,10 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
                     to={option.path}
                     className="bg-white flex items-center gap-3 transition-colors py-2 group cursor-pointer"
                   >
-                    <div className="flex-shrink-0 text-[#2874f0] w-6 flex justify-center">
+                    <div className="flex-shrink-0 text-[#C85A32] w-6 flex justify-center">
                       {option.icon}
                     </div>
-                    <span className="text-base font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{option.label}</span>
+                    <span className="text-base font-medium text-gray-900 group-hover:text-[#C85A32] transition-colors">{option.label}</span>
                   </Link>
                 ))}
               </div>
@@ -177,7 +177,7 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
       {/* Profile Info Subheader */}
       <div className="mb-4 pb-4 flex items-center justify-between border-b border-gray-100">
         <div className="flex flex-col">
-          <h2 className="text-base font-bold text-gray-900">{user.name || user.email || 'Melody Customer'}</h2>
+          <h2 className="text-base font-bold text-gray-900">{user.name || user.email || 'MArts Collector'}</h2>
           {user.phone ? (
             <p className="text-sm font-semibold text-gray-800 mt-0.5">
               {user.phone.startsWith('+') ? user.phone : `+91 ${user.phone}`}
@@ -203,10 +203,10 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
               to={option.path}
               className="bg-white flex items-center gap-3 transition-colors py-2 group"
             >
-              <div className="flex-shrink-0 text-[#2874f0] w-6 flex justify-center">
+              <div className="flex-shrink-0 text-[#C85A32] w-6 flex justify-center">
                 {option.icon}
               </div>
-              <span className="text-base font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{option.label}</span>
+              <span className="text-base font-medium text-gray-900 group-hover:text-[#C85A32] transition-colors">{option.label}</span>
             </Link>
           ))}
         </div>

@@ -15,7 +15,7 @@ const Footer: React.FC = () => {
               <Logo variant="dark" size="md" showStoreTag={false} />
             </Link>
             <p className="text-xs sm:text-sm text-[#735A4C] leading-relaxed max-w-sm">
-              MArts celebrates generational artisan craftsmanship. Wheel-thrown terracotta pottery, vitrified studio ceramics, and hand-chiseled stone sculptures from master heritage guilds.
+              MArts celebrates generational artisan craftsmanship. Wheel-thrown terracotta pottery, vitrified artisan ceramics, and hand-chiseled stone sculptures from master heritage guilds.
             </p>
             <div className="flex items-center gap-2 text-xs font-semibold text-[#8C3F1E] pt-1">
               <ShieldCheck size={16} className="text-[#C85A32] shrink-0" />
@@ -120,31 +120,13 @@ const Footer: React.FC = () => {
                   atelier@marts.com
                 </a>
               </div>
-
-              <div className="pt-2 flex items-center gap-4">
-                <Link
-                  to="/location"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#9C4320] transition-colors"
-                >
-                  <span>Visit Studio</span>
-                  <ArrowRight size={13} />
-                </Link>
-                <span className="text-[#D4C3B7]">•</span>
-                <Link
-                  to="/contact"
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#9C4320] transition-colors"
-                >
-                  <span>Get in Touch</span>
-                  <ArrowRight size={13} />
-                </Link>
-              </div>
             </div>
           </div>
         </div>
 
         {/* Bottom Bar: Copyright & Dedicated Options Row */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#735A4C]">
-          <p>© {new Date().getFullYear()} MArts Handcrafted Studio. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} MArts Handcrafted. All rights reserved.</p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-semibold">
             <Link to="/contact" className="hover:text-[#C85A32] transition-colors">

@@ -15,7 +15,7 @@ const Logo: React.FC<LogoProps> = ({
   className = '',
   showCaption = false,
   caption = '',
-  showStoreTag = true,
+  showStoreTag = false,
 }) => {
   const heightConfig = {
     sm: 'h-8 sm:h-9',
@@ -93,15 +93,6 @@ const Logo: React.FC<LogoProps> = ({
             <span className={`${tClass} font-serif font-black tracking-tight ${textColor} leading-none`}>
               MArts
             </span>
-            {showStoreTag && (
-              <span className={`text-[10px] sm:text-xs font-semibold tracking-wider uppercase ml-1.5 px-1.5 py-0.5 rounded ${
-                variant === 'light' 
-                  ? 'bg-white/20 text-amber-100' 
-                  : 'bg-[#F2E8E1] text-[#9C4320]'
-              }`}>
-                Studio
-              </span>
-            )}
           </div>
           {size !== 'sm' && (
             <span className={`text-[9px] sm:text-[10px] tracking-widest uppercase font-medium mt-0.5 ${

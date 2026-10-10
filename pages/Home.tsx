@@ -13,6 +13,7 @@ import {
 import { PRODUCTS } from '../constants';
 import { CartItem, Product, User } from '../types';
 import Header from '../components/Header';
+import WhatsAppButton from '../components/WhatsAppButton';
 
 interface HomeProps {
   user?: User | null;
@@ -54,9 +55,9 @@ const BANNER_SLIDES: BannerSlide[] = [
   {
     id: 'slide-3',
     image: '/src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg',
-    title: 'MArts Studio Ceramic Vases',
+    title: 'MArts Ceramic Vases',
     subtitle: 'Watertight stoneware pottery dipped in tactile raw earth & oatmeal mineral glazes',
-    tag: 'Studio Ceramics',
+    tag: 'Artisan Ceramics',
     link: '/product/3',
     ctaText: 'Discover New Arrivals'
   },
@@ -266,11 +267,11 @@ export const Home: React.FC<HomeProps> = ({
             );
           })}
 
-          {/* Carousel Previous / Next Navigation Arrows */}
+          {/* Carousel Previous / Next Navigation Arrows (Hidden on mobile and tablets, visible on desktop) */}
           <button
             type="button"
             onClick={handlePrevSlide}
-            className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs flex items-center justify-center transition-all cursor-pointer border border-white/20"
+            className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
             aria-label="Previous Slide"
           >
             <ChevronLeft size={18} />
@@ -278,7 +279,7 @@ export const Home: React.FC<HomeProps> = ({
           <button
             type="button"
             onClick={handleNextSlide}
-            className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs flex items-center justify-center transition-all cursor-pointer border border-white/20"
+            className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
             aria-label="Next Slide"
           >
             <ChevronRight size={18} />
@@ -306,39 +307,44 @@ export const Home: React.FC<HomeProps> = ({
       {/* Product Catalog Section */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-8 sm:py-10 w-full">
         {/* Section Header & Search Status */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between mb-6 gap-3 border-b border-[#E8DFD8] pb-4">
-          <div>
-            <div className="text-xs font-bold text-[#B85D36] uppercase tracking-wider mb-1">
-              {searchQuery ? 'Live Search Results' : 'Curated Studio Catalog'}
+        <div className="mb-6 border-b border-[#E8DFD8] pb-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-[#B85D36] uppercase tracking-wider mb-0.5 sm:mb-1">
+                {searchQuery ? 'Live Search Results' : 'Curated Catalog'}
+              </div>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
+                {searchQuery ? `Searching "${searchQuery}"` : 'Artisan Pottery & Statues'}
+              </h2>
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
-              {searchQuery ? `Searching "${searchQuery}"` : 'Artisan Pottery & Statues'}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#735A4C] mt-0.5">
-              {searchQuery
-                ? `Showing ${displayedProducts.length} creations sorted automatically by relevance`
-                : 'Hand-thrown terracotta pots, glazed ceramic urns, stone sculptures & brass idols'}
-            </p>
+
+            <div className="shrink-0 flex items-center justify-end">
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-3 py-1.5 rounded-full cursor-pointer border border-[#EADBCC]"
+                >
+                  <X size={14} />
+                  <span>Clear Search Filter</span>
+                </button>
+              ) : (
+                <Link
+                  to="/products"
+                  className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap"
+                >
+                  <span>View all products</span>
+                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              )}
+            </div>
           </div>
 
-          {searchQuery ? (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-3 py-1.5 rounded-full cursor-pointer border border-[#EADBCC]"
-            >
-              <X size={14} />
-              <span>Clear Search Filter</span>
-            </button>
-          ) : (
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap"
-            >
-              <span>View all products</span>
-              <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
-          )}
+          <p className="text-xs sm:text-sm text-[#735A4C] mt-1 sm:mt-1.5">
+            {searchQuery
+              ? `Showing ${displayedProducts.length} creations sorted automatically by relevance`
+              : 'Hand-thrown terracotta pots, glazed ceramic urns, stone sculptures & brass idols'}
+          </p>
         </div>
 
         {/* Products Grid: Exactly 2 in a row on mobile, 4 in a row on tablets, 4 in a row on desktop */}
@@ -470,6 +476,9 @@ export const Home: React.FC<HomeProps> = ({
           </div>
         )}
       </section>
+
+      {/* Floating WhatsApp Action Button (Exclusively on Homepage) */}
+      <WhatsAppButton />
     </div>
   );
 };

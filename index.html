@@ -70,13 +70,25 @@
     .text-brand { color: var(--brand-orange); }
     .border-brand { border-color: var(--brand-orange); }
     
+    /* Prevent input placeholders from animating or transitioning during loading or font rendering */
+    input::placeholder,
+    textarea::placeholder,
+    ::-webkit-input-placeholder,
+    ::-moz-placeholder,
+    :-ms-input-placeholder {
+      transition: none !important;
+      -webkit-transition: none !important;
+      animation: none !important;
+      -webkit-animation: none !important;
+    }
+
     /* Smooth transitions for sticky header shadow */
     header {
       transition: box-shadow 0.3s ease, background-color 0.3s ease;
     }
   </style>
 </head>
-<body class="selection:bg-blue-100">
+<body class="selection:bg-[#F2E4D8] selection:text-[#2B221B]">
   <div id="root"></div>
 <script type="module" src="/index.tsx"></script>
 </body>

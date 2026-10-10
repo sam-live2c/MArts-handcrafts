@@ -38,12 +38,7 @@ import {
 
 const ConditionalFooter = () => {
   const location = useLocation();
-  const hideFooterPaths = [
-    '/address', '/addresses', '/add-address', 
-    '/account', '/orders', '/payments', '/profile/edit',
-    '/checkout', '/cart'
-  ];
-  if (hideFooterPaths.includes(location.pathname)) return null;
+  if (location.pathname !== '/') return null;
   return <Footer />;
 };
 

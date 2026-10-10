@@ -456,7 +456,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Enter full name (e.g. Rahul Sharma)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                     />
                     {formData.name.length > 0 && (
                       <button
@@ -481,7 +481,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       {formData.phone.length}/10
                     </span>
                   </div>
-                  <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-blue-600 focus-within:border-transparent transition-shadow bg-transparent overflow-hidden">
+                  <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-[#C85A32] focus-within:border-transparent transition-shadow bg-transparent overflow-hidden">
                     <input
                       type="text"
                       value={formData.countryCode}
@@ -503,7 +503,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       maxLength={5}
                       placeholder="+91"
                       aria-label="Country Code"
-                      className="w-16 sm:w-20 px-2 sm:px-3 py-2.5 text-sm font-semibold text-gray-800 bg-transparent border-r border-gray-300 outline-none text-center focus:text-blue-600 transition-colors"
+                      className="w-16 sm:w-20 px-2 sm:px-3 py-2.5 text-sm font-semibold text-gray-800 bg-transparent border-r border-gray-300 outline-none text-center focus:text-[#C85A32] transition-colors"
                     />
                     <div className="relative flex-1 flex items-center min-w-0">
                       <input
@@ -536,7 +536,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                     <label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
                       <span>Email Address</span>
                       {isGoogleAccount ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8C3F1E] bg-[#FAF0E6] border border-[#EADBCC] px-2 py-0.5 rounded-full">
                           <GoogleBrandIcon />
                           <span>Google Sign-In</span>
                         </span>
@@ -598,7 +598,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                         value={formData.pincode}
                         onChange={e => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) })}
                         placeholder="6-digit pincode (e.g. 560001)"
-                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                       />
                       {formData.pincode.length > 0 && (
                         <button
@@ -630,7 +630,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                         value={formData.city}
                         onChange={e => setFormData({ ...formData, city: e.target.value })}
                         placeholder="City or District (e.g. Bengaluru)"
-                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                       />
                       {formData.city.length > 0 && (
                         <button
@@ -664,7 +664,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       value={formData.houseNo}
                       onChange={e => setFormData({ ...formData, houseNo: e.target.value })}
                       placeholder="Flat, House no., Building name (e.g. 42A, Greenwood)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                     />
                     {formData.houseNo.length > 0 && (
                       <button
@@ -697,7 +697,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       value={formData.area}
                       onChange={e => setFormData({ ...formData, area: e.target.value })}
                       placeholder="Area, Street, Sector, Landmark"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                     />
                     {formData.area.length > 0 && (
                       <button
@@ -730,7 +730,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       value={formData.state}
                       onChange={e => setFormData({ ...formData, state: e.target.value })}
                       placeholder="State (e.g. Karnataka)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-shadow"
+                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                     />
                     {formData.state.length > 0 && (
                       <button
@@ -752,7 +752,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                     id="isDefault"
                     checked={formData.isDefault}
                     onChange={e => setFormData({ ...formData, isDefault: e.target.checked })}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-600 focus:ring-offset-1 transition-shadow cursor-pointer"
+                    className="w-5 h-5 text-[#C85A32] border-gray-300 rounded focus:ring-2 focus:ring-[#C85A32] focus:ring-offset-1 transition-shadow cursor-pointer"
                   />
                   <label htmlFor="isDefault" className="text-sm font-medium text-gray-700 cursor-pointer">
                     Make this my default delivery address
@@ -773,7 +773,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                     type="submit"
                     id="address-save-btn"
                     form="address-form"
-                    className="flex-1 sm:flex-none sm:w-auto sm:min-w-[160px] h-12 sm:h-11 px-6 sm:px-8 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-[15px] sm:text-sm rounded-xl sm:rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center cursor-pointer"
+                    className="flex-1 sm:flex-none sm:w-auto sm:min-w-[160px] h-12 sm:h-11 px-6 sm:px-8 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold text-[15px] sm:text-sm rounded-xl sm:rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center cursor-pointer"
                   >
                     Save Address
                   </button>
@@ -794,7 +794,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                   >
                     {/* Blue Accent Bar on left edge if selected */}
                     {isSelected && (
-                      <div className="absolute top-0 -left-4 sm:-left-8 lg:-left-12 w-1 h-full bg-blue-600 hidden"></div>
+                      <div className="absolute top-0 -left-4 sm:-left-8 lg:-left-12 w-1 h-full bg-[#C85A32] hidden"></div>
                     )}
 
                     <div className="pr-4 flex-1">
@@ -803,7 +803,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                         <span className="font-semibold">{addr.name}</span>
                         <span className="text-sm font-bold text-gray-800">{addr.phone}</span>
                         {addr.isDefault && (
-                          <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-sm">
+                          <span className="text-[10px] font-semibold text-[#C85A32] bg-[#FAF0E6] px-2 py-0.5 rounded-sm">
                             DEFAULT
                           </span>
                         )}
@@ -830,7 +830,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                         <button
                           type="button"
                           onClick={e => handleOpenEdit(e, addr)}
-                          className="text-sm font-semibold text-blue-600 flex items-center gap-1.5 hover:underline"
+                          className="text-sm font-semibold text-[#C85A32] flex items-center gap-1.5 hover:underline"
                         >
                           <Edit2 size={14} /> Edit
                         </button>
@@ -848,7 +848,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                     <div className="pt-1">
                       <div
                         className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${
-                          isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-transparent'
+                          isSelected ? 'border-[#C85A32] bg-[#C85A32] text-white' : 'border-gray-300 bg-transparent'
                         }`}
                       >
                         {isSelected && <Check size={12} strokeWidth={3} />}
@@ -861,14 +861,14 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
               {/* Add a new address trigger */}
               <div className={`py-5 transition-colors ${addresses.length > 0 ? 'border-t border-gray-100' : 'flex flex-col items-center justify-center mt-10'}`}>
                 {addresses.length === 0 && (
-                  <div className="mb-4 bg-blue-50 p-4 rounded-full text-blue-600">
+                  <div className="mb-4 bg-[#FAF0E6] p-4 rounded-full text-[#C85A32]">
                     <MapPin size={32} />
                   </div>
                 )}
                 <button
                   type="button"
                   onClick={handleOpenAdd}
-                  className={`text-blue-600 font-bold text-sm flex items-center gap-2 cursor-pointer hover:underline ${addresses.length === 0 ? 'bg-blue-50 px-6 py-3 rounded-lg justify-center' : 'justify-start w-full'}`}
+                  className={`text-[#C85A32] font-bold text-sm flex items-center gap-2 cursor-pointer hover:underline ${addresses.length === 0 ? 'bg-[#FAF0E6] px-6 py-3 rounded-lg justify-center' : 'justify-start w-full'}`}
                 >
                   <Plus size={18} strokeWidth={2.5} />
                   <span>Add a new address</span>

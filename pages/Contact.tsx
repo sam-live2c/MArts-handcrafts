@@ -93,7 +93,7 @@ const Contact: React.FC = () => {
                     <MapPin size={18} />
                   </div>
                   <div>
-                    <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Showroom &amp; Studio</p>
+                    <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Showroom &amp; Atelier</p>
                     <p className="text-xs sm:text-sm font-medium text-[#4E392D] leading-relaxed">
                       Plot 14, Heritage Artisan Guild Enclave, Pottery &amp; Sculpture Crafts Zone, Sector 4, Khurja / Bengal Craft Belt, PIN 203131, India
                     </p>

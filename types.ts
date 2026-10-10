@@ -95,6 +95,7 @@ export interface User {
   deliveryAddress?: StoreDeliveryAddress;
   shippingAddress?: StoreDeliveryAddress;
   orders: Order[];
+  role?: 'customer' | 'admin' | string;
 }
 
 export interface Order {
