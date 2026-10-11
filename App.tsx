@@ -418,9 +418,10 @@ const App: React.FC = () => {
     if (currentFirebaseUser) {
       localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
       try {
-        await updateDoc(doc(db, 'users', currentFirebaseUser.uid), {
-          orders: updatedOrders
-        });
+        await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
+          orders: updatedOrders,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
       } catch (e) {
         console.warn('Notice: Firestore order update operated offline:', e);
       }

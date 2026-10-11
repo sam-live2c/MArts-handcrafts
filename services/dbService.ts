@@ -919,17 +919,55 @@ export const saveOrderToFirestore = async (uid: string | null, order: Order, cus
 
 export const updateOrderStatusInFirestore = async (uid: string | null, orderId: string, status: Order['status']): Promise<void> => {
   if (uid) {
-    const existing = await fetchUserOrders(uid);
-    const updated = existing.map(o => o.id === orderId ? { ...o, status } : o);
-    localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updated));
+    try {
+      const existing = await fetchUserOrders(uid);
+      const updated = existing.map(o => o.id === orderId ? { ...o, status } : o);
+      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updated));
+      localStorage.setItem('melody_orders', JSON.stringify(updated));
+    } catch (_) {}
   }
   try {
-    await withTimeout(updateDoc(doc(db, 'orders', orderId), { status, updatedAt: Date.now() }), 2000);
-    if (uid) {
-      await withTimeout(updateDoc(doc(db, 'users', uid, 'orders', orderId), { status, updatedAt: Date.now() }), 2000);
+    // 1. Update the top-level global order document
+    await withTimeout(setDoc(doc(db, 'orders', orderId), { 
+      status, 
+      updatedAt: Date.now() 
+    }, { merge: true }), 3000);
+
+    // 2. Identify target user ID (from parameter or document itself)
+    let targetUid = uid;
+    if (!targetUid) {
+      try {
+        const orderSnap = await withTimeout(getDoc(doc(db, 'orders', orderId)), 2000);
+        if (orderSnap.exists()) {
+          targetUid = orderSnap.data()?.userId;
+        }
+      } catch (_) {}
+    }
+
+    // 3. Update the user-specific order subcollection & parent profile
+    if (targetUid && targetUid !== 'guest') {
+      await withTimeout(setDoc(doc(db, 'users', targetUid, 'orders', orderId), { 
+        status, 
+        updatedAt: Date.now() 
+      }, { merge: true }), 3000);
+
+      try {
+        const userDocRef = doc(db, 'users', targetUid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const uData = userSnap.data();
+          if (Array.isArray(uData.orders)) {
+            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, status } : o);
+            await setDoc(userDocRef, { 
+              orders: updatedOrders, 
+              updatedAt: new Date().toISOString() 
+            }, { merge: true });
+          }
+        }
+      } catch (_) {}
     }
   } catch (err) {
-    console.warn('Firestore offline when updating order status.');
+    console.warn('Firestore notice when updating order status:', err);
   }
 };
 

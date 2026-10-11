@@ -129,5 +129,8 @@ export interface Order {
   customerEmail?: string;
   customerAddress?: string;
   shippingAddress?: StoreDeliveryAddress | any;
+  userId?: string;
   createdAt?: number;
+  updatedAt?: number;
+  cancelReason?: string;
 }

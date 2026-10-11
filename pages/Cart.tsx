@@ -318,10 +318,6 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                        <span>Delivery</span>
                        <span className="text-[#C85A32] font-medium">{delivery === 0 ? 'Free' : `₹${delivery}`}</span>
                      </div>
-                     <div className="flex justify-between">
-                       <span>18% GST</span>
-                       <span>Included</span>
-                     </div>
 
                      <div className="flex justify-between font-bold text-gray-900 text-base pt-3 mt-1 border-t border-gray-100">
                        <span>Total price</span>

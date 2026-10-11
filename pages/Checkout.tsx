@@ -709,10 +709,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                              <span>Delivery</span>
                              <span className="text-[#C85A32] font-medium">Free</span>
                           </div>
-                          <div className="flex justify-between">
-                             <span>18% GST</span>
-                             <span>Included</span>
-                          </div>
                           <div className="flex justify-between font-bold text-gray-900 text-base pt-3 mt-1 border-t border-gray-100">
                              <span>Total price</span>
                              <span>₹{total.toLocaleString()}</span>
@@ -747,7 +743,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                     <div className="mb-[11px] pb-[11px] flex items-center justify-between border-b border-gray-100">
                        <div>
                          <h2 className="text-base font-bold text-gray-900">Total Amount Payable</h2>
-                         <p className="text-xs text-gray-500 mt-0.5">Includes all taxes and free delivery</p>
+                         <p className="text-xs text-gray-500 mt-0.5">Includes free delivery</p>
                        </div>
                        <span className="text-2xl font-extrabold text-[#C85A32]">₹{total.toLocaleString()}</span>
                     </div>

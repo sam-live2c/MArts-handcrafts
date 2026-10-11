@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
 import { auth, db } from '../firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { updateOrderStatusInFirestore } from '../services/dbService';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
@@ -35,14 +35,19 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     message?: string;
   } | null>(null);
 
-  // Live real-time subscription for orders
+  // Live real-time subscription for orders (listening to both user subcollection & global orders collection for instant admin sync)
   useEffect(() => {
-    let unsubSnapshot: (() => void) | null = null;
+    let unsubUserOrders: (() => void) | null = null;
+    let unsubGlobalOrders: (() => void) | null = null;
 
     const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
-      if (unsubSnapshot) {
-        unsubSnapshot();
-        unsubSnapshot = null;
+      if (unsubUserOrders) {
+        unsubUserOrders();
+        unsubUserOrders = null;
+      }
+      if (unsubGlobalOrders) {
+        unsubGlobalOrders();
+        unsubGlobalOrders = null;
       }
 
       if (!currentUser) {
@@ -63,14 +68,27 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         }
       } catch (_) {}
 
-      // Listen to real-time live updates from user's orders collection
-      const userOrdersRef = collection(db, 'users', uid, 'orders');
-      unsubSnapshot = onSnapshot(userOrdersRef, (snapshot) => {
-        const liveOrders: Order[] = [];
-        snapshot.forEach(docSnap => {
-          liveOrders.push(docSnap.data() as Order);
+      const subOrdersMap = new Map<string, Order>();
+      const globalOrdersMap = new Map<string, Order>();
+
+      const syncAndDispatchOrders = () => {
+        const mergedMap = new Map<string, Order>();
+        subOrdersMap.forEach((ord, id) => mergedMap.set(id, ord));
+        globalOrdersMap.forEach((ord, id) => {
+          const existing = mergedMap.get(id);
+          if (!existing) {
+            mergedMap.set(id, ord);
+          } else {
+            // Merge: whichever has newer status or timestamp takes precedence
+            const existingTime = existing.updatedAt || existing.createdAt || 0;
+            const incomingTime = ord.updatedAt || ord.createdAt || 0;
+            if (incomingTime >= existingTime || ord.status !== existing.status) {
+              mergedMap.set(id, { ...existing, ...ord });
+            }
+          }
         });
 
+        const liveOrders = Array.from(mergedMap.values());
         liveOrders.sort((a, b) => {
           const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
           const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
@@ -80,16 +98,53 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
 
         if (liveOrders.length > 0) {
           onUpdateOrders(liveOrders);
+          try {
+            localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
+            localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
+          } catch (_) {}
         }
         setIsLoading(false);
+      };
+
+      // 1. Listen to real-time live updates from user's orders subcollection
+      const userOrdersRef = collection(db, 'users', uid, 'orders');
+      unsubUserOrders = onSnapshot(userOrdersRef, (snapshot) => {
+        subOrdersMap.clear();
+        snapshot.forEach(docSnap => {
+          const ord = docSnap.data() as Order;
+          if (ord && ord.id) {
+            subOrdersMap.set(ord.id, ord);
+          }
+        });
+        syncAndDispatchOrders();
       }, (err) => {
-        console.warn('Orders live sync notice:', err);
+        console.warn('User orders subcollection sync notice:', err);
         setIsLoading(false);
       });
+
+      // 2. Listen to real-time live updates from top-level global orders collection (where admin panel directly updates)
+      try {
+        const globalOrdersQuery = query(collection(db, 'orders'), where('userId', '==', uid));
+        unsubGlobalOrders = onSnapshot(globalOrdersQuery, (snapshot) => {
+          globalOrdersMap.clear();
+          snapshot.forEach(docSnap => {
+            const ord = docSnap.data() as Order;
+            if (ord && ord.id) {
+              globalOrdersMap.set(ord.id, ord);
+            }
+          });
+          syncAndDispatchOrders();
+        }, (err) => {
+          console.warn('Global orders collection sync notice:', err);
+        });
+      } catch (err) {
+        console.warn('Global orders query listener setup notice:', err);
+      }
     });
 
     return () => {
-      if (unsubSnapshot) unsubSnapshot();
+      if (unsubUserOrders) unsubUserOrders();
+      if (unsubGlobalOrders) unsubGlobalOrders();
       unsubscribeAuth();
     };
   }, []);
@@ -178,11 +233,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     const isItemSpecific = !!specificItem;
     const items = isItemSpecific ? [specificItem] : order.items;
 
-    const mrp = items.reduce((acc, item) => acc + ((item.oldPrice || item.price) * item.quantity), 0);
+    const mrp = items.reduce((acc, item) => {
+      const unitMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+        ? Number(item.oldPrice) 
+        : Number(item.price || 0);
+      return acc + (unitMrp * (Number(item.quantity) || 1));
+    }, 0);
+    const itemsNet = items.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
     const itemsTotal = isItemSpecific 
-      ? (specificItem.price * specificItem.quantity) 
+      ? ((Number(specificItem.price) || 0) * (Number(specificItem.quantity) || 1)) 
       : order.total;
-    const discount = Math.max(0, mrp - itemsTotal);
+    const discount = Math.max(0, mrp - itemsNet);
 
     // Accurately determine payment method, status, transaction ref, and badge styling
     const isCod = Boolean(
@@ -251,8 +312,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     }
 
     const receiptHeading = isItemSpecific 
-      ? `TAX INVOICE / PRODUCT RECEIPT`
-      : `TAX INVOICE & ORDER RECEIPT`;
+      ? `ORDER & PRODUCT RECEIPT`
+      : `ORDER & PURCHASE RECEIPT`;
 
     const formattedDate = order.date;
     const sanitizedItemName = isItemSpecific 
@@ -322,7 +383,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
       <div>
         <div class="brand-title">MArts</div>
         <div class="brand-subtitle">Handcrafted Pottery & Statues • Heritage Atelier</div>
-        <div class="brand-subtitle">GSTIN: 19AAECM9841B1Z3 • support@marts.crafts</div>
+        <div class="brand-subtitle">support@marts.crafts</div>
       </div>
       <div class="invoice-meta">
         <div class="invoice-tag">${receiptHeading}</div>
@@ -393,10 +454,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           <span>Delivery / Shipping</span>
           <span class="savings">FREE (Insured Crate)</span>
         </div>
-        <div class="totals-row">
-          <span>GST (18%)</span>
-          <span>Included</span>
-        </div>
         <div class="totals-row bold">
           <span>Total Net Amount</span>
           <span>₹${itemsTotal.toLocaleString()}</span>
@@ -405,7 +462,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     </div>
 
     <div class="footer">
-      <div>This is a computer-generated tax invoice and delivery receipt issued by MArts Handcrafts.</div>
+      <div>This is a computer-generated order receipt and delivery summary issued by MArts Handcrafts.</div>
       <div>Thank you for honoring traditional pottery kilns, stone carving ateliers, and heritage craft traditions!</div>
       <div style="margin-top: 6px; font-size: 11px; color: #999;">For replacement or damage claims, please contact support@marts.crafts within 48 hours of delivery.</div>
     </div>
@@ -542,7 +599,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
               </button>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
+            <div className="space-y-6 sm:space-y-8">
               {filteredOrders.map((order, orderIdx) => {
                 const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
@@ -553,8 +610,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 const isActiveOrder = isProcessing || isShipped;
                 const isMenuOpen = activeMenuOrderId === order.id;
 
-                const mrp = order.items.reduce((acc, item) => acc + ((item.oldPrice || (item.price + 10)) * item.quantity), 0);
-                const discount = Math.max(0, mrp - order.total);
+                const totalItemQty = order.items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+                const itemsBaseTotal = order.items.reduce((acc, item) => acc + (Number(item.price || 0) * (Number(item.quantity) || 1)), 0);
+                const mrp = order.items.reduce((acc, item) => {
+                  const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+                    ? Number(item.oldPrice) 
+                    : Number(item.price || 0);
+                  return acc + (itemMrp * (Number(item.quantity) || 1));
+                }, 0);
+                const discount = Math.max(0, mrp - itemsBaseTotal);
 
                 const deliveryDateText = isDelivered
                   ? `Delivered on ${order.date}`
@@ -567,7 +631,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                   : `Delivery by ${order.date === 'Aug 09, 2026' ? 'Aug 12, Wed' : 'Aug 14, Fri'}`;
 
                 return (
-                  <div key={`${order.id}-${orderIdx}`} className="py-5 first:pt-1 last:pb-1 space-y-4">
+                  <div key={`${order.id}-${orderIdx}`} className="bg-white border border-[#EBE3DA] rounded-2xl p-4 sm:p-6 shadow-2xs hover:shadow-xs transition-shadow space-y-4">
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
                       <div className="flex-1 min-w-0">
@@ -636,7 +700,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                                     setActiveMenuOrderId(null);
                                     setCancellingOrderId(order.id);
                                   }}
-                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer border-t border-gray-100"
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
                                 >
                                   <span>Cancel order</span>
                                   <X size={14} className="shrink-0" />
@@ -713,7 +777,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                     {/* Price Details Breakdown - Clean dividers matching Checkout */}
                     <div className="pt-3 border-t border-gray-100 space-y-2 text-xs sm:text-sm text-gray-700">
                       <div className="flex justify-between">
-                        <span className="text-gray-500">MRP ({order.items.reduce((s, i) => s + i.quantity, 0)} items)</span>
+                        <span className="text-gray-500">MRP ({totalItemQty} {totalItemQty === 1 ? 'item' : 'items'})</span>
                         <span className="text-gray-800 font-medium">₹{mrp.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
@@ -725,10 +789,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       <div className="flex justify-between">
                         <span className="text-gray-500">Delivery</span>
                         <span className="text-[#8C3F1E] font-medium">Free</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">18% GST</span>
-                        <span className="text-gray-700">Included</span>
                       </div>
                       <div className="flex justify-between text-xs pt-1 border-t border-gray-100">
                         <span className="text-gray-500">Payment Method</span>

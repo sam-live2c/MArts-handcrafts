@@ -109,10 +109,10 @@ const FAQ_DATA: FAQItem[] = [
     answer: 'Yes. We accept bespoke commission requests for architectural sculptures, garden planters, temple murtis, and customized corporate pottery sets. Email support@marts.com with your sketches, dimensions, and preferred stone or clay requirements for a personalized quote.'
   },
   {
-    id: 'tax-invoice',
+    id: 'order-receipt',
     category: 'custom',
-    question: 'Where can I download GST tax invoices?',
-    answer: 'Every order includes a GST-compliant tax invoice. You can download the invoice directly from your "My Orders" page in your Account, or email us at support@marts.com to receive a digital copy.'
+    question: 'Where can I download order receipts?',
+    answer: 'Every order includes an itemized order receipt. You can download the receipt directly from your "My Orders" page in your Account, or email us at support@marts.com to receive a digital copy.'
   }
 ];
 

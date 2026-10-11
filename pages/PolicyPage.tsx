@@ -160,7 +160,7 @@ const PrivacyPolicyContent: React.FC = () => {
             To provide order tracking updates, transit insurance coverage, and customer care support.
           </li>
           <li>
-            To generate formal purchase receipts, GST invoices, and process approved replacements or refunds.
+            To generate formal purchase receipts and process approved replacements or refunds.
           </li>
           <li>
             To provide customer support, resolve technical issues, and respond to inquiries submitted via our contact forms.
@@ -519,13 +519,13 @@ const TermsConditionsContent: React.FC = () => {
         </ul>
       </section>
 
-      {/* 4. Pricing, Taxes & Payment Processing Payment Processing */}
+      {/* 4. Pricing & Payment Processing */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          4. Pricing, Taxes &amp; Payment Processing Payment Processing
+          4. Pricing &amp; Payment Processing
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          All prices on the platform are stated in Indian Rupees (INR) and are inclusive of applicable Goods and Services Tax (GST) unless explicitly noted.
+          All prices on the platform are stated in Indian Rupees (INR).
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>

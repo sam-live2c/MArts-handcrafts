@@ -478,17 +478,39 @@ export const updateOrderStatusAdmin = async (
 ): Promise<void> => {
   try {
     const globalOrderRef = doc(db, 'orders', orderId);
-    await updateDoc(globalOrderRef, {
+    await setDoc(globalOrderRef, {
       status: newStatus,
       updatedAt: Date.now()
-    });
+    }, { merge: true });
 
-    if (userId) {
-      const userOrderRef = doc(db, 'users', userId, 'orders', orderId);
-      await updateDoc(userOrderRef, {
+    let targetUid = userId;
+    if (!targetUid) {
+      try {
+        const snap = await getDoc(globalOrderRef);
+        if (snap.exists()) {
+          targetUid = snap.data()?.userId;
+        }
+      } catch (_) {}
+    }
+
+    if (targetUid && targetUid !== 'guest') {
+      const userOrderRef = doc(db, 'users', targetUid, 'orders', orderId);
+      await setDoc(userOrderRef, {
         status: newStatus,
         updatedAt: Date.now()
-      });
+      }, { merge: true });
+
+      try {
+        const userDocRef = doc(db, 'users', targetUid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const uData = userSnap.data();
+          if (Array.isArray(uData.orders)) {
+            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, status: newStatus } : o);
+            await setDoc(userDocRef, { orders: updatedOrders, updatedAt: new Date().toISOString() }, { merge: true });
+          }
+        }
+      } catch (_) {}
     }
   } catch (error: any) {
     console.error(`Failed to update status for order ${orderId}:`, error);
