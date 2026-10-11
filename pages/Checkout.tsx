@@ -36,7 +36,7 @@ interface CheckoutProps {
   setCart?: React.Dispatch<React.SetStateAction<CartItem[]>>;
   clearCart: () => void;
   user: User | null;
-  onOrderSuccess: (order: Order) => void;
+  onOrderSuccess: (order: Order) => Promise<void> | void;
 }
 
 const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onOrderSuccess }) => {
@@ -410,8 +410,11 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           }
         ];
 
+        const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
+
         const newOrder: Order = {
           id: orderId,
+          userId: effectiveUid,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           items: cart.map(item => ({
             ...item,
@@ -442,7 +445,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
         };
 
         setIsOrderPlaced(true);
-        onOrderSuccess(newOrder);
+        await Promise.resolve(onOrderSuccess(newOrder));
         clearCart();
         navigate('/orders', { 
           replace: true,
@@ -524,8 +527,11 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           }
         ];
 
+        const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
+
         const newOrder: Order = {
           id: orderId,
+          userId: effectiveUid,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           items: cart.map(item => ({
             ...item,
@@ -555,7 +561,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
         };
 
         setIsOrderPlaced(true);
-        onOrderSuccess(newOrder);
+        await Promise.resolve(onOrderSuccess(newOrder));
         clearCart();
         navigate('/orders', { 
           replace: true,

@@ -9,16 +9,13 @@ import {
 import { User, Order, CartItem } from '../types';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { updateOrderStatusInFirestore } from '../services/dbService';
+import { updateOrderStatusInFirestore, fetchUserOrders } from '../services/dbService';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
 interface MyOrdersProps {
   user: User | null;
   onUpdateOrders: (orders: Order[]) => void;
 }
-
-// In-memory cache for MyOrders page
-let isOrdersLoadedCache = false;
 
 const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const navigate = useNavigate();
@@ -29,57 +26,82 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Robust first-class orders state initialized immediately from props or localStorage
+  const [orders, setOrders] = useState<Order[]>(() => {
+    if (user?.orders && user.orders.length > 0) {
+      return [...user.orders];
+    }
+    try {
+      const authUid = auth.currentUser?.uid;
+      const cached = (authUid ? localStorage.getItem(`melody_orders_${authUid}`) : null) 
+        || localStorage.getItem('melody_orders')
+        || localStorage.getItem('marts_orders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return [];
+  });
+
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
     title: string;
     message?: string;
   } | null>(null);
 
+  // Sync when user prop updates
+  useEffect(() => {
+    if (user?.orders && user.orders.length > 0) {
+      setOrders(prev => {
+        const map = new Map<string, Order>();
+        prev.forEach(o => map.set(o.id, o));
+        user.orders.forEach(o => map.set(o.id, o));
+        const merged = Array.from(map.values());
+        merged.sort((a, b) => {
+          const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+          const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+          return (b.id || '').localeCompare(a.id || '');
+        });
+        return merged;
+      });
+    }
+  }, [user?.orders]);
+
   // Live real-time subscription for orders (listening to both user subcollection & global orders collection for instant admin sync)
   useEffect(() => {
     let unsubUserOrders: (() => void) | null = null;
     let unsubGlobalOrders: (() => void) | null = null;
 
-    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
-      if (unsubUserOrders) {
-        unsubUserOrders();
-        unsubUserOrders = null;
-      }
-      if (unsubGlobalOrders) {
-        unsubGlobalOrders();
-        unsubGlobalOrders = null;
-      }
-
-      if (!currentUser) {
-        setIsLoading(false);
-        return;
-      }
-
-      const uid = currentUser.uid;
-
-      // Check localStorage for orders immediately to prevent blank or stale render
-      try {
-        const cachedStr = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
-        if (cachedStr) {
-          const cachedOrders = JSON.parse(cachedStr);
-          if (Array.isArray(cachedOrders) && cachedOrders.length > (user?.orders?.length || 0)) {
-            onUpdateOrders(cachedOrders);
-          }
+    const setupListeners = (uid: string) => {
+      // Fetch initial batch
+      fetchUserOrders(uid).then(fetched => {
+        if (fetched && fetched.length > 0) {
+          setOrders(prev => {
+            const map = new Map<string, Order>();
+            prev.forEach(o => map.set(o.id, o));
+            fetched.forEach(o => map.set(o.id, o));
+            const merged = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            return merged;
+          });
+          onUpdateOrders(fetched);
         }
-      } catch (_) {}
+      }).catch(() => {});
 
       const subOrdersMap = new Map<string, Order>();
       const globalOrdersMap = new Map<string, Order>();
 
       const syncAndDispatchOrders = () => {
         const mergedMap = new Map<string, Order>();
+        // Add current state orders first to avoid flickering
+        orders.forEach(o => mergedMap.set(o.id, o));
         subOrdersMap.forEach((ord, id) => mergedMap.set(id, ord));
         globalOrdersMap.forEach((ord, id) => {
           const existing = mergedMap.get(id);
           if (!existing) {
             mergedMap.set(id, ord);
           } else {
-            // Merge: whichever has newer status or timestamp takes precedence
             const existingTime = existing.updatedAt || existing.createdAt || 0;
             const incomingTime = ord.updatedAt || ord.createdAt || 0;
             if (incomingTime >= existingTime || ord.status !== existing.status) {
@@ -97,6 +119,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         });
 
         if (liveOrders.length > 0) {
+          setOrders(liveOrders);
           onUpdateOrders(liveOrders);
           try {
             localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
@@ -122,7 +145,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         setIsLoading(false);
       });
 
-      // 2. Listen to real-time live updates from top-level global orders collection (where admin panel directly updates)
+      // 2. Listen to real-time live updates from top-level global orders collection
       try {
         const globalOrdersQuery = query(collection(db, 'orders'), where('userId', '==', uid));
         unsubGlobalOrders = onSnapshot(globalOrdersQuery, (snapshot) => {
@@ -139,6 +162,40 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         });
       } catch (err) {
         console.warn('Global orders query listener setup notice:', err);
+      }
+    };
+
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+      if (unsubUserOrders) {
+        unsubUserOrders();
+        unsubUserOrders = null;
+      }
+      if (unsubGlobalOrders) {
+        unsubGlobalOrders();
+        unsubGlobalOrders = null;
+      }
+
+      const effectiveUid = currentUser?.uid 
+        || (user as any)?.uid 
+        || user?.phone 
+        || user?.email 
+        || null;
+
+      if (effectiveUid) {
+        setupListeners(effectiveUid);
+      } else {
+        // Fallback to local storage if unauthenticated
+        try {
+          const cachedStr = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
+          if (cachedStr) {
+            const cachedOrders = JSON.parse(cachedStr);
+            if (Array.isArray(cachedOrders) && cachedOrders.length > 0) {
+              setOrders(cachedOrders);
+              onUpdateOrders(cachedOrders);
+            }
+          }
+        } catch (_) {}
+        setIsLoading(false);
       }
     });
 
@@ -162,8 +219,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     if (state?.paymentStatus === 'success') {
       setToast({
         type: 'success',
-        title: 'Payment Successful',
-        message: state.orderId ? `Order #${state.orderId} placed successfully` : (state.message || 'Your order has been placed successfully'),
+        title: 'Order Placed Successfully',
+        message: state.orderId ? `Order #${state.orderId} registered in fulfillment pipeline` : (state.message || 'Your order has been placed successfully'),
       });
       window.history.replaceState({}, document.title);
       const timer = setTimeout(() => setToast(null), 5000);
@@ -181,14 +238,14 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   }, [location.state]);
 
   const currentOrders: Order[] = React.useMemo(() => {
-    const list = user?.orders ? [...user.orders] : [];
+    const list = [...orders];
     return list.sort((a, b) => {
       const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
       const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
       if (timeA && timeB && timeA !== timeB) return timeB - timeA;
       return (b.id || '').localeCompare(a.id || '');
     });
-  }, [user?.orders]);
+  }, [orders]);
 
   const showToast = (title: string, message?: string, type: 'success' | 'failed' | 'info' = 'success', duration = 4000) => {
     setToast({ title, message, type });
@@ -199,6 +256,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     const updated = currentOrders.map(ord => 
       ord.id === orderId ? { ...ord, status: 'Cancelled' as const } : ord
     );
+    setOrders(updated);
     onUpdateOrders(updated);
     setActiveMenuOrderId(null);
     setCancellingOrderId(null);
@@ -506,15 +564,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   });
 
   return (
-    <div className="w-full bg-gray-50 min-h-screen font-sans relative">
-      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-7xl mx-auto shadow-sm pb-24 md:pb-8">
+    <div className="w-full bg-[#FAF6F3] min-h-screen font-sans relative">
+      <div className="w-full bg-[#FAF6F3] min-h-screen relative flex flex-col max-w-4xl mx-auto pb-24 md:pb-12">
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 shadow-xs px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between sticky top-0 z-[100]">
+        <div className="bg-white/90 backdrop-blur-md border-b border-[#F2E8DF] shadow-2xs px-4 sm:px-8 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between sticky top-0 z-[100]">
           <div className="flex items-center gap-4">
             <button 
               type="button"
               onClick={() => handleGoBack(navigate, '/account')} 
-              className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
+              className="p-1 -ml-1 hover:bg-[#FAF4EE] rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
               aria-label="Go back"
             >
               <ArrowLeft size={22} strokeWidth={2.5} />
@@ -524,9 +582,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         </div>
 
         {/* Search bar */}
-        <div className="w-full bg-transparent pt-4 sm:pt-5 pb-3 px-3 sm:px-8 lg:px-12">
+        <div className="w-full bg-transparent pt-4 sm:pt-5 pb-2 px-4 sm:px-8">
           <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center bg-transparent rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+            <div className="relative flex items-center bg-white rounded-full shadow-[0_2px_12px_rgba(43,34,27,0.04)] focus-within:ring-2 focus-within:ring-[#C85A32]/25 transition-all">
               <Search
                 size={18}
                 className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
@@ -555,7 +613,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         </div>
 
         {/* Horizontal Filters */}
-        <div className="bg-white px-4 sm:px-8 lg:px-12 py-2.5 border-b border-gray-100 overflow-x-auto no-scrollbar">
+        <div className="px-4 sm:px-8 py-2.5 overflow-x-auto no-scrollbar">
           <div className="flex items-center gap-2 min-w-max">
             {[
               { id: 'all', label: 'All Orders' },
@@ -567,10 +625,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 <button
                   key={filter.id}
                   onClick={() => setActiveFilter(filter.id as any)}
-                  className={`h-8 px-4 inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer border ${
+                  className={`h-8 px-4 inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-[#C85A32] text-white border-[#C85A32] shadow-xs'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent'
+                      ? 'bg-[#C85A32] text-white shadow-xs'
+                      : 'bg-white text-gray-700 hover:bg-[#F7EFE8] shadow-[0_1px_4px_rgba(43,34,27,0.03)]'
                   }`}
                 >
                   {filter.label}
@@ -581,25 +639,25 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
         </div>
 
         {/* Orders List or OrderHistorySkeleton on load/refresh */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4 pb-28 md:pb-8">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-3 pb-28 md:pb-8">
           {isLoading ? (
             <OrderHistorySkeleton />
           ) : filteredOrders.length === 0 ? (
-            <div className="py-12 text-center my-2">
-              <Package size={48} className="text-gray-300 mx-auto mb-3" />
+            <div className="py-16 text-center my-4 bg-white rounded-3xl p-8 shadow-[0_4px_20px_rgba(43,34,27,0.03)]">
+              <Package size={52} className="text-[#C85A32]/40 mx-auto mb-3" />
               <h3 className="text-base font-bold text-gray-800">No orders found</h3>
               <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
                 {searchQuery ? `No orders matching "${searchQuery}"` : 'You have not placed any orders in this category yet.'}
               </p>
               <button
                 onClick={() => navigate('/')}
-                className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-xl hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-sm"
+                className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-full hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-sm"
               >
                 Start Shopping
               </button>
             </div>
           ) : (
-            <div className="space-y-6 sm:space-y-8">
+            <div className="space-y-5 sm:space-y-6">
               {filteredOrders.map((order, orderIdx) => {
                 const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
@@ -639,34 +697,37 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                   : `Delivery by ${order.date === 'Aug 09, 2026' ? 'Aug 12, Wed' : 'Aug 14, Fri'}`;
 
                 return (
-                  <div key={`${order.id}-${orderIdx}`} className="bg-white border border-[#EBE3DA] rounded-2xl p-4 sm:p-6 shadow-2xs hover:shadow-xs transition-shadow space-y-4">
+                  <div 
+                    key={`${order.id}-${orderIdx}`} 
+                    className="bg-white rounded-3xl p-5 sm:p-7 shadow-[0_4px_24px_rgba(43,34,27,0.04)] hover:shadow-[0_8px_32px_rgba(43,34,27,0.07)] transition-all space-y-4"
+                  >
                     {/* Order Subheader */}
-                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#F4ECE3]">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="text-sm font-bold text-gray-900">Order #{order.id}</span>
+                          <span className="text-sm font-bold text-gray-900 tracking-tight">Order #{order.id}</span>
                           {isDelivered && (
-                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
                             </span>
                           )}
                           {isProcessing && (
-                            <span className="bg-amber-50 text-amber-800 border border-amber-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               Processing
                             </span>
                           )}
                           {isShipped && (
-                            <span className="bg-blue-50 text-blue-700 border border-blue-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="bg-blue-50 text-blue-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <Truck size={12} /> Shipped
                             </span>
                           )}
                           {isCancelled && (
-                            <span className="bg-red-50 text-red-700 border border-red-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <XCircle size={12} strokeWidth={2.5} /> Cancelled
                             </span>
                           )}
                           {isFailed && (
-                            <span className="bg-red-50 text-red-700 border border-red-300 text-[11px] font-semibold px-2.5 py-0.5 rounded flex items-center gap-1 shadow-2xs">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <AlertCircle size={12} strokeWidth={2.5} /> Failed
                             </span>
                           )}
@@ -674,29 +735,29 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                         <p className="text-xs text-gray-500 mt-0.5">Placed on {order.date}</p>
                       </div>
 
-                      {/* Single Menu Button - Positioned on right side aligned with profile back button reference */}
+                      {/* Single Menu Button */}
                       <div className="relative shrink-0 -mr-1">
                         <button
                           type="button"
                           onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
-                          className="p-1 hover:bg-gray-100 rounded-full text-gray-800 transition-colors cursor-pointer shrink-0"
+                          className="p-1.5 hover:bg-[#FAF4EE] rounded-full text-gray-700 transition-colors cursor-pointer shrink-0"
                           aria-label="Order Options"
                         >
-                          <MoreVertical size={20} />
+                          <MoreVertical size={19} />
                         </button>
 
-                        {/* Dropdown Menu: strictly Download receipt & Cancel order */}
+                        {/* Dropdown Menu */}
                         {isMenuOpen && (
                           <>
                             <div 
                               className="fixed inset-0 z-40" 
                               onClick={() => setActiveMenuOrderId(null)} 
                             />
-                            <div className="absolute right-0 top-9 sm:top-10 z-50 w-[170px] bg-white border border-gray-200 rounded-lg py-1 shadow-lg animate-in fade-in duration-100">
+                            <div className="absolute right-0 top-9 sm:top-10 z-50 w-[170px] bg-white rounded-2xl py-1 shadow-xl border border-black/[0.04] animate-in fade-in duration-100">
                               <button
                                 type="button"
                                 onClick={() => handleDownloadReceipt(order)}
-                                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-[#FAF4EE] flex items-center justify-between gap-1.5 transition-colors cursor-pointer rounded-t-xl"
                               >
                                 <span>Download receipt</span>
                                 <Download size={14} className="text-[#C85A32] shrink-0" />
@@ -708,7 +769,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                                     setActiveMenuOrderId(null);
                                     setCancellingOrderId(order.id);
                                   }}
-                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer"
+                                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between gap-1.5 transition-colors cursor-pointer rounded-b-xl"
                                 >
                                   <span>Cancel order</span>
                                   <X size={14} className="shrink-0" />
@@ -720,17 +781,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       </div>
                     </div>
 
-                    {/* Products List - Clickable product card to view product details */}
-                    <div className="divide-y divide-gray-100">
+                    {/* Products List */}
+                    <div className="divide-y divide-[#F4ECE3]">
                       {order.items.map((item, idx) => (
                         <div 
                           key={idx} 
                           onClick={() => navigate(item.id ? `/product/${item.id}` : '/')}
-                          className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:bg-gray-50/70 p-2 -mx-2 rounded-xl transition-colors group"
+                          className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:bg-[#FAF6F3]/80 p-2 -mx-2 rounded-2xl transition-colors group"
                           title="Click to view product details"
                         >
                           <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
-                            <div className="w-[76px] h-[76px] bg-white border border-gray-100 rounded-sm p-1.5 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-102 transition-transform">
+                            <div className="w-[76px] h-[76px] bg-[#FAF5EF] rounded-2xl p-1.5 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-102 transition-transform">
                               <img 
                                 src={item.image} 
                                 alt={item.name} 
@@ -756,12 +817,12 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                                     Delivered on {order.date}
                                   </span>
                                 ) : isCancelled ? (
-                                  <span className="font-semibold text-red-600 flex items-center gap-1">
+                                  <span className="font-semibold text-rose-600 flex items-center gap-1">
                                     <XCircle size={13} strokeWidth={2.5} />
                                     Cancelled on {order.date}
                                   </span>
                                 ) : isFailed ? (
-                                  <span className="font-semibold text-red-600 flex items-center gap-1">
+                                  <span className="font-semibold text-rose-600 flex items-center gap-1">
                                     <AlertCircle size={13} strokeWidth={2.5} />
                                     Payment Failed on {order.date}
                                   </span>
@@ -782,8 +843,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       ))}
                     </div>
 
-                    {/* Price Details Breakdown - Clean dividers matching Checkout */}
-                    <div className="pt-3 border-t border-gray-100 space-y-2 text-xs sm:text-sm text-gray-700">
+                    {/* Price Details Breakdown */}
+                    <div className="pt-3 border-t border-[#F4ECE3] space-y-2 text-xs sm:text-sm text-gray-700">
                       <div className="flex justify-between">
                         <span className="text-gray-500">MRP ({totalItemQty} {totalItemQty === 1 ? 'item' : 'items'})</span>
                         <span className="text-gray-800 font-medium">₹{mrp.toLocaleString()}</span>
@@ -798,7 +859,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                         <span className="text-gray-500">Delivery</span>
                         <span className="text-[#8C3F1E] font-medium">Free</span>
                       </div>
-                      <div className="flex justify-between text-xs pt-1 border-t border-gray-100">
+                      <div className="flex justify-between text-xs pt-1 border-t border-[#F4ECE3]">
                         <span className="text-gray-500">Payment Method</span>
                         <span className="text-gray-800 font-semibold">{order.paymentMethod || 'Razorpay Online'}</span>
                       </div>
@@ -810,9 +871,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       )}
 
                       {/* Total price row */}
-                      <div className="flex items-center justify-between font-bold text-gray-900 text-sm sm:text-base pt-2.5 mt-1 border-t border-gray-100">
+                      <div className="flex items-center justify-between font-bold text-gray-900 text-sm sm:text-base pt-2.5 mt-1 border-t border-[#F4ECE3]">
                         <span>Total price</span>
-                        <span className="text-base sm:text-lg font-bold text-gray-900">₹{order.total.toLocaleString()}</span>
+                        <span className="text-base sm:text-lg font-bold text-[#2B221B]">₹{order.total.toLocaleString()}</span>
                       </div>
                     </div>
                   </div>

@@ -101,6 +101,8 @@ export interface StoreDeliveryAddress {
 }
 
 export interface User {
+  uid?: string;
+  id?: string;
   name: string;
   displayName?: string;
   phone?: string;

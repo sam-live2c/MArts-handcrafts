@@ -934,15 +934,60 @@ export const updateOrderTracking = (
 
 // ================= MY ORDERS =================
 export const fetchUserOrders = async (uid: string): Promise<Order[]> => {
+  const ordersMap = new Map<string, Order>();
+
   try {
-    const userOrdersRef = collection(db, 'users', uid, 'orders');
-    const snapshot = await withTimeout(getDocs(userOrdersRef));
-    const orders: Order[] = [];
-    snapshot.forEach(docSnap => {
-      orders.push(docSnap.data() as Order);
+    // 1. Fetch from user's personal orders subcollection
+    try {
+      const userOrdersRef = collection(db, 'users', uid, 'orders');
+      const snapshot = await withTimeout(getDocs(userOrdersRef), 6000);
+      snapshot.forEach(docSnap => {
+        const o = docSnap.data() as Order;
+        if (o && o.id) ordersMap.set(o.id, o);
+      });
+    } catch (e) {
+      console.warn('Subcollection fetch note:', e);
+    }
+
+    // 2. Fetch from global orders collection where userId matches
+    try {
+      const q = query(collection(db, 'orders'), where('userId', '==', uid));
+      const globalSnap = await withTimeout(getDocs(q), 6000);
+      globalSnap.forEach(docSnap => {
+        const o = docSnap.data() as Order;
+        if (o && o.id) {
+          const existing = ordersMap.get(o.id);
+          if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+            ordersMap.set(o.id, { ...existing, ...o });
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Global orders query fetch note:', e);
+    }
+
+    const orders = Array.from(ordersMap.values());
+    const sorted = orders.sort((a, b) => {
+      const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+      const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      return (b.id || '').localeCompare(a.id || '');
     });
-    const sorted = orders.sort((a, b) => b.id.localeCompare(a.id));
-    localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(sorted));
+
+    if (sorted.length > 0) {
+      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(sorted));
+      localStorage.setItem('melody_orders', JSON.stringify(sorted));
+      return sorted;
+    }
+
+    // Check cached fallback if firestore returned empty
+    const cached = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {}
+    }
     return sorted;
   } catch (err) {
     console.warn('Firestore offline when fetching orders, using local storage.');
@@ -999,9 +1044,11 @@ export const saveOrderToFirestore = async (
         }
       ];
 
+  const effectiveUserId = uid || order.userId || 'guest';
+
   const orderData: Order = {
     ...order,
-    userId: uid || order.userId || 'guest',
+    userId: effectiveUserId,
     customerName: customerInfo?.name || order.customerName || 'Customer',
     customerPhone: customerInfo?.phone || order.customerPhone || '',
     customerEmail: customerInfo?.email || order.customerEmail || '',
@@ -1023,49 +1070,56 @@ export const saveOrderToFirestore = async (
     updatedAt: Date.now()
   };
 
-  if (uid) {
-    const existing = await fetchUserOrders(uid);
-    const updated = [orderData, ...existing.filter(o => o.id !== orderData.id)];
-    localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updated));
-    localStorage.setItem('melody_orders', JSON.stringify(updated));
+  // Always update local cache immediately so the user sees the order with 0 latency
+  try {
+    const localCachedRaw = localStorage.getItem('melody_orders') || '[]';
+    const localCached: Order[] = JSON.parse(localCachedRaw);
+    const updatedLocal = [orderData, ...localCached.filter(o => o.id !== orderData.id)];
+    localStorage.setItem('melody_orders', JSON.stringify(updatedLocal));
+    if (uid && uid !== 'guest') {
+      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedLocal));
+    }
 
-    try {
-      const cachedProf = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
-      if (cachedProf) {
-        const parsed = JSON.parse(cachedProf);
-        parsed.orders = updated;
-        localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
-        localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
-      }
-    } catch (_) {}
+    const cachedProf = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+    if (cachedProf) {
+      const parsed = JSON.parse(cachedProf);
+      parsed.orders = updatedLocal;
+      localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
+      localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
+    }
+  } catch (_) {}
 
-    await createNotificationInFirestore(uid, {
+  if (uid && uid !== 'guest') {
+    createNotificationInFirestore(uid, {
       type: 'order',
       title: 'Order Placed Successfully!',
       message: `Your order #${order.id} for ₹${order.total.toLocaleString()} has been received and is being processed.`,
       time: 'Just now',
       isRead: false
-    });
+    }).catch(() => {});
   }
 
+  // Persist directly to Firestore
   try {
     const globalOrderRef = doc(db, 'orders', order.id);
-    await withTimeout(setDoc(globalOrderRef, orderData), 2000);
+    await withTimeout(setDoc(globalOrderRef, orderData), 8000).catch(e => {
+      console.warn('Global order setDoc notice:', e);
+    });
 
-    if (uid) {
+    if (uid && uid !== 'guest') {
       const userOrderRef = doc(db, 'users', uid, 'orders', order.id);
-      await withTimeout(setDoc(userOrderRef, orderData), 2000);
+      await withTimeout(setDoc(userOrderRef, orderData), 8000).catch(e => {
+        console.warn('User order subcollection setDoc notice:', e);
+      });
 
       // Also sync orders array to the parent users document
-      const existing = await fetchUserOrders(uid);
-      const updated = [orderData, ...existing.filter(o => o.id !== orderData.id)];
       await withTimeout(setDoc(doc(db, 'users', uid), {
-        orders: updated,
+        orders: [orderData],
         updatedAt: new Date().toISOString()
-      }, { merge: true }), 2000).catch(() => {});
+      }, { merge: true }), 8000).catch(() => {});
     }
   } catch (err) {
-    console.warn('Firestore offline when saving order, stored locally.');
+    console.warn('Firestore notice when saving order:', err);
   }
 };
 

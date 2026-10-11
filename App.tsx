@@ -367,21 +367,31 @@ const App: React.FC = () => {
 
   const handleAddOrder = async (order: Order) => {
     const currentFirebaseUser = auth.currentUser;
-    const uid = currentFirebaseUser ? currentFirebaseUser.uid : null;
+    const uid = currentFirebaseUser 
+      ? currentFirebaseUser.uid 
+      : (order.userId && order.userId !== 'guest' ? order.userId : ((user as any)?.uid || user?.phone || user?.email || null));
+
+    if (!order.userId && uid) {
+      order.userId = uid;
+    }
 
     const currentOrders = user?.orders || [];
     const updatedOrders = [order, ...currentOrders.filter(o => o.id !== order.id)];
 
-    const updatedUser = user ? { ...user, orders: updatedOrders } : null;
-    if (updatedUser) {
-      setUser(updatedUser);
-      try {
-        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-      } catch (_) {}
-    }
+    const updatedUser: User = user 
+      ? { ...user, orders: updatedOrders } 
+      : {
+          name: order.customerName || 'Customer',
+          phone: order.customerPhone || '',
+          email: order.customerEmail || '',
+          address: order.customerAddress || '',
+          orders: updatedOrders
+        };
 
+    setUser(updatedUser);
     try {
+      localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
       localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
       if (uid) {
         localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
@@ -389,17 +399,18 @@ const App: React.FC = () => {
     } catch (_) {}
 
     await saveOrderToFirestore(uid, order, {
-      name: order.customerName || user?.name || '',
-      phone: order.customerPhone || user?.phone || '',
-      email: order.customerEmail || user?.email || '',
-      address: order.customerAddress || user?.address || ''
+      name: order.customerName || updatedUser.name || '',
+      phone: order.customerPhone || updatedUser.phone || '',
+      email: order.customerEmail || updatedUser.email || '',
+      address: order.customerAddress || updatedUser.address || ''
     });
 
-    if (uid) {
+    if (uid && currentFirebaseUser) {
       try {
-        await updateDoc(doc(db, 'users', uid), {
-          orders: updatedOrders
-        });
+        await setDoc(doc(db, 'users', uid), {
+          orders: updatedOrders,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
       } catch (e) {
         console.warn('Notice: user doc orders update offline:', e);
       }
@@ -407,17 +418,24 @@ const App: React.FC = () => {
   };
 
   const handleUpdateOrders = async (updatedOrders: Order[]) => {
-    const updatedUser = user ? { ...user, orders: updatedOrders } : null;
-    if (updatedUser) {
-      setUser(updatedUser);
+    const updatedUser: User = user 
+      ? { ...user, orders: updatedOrders } 
+      : {
+          name: 'Customer',
+          address: '',
+          orders: updatedOrders
+        };
+    setUser(updatedUser);
+    try {
       localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
       localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-    }
-    localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+      localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+    } catch (_) {}
+
     const currentFirebaseUser = auth.currentUser;
     if (currentFirebaseUser) {
-      localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
       try {
+        localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
         await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
           orders: updatedOrders,
           updatedAt: new Date().toISOString()
