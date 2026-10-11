@@ -27,25 +27,11 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Start with true to ensure skeleton displays until real-time orders are fully loaded
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Robust first-class orders state initialized immediately from props or localStorage
-  const [orders, setOrders] = useState<Order[]>(() => {
-    if (user?.orders && user.orders.length > 0) {
-      return [...user.orders];
-    }
-    try {
-      const authUid = auth.currentUser?.uid;
-      const cached = (authUid ? localStorage.getItem(`melody_orders_${authUid}`) : null) 
-        || localStorage.getItem('melody_orders')
-        || localStorage.getItem('marts_orders');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch (_) {}
-    return [];
-  });
+  // Orders initialized empty so stale/default orders do not flash during loading
+  const [orders, setOrders] = useState<Order[]>([]);
 
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -53,7 +39,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     message?: string;
   } | null>(null);
 
-  // Sync when user prop updates
+  // Sync when user prop updates if not in initial loading
   useEffect(() => {
     if (user?.orders && user.orders.length > 0) {
       setOrders(prev => {
@@ -77,28 +63,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     let unsubUserOrders: (() => void) | null = null;
     let unsubGlobalOrders: (() => void) | null = null;
 
-    const setupListeners = (uid: string) => {
-      // Fetch initial batch
-      fetchUserOrders(uid).then(fetched => {
-        if (fetched && fetched.length > 0) {
-          setOrders(prev => {
-            const map = new Map<string, Order>();
-            prev.forEach(o => map.set(o.id, o));
-            fetched.forEach(o => map.set(o.id, o));
-            const merged = Array.from(map.values()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-            return merged;
-          });
-          onUpdateOrders(fetched);
-        }
-      }).catch(() => {});
+    // Safety timeout to prevent infinite skeleton if offline or network stalled
+    const fallbackTimer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
 
+    const setupListeners = (uid: string) => {
       const subOrdersMap = new Map<string, Order>();
       const globalOrdersMap = new Map<string, Order>();
 
       const syncAndDispatchOrders = () => {
         const mergedMap = new Map<string, Order>();
-        // Add current state orders first to avoid flickering
-        orders.forEach(o => mergedMap.set(o.id, o));
         subOrdersMap.forEach((ord, id) => mergedMap.set(id, ord));
         globalOrdersMap.forEach((ord, id) => {
           const existing = mergedMap.get(id);
@@ -121,16 +96,31 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           return (b.id || '').localeCompare(a.id || '');
         });
 
-        if (liveOrders.length > 0) {
-          setOrders(liveOrders);
-          onUpdateOrders(liveOrders);
-          try {
-            localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
-            localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
-          } catch (_) {}
-        }
+        setOrders(liveOrders);
+        onUpdateOrders(liveOrders);
+        try {
+          localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
+          localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
+        } catch (_) {}
+        clearTimeout(fallbackTimer);
         setIsLoading(false);
       };
+
+      // Initial direct fetch from Firestore
+      fetchUserOrders(uid).then(fetched => {
+        if (fetched) {
+          fetched.forEach(o => {
+            if (o && o.id) subOrdersMap.set(o.id, o);
+          });
+          syncAndDispatchOrders();
+        }
+        clearTimeout(fallbackTimer);
+        setIsLoading(false);
+      }).catch((e) => {
+        console.warn('Initial orders fetch notice:', e);
+        clearTimeout(fallbackTimer);
+        setIsLoading(false);
+      });
 
       // 1. Listen to real-time live updates from user's orders subcollection
       const userOrdersRef = collection(db, 'users', uid, 'orders');
@@ -145,6 +135,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         syncAndDispatchOrders();
       }, (err) => {
         console.warn('User orders subcollection sync notice:', err);
+        clearTimeout(fallbackTimer);
         setIsLoading(false);
       });
 
@@ -162,6 +153,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           syncAndDispatchOrders();
         }, (err) => {
           console.warn('Global orders collection sync notice:', err);
+          clearTimeout(fallbackTimer);
+          setIsLoading(false);
         });
       } catch (err) {
         console.warn('Global orders query listener setup notice:', err);
@@ -192,17 +185,19 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           const cachedStr = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
           if (cachedStr) {
             const cachedOrders = JSON.parse(cachedStr);
-            if (Array.isArray(cachedOrders) && cachedOrders.length > 0) {
+            if (Array.isArray(cachedOrders)) {
               setOrders(cachedOrders);
               onUpdateOrders(cachedOrders);
             }
           }
         } catch (_) {}
+        clearTimeout(fallbackTimer);
         setIsLoading(false);
       }
     });
 
     return () => {
+      clearTimeout(fallbackTimer);
       if (unsubUserOrders) unsubUserOrders();
       if (unsubGlobalOrders) unsubGlobalOrders();
       unsubscribeAuth();
@@ -579,35 +574,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         showSearch={false}
       />
 
-      <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-5 sm:py-8 flex flex-col">
-        {/* Page Heading & Artisanal Context Header */}
-        <div className="pb-5 mb-5 border-b border-[#EADBCC]/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
-                My Orders
-              </h1>
-              <span className="text-xs sm:text-sm font-bold bg-[#F2E8DE] text-[#C85A32] px-2.5 py-0.5 rounded-full">
-                {orders.length} {orders.length === 1 ? 'order' : 'orders'}
-              </span>
-            </div>
-            <p className="text-xs sm:text-sm text-[#735A4C] mt-1">
-              Track your artisanal creations, view fulfillment milestones, and download invoices.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => navigate('/products')}
-            className="self-start sm:self-auto text-xs font-semibold text-[#8C3F1E] hover:text-[#C85A32] flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <span>Explore All Crafts</span>
-            <ChevronRight size={14} />
-          </button>
-        </div>
-
+      <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 pt-3 sm:pt-5 pb-6 sm:pb-8 flex flex-col">
         {/* Search Bar & Horizontal Filters */}
-        <div className="w-full mb-6 space-y-3.5">
+        <div className="w-full mb-5 sm:mb-6 space-y-3 sm:space-y-3.5">
           <div className="max-w-xl">
             <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-2xs hover:border-[#D5C2B2] transition-all">
               <Search
@@ -680,7 +649,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
               </button>
             </div>
           ) : (
-            <div className="space-y-5 sm:space-y-6">
+            <div className="space-y-6 sm:space-y-8 divide-y divide-[#EADBCC]/80">
               {filteredOrders.map((order, orderIdx) => {
                 const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
@@ -722,7 +691,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                 return (
                   <div 
                     key={`${order.id}-${orderIdx}`} 
-                    className="bg-transparent rounded-2xl sm:rounded-3xl border border-[#EADBCC] p-5 sm:p-7 hover:border-[#D5C2B2] transition-colors space-y-5"
+                    className="bg-transparent border-0 pt-6 first:pt-0 pb-2 space-y-4 sm:space-y-5"
                   >
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#EADBCC]/80">

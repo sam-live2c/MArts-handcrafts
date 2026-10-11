@@ -293,70 +293,69 @@ export const WishlistSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) =>
 
 /**
  * 5. OrderHistorySkeleton
- * Matches the updated MyOrders page:
- * - Search bar with transparent background and border
- * - Filter pills (All Orders, Delivered, Cancelled)
- * - Order cards with order ID, date, status chip, item thumbnail, price breakdown, and invoice button
+ * Matches the updated MyOrders page order cards:
+ * - Transparent background cards with border border-[#EADBCC]
+ * - Aligned to max-w-7xl matching the header and page container
+ * - 2-column responsive layout on desktop (products on left, price summary on right)
+ * - Shimmer animation in warm earthen artisanal tones
  */
 export const OrderHistorySkeleton: React.FC<{ count?: number }> = ({ count = 3 }) => {
   return (
-    <div className="w-full bg-white min-h-screen text-[#1F1F1F] font-sans flex flex-col animate-pulse select-none">
-      {/* Header Bar */}
-      <div className="bg-white py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] px-4 sm:px-8 lg:px-12 flex items-center justify-between sticky top-0 z-40 border-b border-gray-100 shadow-xs max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-4">
-          <div className="w-9 h-9 rounded-full bg-gray-100" />
-          <div className="h-5 w-24 bg-gray-300 rounded" />
-        </div>
-        <div className="w-8 h-8 rounded-full bg-gray-100" />
-      </div>
-
-      {/* Transparent Search bar matching updated MyOrders UI */}
-      <div className="w-full max-w-7xl mx-auto bg-transparent pt-4 sm:pt-5 pb-3 px-3 sm:px-8 lg:px-12">
-        <div className="max-w-2xl mx-auto">
-          <div className="h-11 sm:h-12 w-full rounded-full border border-[#E5D7CA] bg-transparent" />
-        </div>
-      </div>
-
-      {/* Horizontal Filter Tabs */}
-      <div className="max-w-7xl mx-auto w-full bg-white px-4 sm:px-8 lg:px-12 py-2.5 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-24 bg-[#C85A32]/60 rounded-full" />
-          <div className="h-7 w-24 bg-gray-100 rounded-full" />
-          <div className="h-7 w-24 bg-gray-100 rounded-full" />
-        </div>
-      </div>
-
-      {/* Orders List */}
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 lg:px-12 py-4 divide-y divide-gray-100">
-        {Array.from({ length: count }).map((_, idx) => (
-          <div key={idx} className="py-5 first:pt-2 space-y-4">
-            {/* Top Bar: Order ID, Date & Status Chip */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-              <div className="space-y-1.5">
-                <div className="h-4 w-36 bg-gray-300 rounded" />
-                <div className="h-3 w-28 bg-gray-200 rounded" />
-              </div>
-              <div className="h-7 w-24 bg-[#FAF0E6] rounded-full border border-[#EADBCC]" />
+    <div className="w-full space-y-6 sm:space-y-8 divide-y divide-[#EADBCC]/80 animate-pulse select-none">
+      {Array.from({ length: count }).map((_, idx) => (
+        <div 
+          key={idx} 
+          className="bg-transparent border-0 pt-6 first:pt-0 pb-2 space-y-4 sm:space-y-5"
+        >
+          {/* Top Bar: Order ID, Date & Status Chip Placeholder */}
+          <div className="flex items-center justify-between pb-4 border-b border-[#EADBCC]/80">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="h-4 w-32 sm:w-44 bg-[#EADBCC] rounded" />
+              <div className="h-3 w-24 bg-[#EADBCC]/60 rounded mt-1" />
             </div>
-
-            {/* Product Item Row */}
-            <div className="flex gap-4 items-start py-1">
-              <div className="w-20 h-20 bg-[#FAF6F0] rounded-xl border border-[#EADBCC]/40 shrink-0" />
-              <div className="flex-1 space-y-2 py-0.5">
-                <div className="h-4 w-3/4 bg-gray-300 rounded" />
-                <div className="h-3 w-1/4 bg-gray-200 rounded" />
-                <div className="h-4 w-24 bg-[#C85A32]/40 rounded mt-1" />
-              </div>
-            </div>
-
-            {/* Price breakdown & actions */}
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-              <div className="h-4 w-32 bg-gray-200 rounded" />
-              <div className="h-8 w-28 bg-gray-100 rounded-lg" />
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="hidden sm:block h-7 w-20 bg-[#FAF5EF] border border-[#EADBCC] rounded-full" />
+              <div className="h-7 w-24 bg-[#FAF0E6] rounded-full border border-[#EADBCC]/80" />
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Card Body Grid: Products on Left, Price Summary on Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left: Product items placeholder */}
+            <div className="lg:col-span-7 xl:col-span-8 space-y-3.5 divide-y divide-[#EADBCC]/60">
+              <div className="flex gap-3 sm:gap-4 items-start pt-1 first:pt-0">
+                <div className="w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] bg-[#FAF5EF] border border-[#EADBCC]/60 rounded-2xl shrink-0" />
+                <div className="flex-1 space-y-2 py-0.5 min-w-0">
+                  <div className="h-4 w-3/4 sm:w-2/3 bg-[#EADBCC] rounded" />
+                  <div className="h-3 w-32 bg-[#EADBCC]/60 rounded" />
+                  <div className="h-3 w-40 bg-[#EADBCC]/40 rounded mt-1.5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Price details breakdown placeholder */}
+            <div className="lg:col-span-5 xl:col-span-4 border-t lg:border-t-0 lg:border-l border-[#EADBCC]/80 pt-4 lg:pt-0 lg:pl-6 space-y-2.5">
+              <div className="h-3 w-36 bg-[#EADBCC] rounded mb-2" />
+              <div className="flex justify-between">
+                <div className="h-3 w-20 bg-[#EADBCC]/50 rounded" />
+                <div className="h-3 w-16 bg-[#EADBCC]/50 rounded" />
+              </div>
+              <div className="flex justify-between">
+                <div className="h-3 w-24 bg-[#EADBCC]/50 rounded" />
+                <div className="h-3 w-14 bg-[#EADBCC]/50 rounded" />
+              </div>
+              <div className="flex justify-between">
+                <div className="h-3 w-20 bg-[#EADBCC]/50 rounded" />
+                <div className="h-3 w-12 bg-[#EADBCC]/50 rounded" />
+              </div>
+              <div className="flex justify-between pt-2 border-t border-[#EADBCC]/60">
+                <div className="h-4 w-24 bg-[#EADBCC] rounded" />
+                <div className="h-4 w-20 bg-[#C85A32]/40 rounded" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 };
