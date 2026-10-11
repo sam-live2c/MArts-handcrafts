@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
-  ChevronRight,
   Star
 } from 'lucide-react';
 import { Product, User } from '../types';
@@ -21,9 +20,6 @@ interface WishlistProps {
   products?: Product[];
 }
 
-// In-memory cache for Wishlist page
-let isWishlistLoadedCache = false;
-
 const Wishlist: React.FC<WishlistProps> = ({
   user,
   wishlist,
@@ -32,17 +28,6 @@ const Wishlist: React.FC<WishlistProps> = ({
   products
 }) => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(() => !isWishlistLoadedCache);
-
-  useEffect(() => {
-    if (!isWishlistLoadedCache) {
-      const timer = setTimeout(() => {
-        isWishlistLoadedCache = true;
-        setIsLoading(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
 
   // Combine products from catalog and local cache
   const allProducts = useMemo(() => {
@@ -66,29 +51,17 @@ const Wishlist: React.FC<WishlistProps> = ({
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans flex flex-col selection:bg-[#EBDCCB]">
-      {/* Universal Header with live Search, Wishlist, and Cart Counter */}
+      {/* Universal Header without search bar and search option */}
       <Header
         user={user}
         cartCount={cartCount}
         wishlistCount={wishlist.length}
         title="My Wishlist"
         showBack={true}
-        products={allProducts}
+        showSearch={false}
       />
 
-      {isLoading ? (
-        <FullScreenCircleLoader />
-      ) : (
-        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
-          {/* Breadcrumb Navigation */}
-          <nav className="flex items-center gap-1.5 text-xs text-[#8C6D58] mb-4 sm:mb-6">
-          <Link to="/" className="hover:text-[#C85A32] transition-colors">
-            Home
-          </Link>
-          <ChevronRight size={13} className="text-[#C8B8A6]" />
-          <span className="text-[#2B221B] font-semibold">Wishlist</span>
-        </nav>
-
+      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 sm:py-8">
         {/* Page Heading */}
         <div className="pb-6 mb-6 border-b border-[#EADBCC]">
           <div className="flex items-center gap-2.5">
@@ -225,7 +198,6 @@ const Wishlist: React.FC<WishlistProps> = ({
           </div>
         )}
       </div>
-      )}
     </div>
   );
 };

@@ -46,6 +46,10 @@
     body {
       overflow-x: hidden; /* Prevent horizontal scroll only at the outermost level */
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    button, a, input, select, textarea, [role="button"] {
+      touch-action: manipulation;
     }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

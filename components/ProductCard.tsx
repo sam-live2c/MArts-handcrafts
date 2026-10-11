@@ -32,9 +32,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartPos.current && e.touches.length > 0) {
-      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
       const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-      if (dx > 7 || dy > 7) {
+      if (dy > 25) {
         isScrollingRef.current = true;
       }
     }

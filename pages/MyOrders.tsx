@@ -23,21 +23,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showSearchInput, setShowSearchInput] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(() => !isOrdersLoadedCache);
-
-  useEffect(() => {
-    if (!isOrdersLoadedCache) {
-      const timer = setTimeout(() => {
-        isOrdersLoadedCache = true;
-        setIsLoading(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
+  const [isLoading, setIsLoading] = useState(false);
 
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -395,68 +384,49 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">
       <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm pb-24 md:pb-8">
         {/* Header */}
-        <div className="bg-white border-b border-gray-100 shadow-xs px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center sticky top-0 z-[100]">
-          {showSearchInput ? (
-            <div className="flex items-center gap-2 w-full h-full">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSearchInput(false);
-                  setSearchQuery('');
-                }}
-                className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
-                aria-label="Close search"
-              >
-                <ArrowLeft size={22} strokeWidth={2.5} />
-              </button>
+        <div className="bg-white border-b border-gray-100 shadow-xs px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between sticky top-0 z-[100]">
+          <div className="flex items-center gap-3">
+            <button 
+              type="button"
+              onClick={() => handleGoBack(navigate, '/account')} 
+              className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
+            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Orders</h1>
+          </div>
+        </div>
+
+        {/* Search bar as in homepage */}
+        <div className="w-full bg-[#FAF8F5] pt-4 sm:pt-5 pb-3 px-3 sm:px-8 lg:px-12">
+          <div className="max-w-2xl mx-auto">
+            <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+              <Search
+                size={18}
+                className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
+              />
               <input
                 type="text"
                 value={searchQuery}
-                maxLength={100}
-                onChange={e => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by Order ID or Product name..."
-                autoFocus
-                className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none px-2 h-full"
+                className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
+                aria-label="Search orders"
               />
-              {searchQuery ? (
-                <button 
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 -mr-1 hover:bg-gray-100 rounded-full text-gray-500 hover:text-gray-800 transition-colors shrink-0 cursor-pointer"
-                  aria-label="Clear search"
-                >
-                  <X size={18} />
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            <div className="flex items-center justify-between w-full h-full">
-              {/* Left Side: Back button and Title aligned with profile page reference */}
-              <div className="flex items-center gap-3">
-                <button 
-                  type="button"
-                  onClick={() => handleGoBack(navigate, '/account')} 
-                  className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
-                  aria-label="Go back"
-                >
-                  <ArrowLeft size={22} strokeWidth={2.5} />
-                </button>
-                <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Orders</h1>
-              </div>
-
-              {/* Right Side: Search button symmetrically aligned to opposite side using profile page reference */}
-              <div className="flex items-center -mr-1">
+              {searchQuery && (
                 <button
                   type="button"
-                  onClick={() => setShowSearchInput(true)}
-                  className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
-                  aria-label="Search orders"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 text-[#8C6D58] hover:text-[#2B221B] p-1 rounded-full cursor-pointer transition-colors"
+                  aria-label="Clear search query"
+                  title="Clear search"
                 >
-                  <Search size={22} strokeWidth={2.2} />
+                  <X size={16} />
                 </button>
-              </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Horizontal Filters */}

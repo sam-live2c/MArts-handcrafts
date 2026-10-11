@@ -9,7 +9,6 @@ import {
   Check,
   CreditCard,
   Zap,
-  ChevronRight,
   ChevronDown,
   HelpCircle,
   ArrowLeft,
@@ -522,15 +521,6 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             >
               <ArrowLeft size={22} strokeWidth={2} />
             </button>
-
-            {/* Desktop Breadcrumb */}
-            <nav className="hidden md:flex items-center gap-1.5 text-xs text-gray-500 font-medium">
-              <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
-              <ChevronRight size={13} className="text-gray-400" />
-              <Link to="/products" className="hover:text-gray-900 transition-colors">Creations</Link>
-              <ChevronRight size={13} className="text-gray-400" />
-              <span className="text-gray-900 font-semibold truncate max-w-[200px] lg:max-w-xs">{product.name}</span>
-            </nav>
           </div>
 
           {/* Right Action Buttons */}

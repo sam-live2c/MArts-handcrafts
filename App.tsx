@@ -1,26 +1,26 @@
 
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { HashRouter as Router, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import Footer from './components/Footer';
 import { FullScreenCircleLoader } from './components/CircleLoader';
-import { HomeScreenSkeleton } from './components/Skeleton';
 
-const Home = lazy(() => import('./pages/Home'));
-const ProductDetail = lazy(() => import('./pages/ProductDetail'));
-const AllProducts = lazy(() => import('./pages/AllProducts'));
-const Cart = lazy(() => import('./pages/Cart'));
-const Checkout = lazy(() => import('./pages/Checkout'));
-const Login = lazy(() => import('./pages/Login'));
-const Signup = lazy(() => import('./pages/Signup'));
-const Account = lazy(() => import('./pages/Account'));
+import Home from './pages/Home';
+import ProductDetail from './pages/ProductDetail';
+import AllProducts from './pages/AllProducts';
+import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Account from './pages/Account';
+import MyOrders from './pages/MyOrders';
+import Wishlist from './pages/Wishlist';
+
 const HelpCenter = lazy(() => import('./pages/HelpCenter'));
 const Contact = lazy(() => import('./pages/Contact'));
 const ProfileSubPages = lazy(() => import('./pages/ProfileSubPages'));
 const AddressPage = lazy(() => import('./pages/AddressPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
-const MyOrders = lazy(() => import('./pages/MyOrders'));
 const About = lazy(() => import('./pages/About'));
-const Wishlist = lazy(() => import('./pages/Wishlist'));
 import { CartItem, User, Order, Product, CarouselBanner } from './types';
 import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
 import { auth, db } from './firebase';
@@ -88,59 +88,6 @@ const GlobalToastNotification: React.FC<{
       </div>
     </div>
   );
-};
-
-const InitialRedirectHandler = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    // Make Home ('/') the first page when visiting the website, regardless of login state
-    const sessionActive = sessionStorage.getItem('melody_session_active');
-    if (!sessionActive) {
-      sessionStorage.setItem('melody_session_active', 'true');
-      if (location.pathname !== '/') {
-        navigate('/', { replace: true });
-      }
-    }
-  }, [navigate, location.pathname]);
-
-  return null;
-};
-
-// Global in-memory cache of loaded routes to prevent re-triggering loader on back/forward or repeat visits
-const loadedRoutesCache = new Set<string>();
-
-const NavigationCircleLoaderHandler = () => {
-  const location = useLocation();
-  const [isNavigating, setIsNavigating] = useState(false);
-  const prevPathRef = React.useRef(location.pathname);
-
-  useEffect(() => {
-    if (prevPathRef.current !== location.pathname) {
-      const targetPath = location.pathname;
-      prevPathRef.current = targetPath;
-
-      // Home ('/') uses its own cached full-screen skeleton
-      if (targetPath === '/') return;
-
-      // Only show loader if this route has NOT yet been visited/cached
-      if (!loadedRoutesCache.has(targetPath)) {
-        loadedRoutesCache.add(targetPath);
-        setIsNavigating(true);
-        const timer = setTimeout(() => {
-          setIsNavigating(false);
-        }, 220);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [location.pathname]);
-
-  if (isNavigating) {
-    return <FullScreenCircleLoader overlay={true} />;
-  }
-
-  return null;
 };
 
 const App: React.FC = () => {
@@ -438,114 +385,98 @@ const App: React.FC = () => {
 
   return (
     <Router>
-      <InitialRedirectHandler />
-      <NavigationCircleLoaderHandler />
       <div className="min-h-screen w-full flex flex-col bg-white">
         <main className="flex-1 w-full">
           <Routes>
             <Route 
               path="/" 
               element={
-                <Suspense fallback={<HomeScreenSkeleton />}>
-                  <Home
-                    user={user}
-                    onAddToCart={addToCart}
-                    wishlist={wishlist}
-                    onToggleWishlist={toggleWishlist}
-                    cartCount={cartTotalQuantity}
-                    products={products}
-                    banners={banners}
-                  />
-                </Suspense>
+                <Home
+                  user={user}
+                  onAddToCart={addToCart}
+                  wishlist={wishlist}
+                  onToggleWishlist={toggleWishlist}
+                  cartCount={cartTotalQuantity}
+                  products={products}
+                  banners={banners}
+                />
               } 
             />
             <Route 
               path="/products" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <AllProducts
-                    user={user}
-                    cartCount={cartTotalQuantity}
-                    onAddToCart={addToCart}
-                    wishlist={wishlist}
-                    onToggleWishlist={toggleWishlist}
-                    products={products}
-                  />
-                </Suspense>
+                <AllProducts
+                  user={user}
+                  cartCount={cartTotalQuantity}
+                  onAddToCart={addToCart}
+                  wishlist={wishlist}
+                  onToggleWishlist={toggleWishlist}
+                  products={products}
+                />
               } 
             />
             <Route 
               path="/product/:id" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <ProductDetail
-                    user={user}
-                    cartCount={cartTotalQuantity}
-                    onAddToCart={addToCart}
-                    wishlist={wishlist}
-                    onToggleWishlist={toggleWishlist}
-                    products={products}
-                  />
-                </Suspense>
+                <ProductDetail
+                  user={user}
+                  cartCount={cartTotalQuantity}
+                  onAddToCart={addToCart}
+                  wishlist={wishlist}
+                  onToggleWishlist={toggleWishlist}
+                  products={products}
+                />
               } 
             />
             <Route 
               path="/cart" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <Cart cart={cart} setCart={setCart} user={user} />
-                </Suspense>
+                <Cart cart={cart} setCart={setCart} user={user} />
               } 
             />
             <Route
               path="/wishlist"
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <Wishlist
-                    user={user}
-                    wishlist={wishlist}
-                    onToggleWishlist={toggleWishlist}
-                    onRemoveFromWishlist={(id) => {
-                      setWishlist(prev => prev.filter(item => item !== id));
-                      const p = products.find(prod => prod.id === id);
-                      showToast(p ? `${p.name} removed from wishlist` : 'Removed from wishlist', 'wishlist');
-                    }}
-                    onMoveToCart={(product) => {
-                      addToCart({ ...product, quantity: 1 });
-                      setWishlist(prev => prev.filter(id => id !== product.id));
-                      showToast(`${product.name} moved to cart!`, 'cart', product);
-                    }}
-                    onMoveAllToCart={(products) => {
-                      products.forEach(p => addToCart({ ...p, quantity: 1 }));
-                      const movedIds = new Set(products.map(p => p.id));
-                      setWishlist(prev => prev.filter(id => !movedIds.has(id)));
-                      showToast(`Moved ${products.length} items to your cart!`, 'cart');
-                    }}
-                    onClearWishlist={() => {
-                      setWishlist([]);
-                      showToast('Wishlist cleared', 'wishlist');
-                    }}
-                    cartCount={cartTotalQuantity}
-                    products={products}
-                  />
-                </Suspense>
+                <Wishlist
+                  user={user}
+                  wishlist={wishlist}
+                  onToggleWishlist={toggleWishlist}
+                  onRemoveFromWishlist={(id) => {
+                    setWishlist(prev => prev.filter(item => item !== id));
+                    const p = products.find(prod => prod.id === id);
+                    showToast(p ? `${p.name} removed from wishlist` : 'Removed from wishlist', 'wishlist');
+                  }}
+                  onMoveToCart={(product) => {
+                    addToCart({ ...product, quantity: 1 });
+                    setWishlist(prev => prev.filter(id => id !== product.id));
+                    showToast(`${product.name} moved to cart!`, 'cart', product);
+                  }}
+                  onMoveAllToCart={(products) => {
+                    products.forEach(p => addToCart({ ...p, quantity: 1 }));
+                    const movedIds = new Set(products.map(p => p.id));
+                    setWishlist(prev => prev.filter(id => !movedIds.has(id)));
+                    showToast(`Moved ${products.length} items to your cart!`, 'cart');
+                  }}
+                  onClearWishlist={() => {
+                    setWishlist([]);
+                    showToast('Wishlist cleared', 'wishlist');
+                  }}
+                  cartCount={cartTotalQuantity}
+                  products={products}
+                />
               }
             />
             <Route 
               path="/checkout" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <Checkout cart={cart} setCart={setCart} clearCart={clearCart} user={user} onOrderSuccess={handleAddOrder} />
-                </Suspense>
+                <Checkout cart={cart} setCart={setCart} clearCart={clearCart} user={user} onOrderSuccess={handleAddOrder} />
               } 
             />
             <Route 
               path="/login" 
               element={
                 user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<FullScreenCircleLoader />}>
-                    <Login onLogin={setUser} />
-                  </Suspense>
+                  <Login onLogin={setUser} />
                 )
               } 
             />
@@ -553,9 +484,7 @@ const App: React.FC = () => {
               path="/signup" 
               element={
                 user ? <Navigate to="/" /> : (
-                  <Suspense fallback={<FullScreenCircleLoader />}>
-                    <Signup onSignup={setUser} />
-                  </Suspense>
+                  <Signup onSignup={setUser} />
                 )
               } 
             />
@@ -563,17 +492,13 @@ const App: React.FC = () => {
             <Route 
               path="/account" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <Account user={user} onLogout={handleLogout} />
-                </Suspense>
+                <Account user={user} onLogout={handleLogout} />
               } 
             />
             <Route 
               path="/orders" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
-                  <MyOrders user={user} onUpdateOrders={handleUpdateOrders} />
-                </Suspense>
+                <MyOrders user={user} onUpdateOrders={handleUpdateOrders} />
               } 
             />
             

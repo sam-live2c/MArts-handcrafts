@@ -12,7 +12,6 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { User, Product } from "../types";
 import Logo from "./Logo";
 import { handleGoBack } from "../utils/navigation";
-import { useScrollDirection } from "../hooks/useScrollDirection";
 
 interface HeaderProps {
   cartCount: number;
@@ -42,7 +41,6 @@ const Header: React.FC<HeaderProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isVisible } = useScrollDirection();
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [internalQuery, setInternalQuery] = useState(searchQuery);
@@ -124,7 +122,7 @@ const Header: React.FC<HeaderProps> = ({
       const clickedDropdown = dropdownRef.current?.contains(target);
 
       if (!clickedInput && !clickedDropdown) {
-        setShowDropdown(false);
+        setShowDropdown((prev) => (prev ? false : prev));
         // Note: Search remains active, isSearchOpen is not closed
       }
     };
@@ -197,9 +195,7 @@ const Header: React.FC<HeaderProps> = ({
   return (
     <header
       ref={headerRef}
-      className={`w-full bg-[#FAF8F5] border-b border-[#EADBCC]/60 sticky top-0 z-50 shadow-2xs transition-transform duration-300 ease-in-out ${
-        isVisible ? "translate-y-0" : "max-md:-translate-y-full"
-      }`}
+      className="w-full bg-[#FAF8F5] border-b border-[#EADBCC]/60 sticky top-0 z-50 shadow-2xs"
     >
       <div className="w-full px-4 sm:px-8 lg:px-12 py-2.5 sm:py-3 min-h-[56px] sm:min-h-[62px] relative max-w-7xl mx-auto flex items-center">
         {/* Mobile & Tablet Full-Header Search Mode (No container or background) */}
@@ -273,10 +269,10 @@ const Header: React.FC<HeaderProps> = ({
             {showBack && (
               <button
                 onClick={handleBack}
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0 active:scale-95"
+                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0 touch-manipulation"
                 aria-label="Go Back"
               >
-                <ArrowLeft size={22} />
+                <ArrowLeft size={22} className="pointer-events-none" />
               </button>
             )}
 
@@ -285,7 +281,7 @@ const Header: React.FC<HeaderProps> = ({
             ) : (
               <Link
                 to="/"
-                className="flex items-center transition-transform active:scale-98"
+                className="flex items-center touch-manipulation"
                 aria-label="MArts Home"
               >
                 <Logo variant="dark" size="sm" showStoreTag={false} />
@@ -320,7 +316,7 @@ const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={handleClearQuery}
-                    className="absolute right-3 text-[#8C6D58] hover:text-[#2B221B] p-0.5 rounded-full cursor-pointer"
+                    className="absolute right-3 text-[#8C6D58] hover:text-[#2B221B] p-0.5 rounded-full cursor-pointer touch-manipulation"
                     aria-label="Clear search"
                   >
                     <X size={15} />
@@ -339,11 +335,11 @@ const Header: React.FC<HeaderProps> = ({
                 onClick={() => {
                   setIsSearchOpen(true);
                 }}
-                className="lg:hidden w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
+                className="lg:hidden w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer shrink-0 touch-manipulation"
                 aria-label="Search Store"
                 title="Search Store"
               >
-                <Search size={20} />
+                <Search size={20} className="pointer-events-none" />
               </button>
             )}
 
@@ -351,16 +347,16 @@ const Header: React.FC<HeaderProps> = ({
             {showWishlist && location.pathname !== "/wishlist" && (
               <Link
                 to="/wishlist"
-                className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
+                className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer shrink-0 touch-manipulation"
                 aria-label="Wishlist"
                 title="Saved Pieces"
               >
                 <Heart
                   size={20}
-                  className={wishlistCount !== undefined && wishlistCount > 0 ? "text-[#C85A32] fill-[#C85A32]/10" : ""}
+                  className={`pointer-events-none ${wishlistCount !== undefined && wishlistCount > 0 ? "text-[#C85A32] fill-[#C85A32]/10" : ""}`}
                 />
                 {wishlistCount !== undefined && wishlistCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5]">
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5] pointer-events-none">
                     {wishlistCount}
                   </span>
                 )}
@@ -370,28 +366,21 @@ const Header: React.FC<HeaderProps> = ({
             {/* Cart Option */}
             <Link
               to="/cart"
-              className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer active:scale-95 shrink-0"
+              className="relative w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] hover:bg-[#F2EAE2] rounded-full transition-colors cursor-pointer shrink-0 touch-manipulation"
               aria-label="Shopping Cart"
             >
-              <ShoppingCart size={20} />
+              <ShoppingCart size={20} className="pointer-events-none" />
               {cartCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5]">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[17px] h-[17px] px-1 bg-[#C85A32] text-white rounded-full text-[10px] font-bold flex items-center justify-center leading-none shadow-xs border-2 border-[#FAF8F5] pointer-events-none">
                   {cartCount}
                 </span>
               )}
             </Link>
 
-            {/* Profile Option */}
-            <button
-              type="button"
-              onClick={() => {
-                if (!user) {
-                  navigate("/login?redirect=account");
-                } else {
-                  navigate("/account");
-                }
-              }}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#E5D7CA] hover:border-[#C85A32] hover:bg-[#F2EAE2] bg-transparent flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] shrink-0 active:scale-95 transition-all cursor-pointer overflow-hidden"
+            {/* Profile Option - Instant Direct Link */}
+            <Link
+              to="/account"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#E5D7CA] hover:border-[#C85A32] hover:bg-[#F2EAE2] bg-transparent flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] shrink-0 transition-colors cursor-pointer overflow-hidden touch-manipulation active:scale-95"
               aria-label="User Profile"
             >
               {user?.avatar ? (
@@ -399,12 +388,12 @@ const Header: React.FC<HeaderProps> = ({
                   src={user.avatar}
                   alt={user.name || "User"}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover rounded-full"
+                  className="w-full h-full object-cover rounded-full pointer-events-none"
                 />
               ) : (
-                <UserIcon size={18} />
+                <UserIcon size={18} className="pointer-events-none" />
               )}
-            </button>
+            </Link>
           </div>
         </div>
 

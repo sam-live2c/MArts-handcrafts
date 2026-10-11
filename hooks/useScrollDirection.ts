@@ -12,10 +12,10 @@ export function useScrollDirection() {
       
       setIsScrolled(currentScrollY > 10);
 
-      // Hide when scrolling down, show immediately when scrolling back up
-      if (currentScrollY > lastScrollY + 8 && currentScrollY > 60) {
+      // Hide only on clear intentional downward scroll, show immediately on any scroll up
+      if (currentScrollY > lastScrollY + 30 && currentScrollY > 90) {
         setIsVisible(false);
-      } else if (currentScrollY < lastScrollY - 6 || currentScrollY <= 60) {
+      } else if (currentScrollY < lastScrollY - 15 || currentScrollY <= 60) {
         setIsVisible(true);
       }
 

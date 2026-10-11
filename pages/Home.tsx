@@ -13,7 +13,6 @@ import {
 import { CartItem, Product, User, CarouselBanner } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
-import { HomeScreenSkeleton } from '../components/Skeleton';
 import terracottaBanner from '../src/assets/images/marts_terracotta_banner_1791637410497.jpg';
 import stoneStatuesBanner from '../src/assets/images/marts_stone_statues_banner_1791637432558.jpg';
 import ceramicVasesBanner from '../src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg';
@@ -78,9 +77,6 @@ const BANNER_SLIDES: BannerSlide[] = [
   }
 ];
 
-// In-memory cache to ensure Home page only shows skeleton on initial load, not on every return
-let isHomeLoadedCache = false;
-
 export const Home: React.FC<HomeProps> = ({
   user,
   onAddToCart,
@@ -94,27 +90,36 @@ export const Home: React.FC<HomeProps> = ({
   const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(() => !isHomeLoadedCache);
+
+  // Preload local banner assets to prevent blank banners during transitions
+  useEffect(() => {
+    BANNER_SLIDES.forEach((s) => {
+      if (s.image) {
+        const img = new Image();
+        img.src = s.image;
+      }
+    });
+  }, []);
+
+  // Pause carousel when browser tab/app is in background to prevent state desync
+  useEffect(() => {
+    const handleVisibility = () => {
+      setIsPaused(document.hidden);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
 
   // Dynamic Carousel Banners from Firestore with fallback to defaults
   const activeBanners = useMemo(() => {
     if (banners && banners.length > 0) {
-      const filtered = banners.filter((b) => b.active !== false);
+      const filtered = banners.filter(
+        (b) => b && b.active !== false && typeof b.image === 'string' && b.image.trim() !== ''
+      );
       if (filtered.length > 0) return filtered;
     }
     return BANNER_SLIDES;
   }, [banners]);
-
-  // Initial mount transition to show full screen skeleton (cached on first visit)
-  useEffect(() => {
-    if (!isHomeLoadedCache) {
-      const timer = setTimeout(() => {
-        isHomeLoadedCache = true;
-        setIsLoading(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, []);
 
   // Handle initial search from navigation state
   useEffect(() => {
@@ -127,6 +132,18 @@ export const Home: React.FC<HomeProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const carouselTouchStartX = useRef<number | null>(null);
+
+  // Safe clamped index guaranteeing a slide is always rendered and never blank
+  const safeCurrentSlide = activeBanners.length > 0
+    ? ((currentSlide % activeBanners.length) + activeBanners.length) % activeBanners.length
+    : 0;
+
+  // Reset slide index if banners list shrinks
+  useEffect(() => {
+    if (currentSlide >= activeBanners.length) {
+      setCurrentSlide(0);
+    }
+  }, [activeBanners.length, currentSlide]);
 
   // Auto advance carousel every 5 seconds
   useEffect(() => {
@@ -161,9 +178,8 @@ export const Home: React.FC<HomeProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartPos.current && e.touches.length > 0) {
-      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
       const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-      if (dx > 7 || dy > 7) {
+      if (dy > 28) {
         isScrollingRef.current = true;
       }
     }
@@ -202,7 +218,9 @@ export const Home: React.FC<HomeProps> = ({
     navigate('/checkout');
   };
 
-  // Filter & Automatic Sorting by Search Query
+  // Filter & Automatic Sorting by Search Query and Active Filter
+  const [activeFilter, setActiveFilter] = useState<'all' | 'latest' | 'popular'>('all');
+
   const baseCatalog = useMemo(() => {
     return products && products.length > 0 ? products : [];
   }, [products]);
@@ -221,8 +239,20 @@ export const Home: React.FC<HomeProps> = ({
         const desc = p.description.toLowerCase();
         return name.includes(q) || cat.includes(q) || sub.includes(q) || desc.includes(q);
       });
+    }
 
-      // Automatically sort products by relevance
+    if (activeFilter === 'popular') {
+      // For popular use most rated product (highest rating, then review count)
+      list.sort((a, b) => {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+      });
+    } else if (activeFilter === 'latest') {
+      // Latest products
+      list.reverse();
+    } else if (q) {
+      // If 'all' with active search query, sort products by relevance
       list.sort((a, b) => {
         const aName = a.name.toLowerCase();
         const bName = b.name.toLowerCase();
@@ -238,16 +268,12 @@ export const Home: React.FC<HomeProps> = ({
           return aIdx - bIdx;
         }
 
-        return b.rating - a.rating;
+        return (b.rating || 0) - (a.rating || 0);
       });
     }
 
     return list;
-  }, [searchQuery, baseCatalog]);
-
-  if (isLoading) {
-    return <HomeScreenSkeleton />;
-  }
+  }, [searchQuery, baseCatalog, activeFilter]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans selection:bg-[#EBDCCB] pb-16">
@@ -284,14 +310,14 @@ export const Home: React.FC<HomeProps> = ({
         {/* Carousel Frame - Well-proportioned widescreen format for printed banner graphics */}
         <div className="w-full aspect-[16/9] sm:aspect-[16/8] md:aspect-[16/7] lg:aspect-[16/6.5] max-h-[520px] relative flex">
           {activeBanners.map((slide, idx) => {
-            const isActive = idx === currentSlide;
+            const isActive = idx === safeCurrentSlide;
             const targetLink = (slide.productId && products?.some(p => p.id === slide.productId))
               ? `/product/${slide.productId}`
               : (slide.link && !slide.link.startsWith('/product/') ? slide.link : '/products');
             return (
               <div
                 key={slide.id || `banner-${idx}`}
-                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
+                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out bg-[#3D2C24] ${
                   isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
                 }`}
               >
@@ -302,14 +328,15 @@ export const Home: React.FC<HomeProps> = ({
                   aria-label={slide.title}
                 >
                   <img
-                    src={slide.image}
-                    alt={slide.title}
+                    src={slide.image || BANNER_SLIDES[idx % BANNER_SLIDES.length]?.image || terracottaBanner}
+                    alt={slide.title || 'MArts Handcrafted'}
                     loading={idx === 0 ? 'eager' : 'lazy'}
                     decoding="async"
                     onError={(e) => {
                       const target = e.currentTarget;
-                      if (slide.fallbackImage && target.src !== slide.fallbackImage && !target.src.endsWith(slide.fallbackImage)) {
-                        target.src = slide.fallbackImage;
+                      const fallback = slide.fallbackImage || BANNER_SLIDES[idx % BANNER_SLIDES.length]?.image || terracottaBanner;
+                      if (target.src !== fallback && !target.src.endsWith(fallback)) {
+                        target.src = fallback;
                       }
                     }}
                     className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.01]"
@@ -350,7 +377,7 @@ export const Home: React.FC<HomeProps> = ({
                   type="button"
                   onClick={() => setCurrentSlide(idx)}
                   className={`transition-all rounded-full cursor-pointer ${
-                    idx === currentSlide
+                    idx === safeCurrentSlide
                       ? 'w-6 sm:w-8 h-1.5 sm:h-2 bg-[#C85A32]'
                       : 'w-1.5 sm:w-2 h-1.5 sm:h-2 bg-white/50 hover:bg-white/80'
                   }`}
@@ -362,78 +389,98 @@ export const Home: React.FC<HomeProps> = ({
         </div>
       </section>
 
-      {/* Homepage Search Bar Below Banner */}
-      <section className="w-full bg-[#FAF8F5] pt-5 sm:pt-6 pb-2 px-3 sm:px-6 lg:px-12">
-        <div className="max-w-2xl mx-auto">
-          <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
-            <Search
-              size={18}
-              className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
-            />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search handcrafted pottery, statues, vases..."
-              className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
-              aria-label="Search creations"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3.5 text-[#8C6D58] hover:text-[#2B221B] p-1 rounded-full cursor-pointer transition-colors"
-                aria-label="Clear search query"
-                title="Clear search"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
       {/* Product Catalog Section */}
-      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-8 sm:py-10 w-full">
-        {/* Section Header & Search Status */}
-        <div className="mb-6 border-b border-[#E8DFD8] pb-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-bold text-[#B85D36] uppercase tracking-wider mb-0.5 sm:mb-1">
-                {searchQuery ? 'Live Search Results' : 'Curated Catalog'}
-              </div>
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
-                {searchQuery ? `Searching "${searchQuery}"` : 'Artisan Pottery & Statues'}
-              </h2>
-            </div>
-
-            <div className="shrink-0 flex items-center justify-end">
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-3 py-1.5 rounded-full cursor-pointer border border-[#EADBCC]"
-                >
-                  <X size={14} />
-                  <span>Clear Search Filter</span>
-                </button>
-              ) : (
-                <Link
-                  to="/products"
-                  className="inline-flex items-center gap-1 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap"
-                >
-                  <span>View all products</span>
-                  <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-              )}
-            </div>
+      <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 pt-6 sm:pt-8 pb-8 sm:pb-10 w-full">
+        {/* Section Header & Search Status — Positioned above the search bar, with no separation line */}
+        <div className="mb-3 sm:mb-4">
+          <div className="text-xs font-bold text-[#B85D36] uppercase tracking-wider mb-0.5 sm:mb-1">
+            {searchQuery ? 'Live Search Results' : 'Curated Catalog'}
           </div>
-
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
+            {searchQuery ? `Searching "${searchQuery}"` : 'Artisan Pottery & Statues'}
+          </h2>
           <p className="text-xs sm:text-sm text-[#735A4C] mt-1 sm:mt-1.5">
             {searchQuery
               ? `Showing ${displayedProducts.length} creations sorted automatically by relevance`
               : 'Hand-thrown terracotta pots, glazed ceramic urns, stone sculptures & brass idols'}
           </p>
+        </div>
+
+        {/* Homepage Search Bar — Positioned below Curated Catalog Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+              <Search
+                size={18}
+                className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search handcrafted pottery, statues, vases..."
+                className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
+                aria-label="Search creations"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 text-[#8C6D58] hover:text-[#2B221B] p-1 rounded-full cursor-pointer transition-colors"
+                  aria-label="Clear search query"
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Pills and View All on the Same Row Below Search Bar: Filters on the LEFT, View All straight to the RIGHT */}
+          <div className="flex items-center justify-between gap-2 sm:gap-3 mt-3.5 sm:mt-4 w-full">
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'latest', label: 'Latest' },
+                { id: 'popular', label: 'Popular' }
+              ].map((tab) => {
+                const isActive = activeFilter === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveFilter(tab.id as 'all' | 'latest' | 'popular')}
+                    className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-[#C85A32] text-white shadow-xs'
+                        : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border border-[#E5D7CA]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-2.5 py-1 rounded-full cursor-pointer border border-[#EADBCC] shrink-0"
+              >
+                <X size={12} />
+                <span>Clear</span>
+              </button>
+            ) : (
+              <Link
+                to="/products"
+                className="inline-flex items-center gap-0.5 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap shrink-0"
+              >
+                <span>View all</span>
+                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Products Grid: Exactly 2 in a row on mobile, 4 in a row on tablets, 4 in a row on desktop */}

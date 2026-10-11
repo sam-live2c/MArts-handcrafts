@@ -2,11 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { User, CartItem, Product } from '../types';
 import Header from '../components/Header';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Star, ShoppingCart, Check, ShoppingBag, X, Search } from 'lucide-react';
-import { FullScreenCircleLoader } from '../components/CircleLoader';
-
-// In-memory cache for AllProducts page
-let isAllProductsLoadedCache = false;
+import { Star, ShoppingCart, ShoppingBag, X, Search, Heart } from 'lucide-react';
 
 interface AllProductsProps {
   user: User | null;
@@ -34,7 +30,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
   const [searchQuery, setSearchQuery] = useState(() => {
     return (location.state as any)?.initialSearch || '';
   });
-  const [isLoading, setIsLoading] = useState(() => !isAllProductsLoadedCache);
 
   // Sync initialSearch if navigated with state
   useEffect(() => {
@@ -59,9 +54,8 @@ const AllProducts: React.FC<AllProductsProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartPos.current && e.touches.length > 0) {
-      const dx = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
       const dy = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-      if (dx > 7 || dy > 7) {
+      if (dy > 28) {
         isScrollingRef.current = true;
       }
     }
@@ -77,13 +71,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
 
   useEffect(() => {
     window.scrollTo(0, 0);
-    if (!isAllProductsLoadedCache) {
-      const timer = setTimeout(() => {
-        isAllProductsLoadedCache = true;
-        setIsLoading(false);
-      }, 200);
-      return () => clearTimeout(timer);
-    }
   }, []);
 
   const handleQuickAdd = (product: Product, customTitle?: string, customPrice?: number) => {
@@ -111,7 +98,9 @@ const AllProducts: React.FC<AllProductsProps> = ({
     navigate('/checkout');
   };
 
-  // Filter & Automatic Sorting by Search Query right on AllProducts page
+  // Filter & Automatic Sorting by Search Query and Active Filter
+  const [activeFilter, setActiveFilter] = useState<'all' | 'latest' | 'popular'>('all');
+
   const displayedProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let list = [...catalog];
@@ -124,7 +113,20 @@ const AllProducts: React.FC<AllProductsProps> = ({
         const desc = (p.description || '').toLowerCase();
         return name.includes(q) || cat.includes(q) || sub.includes(q) || desc.includes(q);
       });
+    }
 
+    if (activeFilter === 'popular') {
+      // For popular use most rated product (highest rating, then reviews count)
+      list.sort((a, b) => {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+      });
+    } else if (activeFilter === 'latest') {
+      // Latest products
+      list.reverse();
+    } else if (q) {
+      // If 'all' with active search query, sort products by relevance
       list.sort((a, b) => {
         const aName = (a.name || '').toLowerCase();
         const bName = (b.name || '').toLowerCase();
@@ -145,35 +147,101 @@ const AllProducts: React.FC<AllProductsProps> = ({
     }
 
     return list;
-  }, [searchQuery, catalog]);
+  }, [searchQuery, catalog, activeFilter]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
-      {/* Header with Search enabled in home page style, live filtering this page */}
+    <div className="flex flex-col min-h-screen bg-[#FAF8F5] text-[#2B221B]">
+      {/* Header without popup search icon */}
       <Header
         user={user}
         cartCount={cartCount}
         wishlistCount={wishlist.length}
         title="All Products"
         showBack={true}
-        showSearch={true}
+        showSearch={false}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         products={products}
       />
+
+      {/* Prominent Search Bar identical to Homepage */}
+      <section className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 pt-4 sm:pt-6 pb-2">
+        <div className="max-w-2xl mx-auto">
+          <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+            <Search
+              size={18}
+              className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search handcrafted pottery, statues, vases..."
+              className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
+              aria-label="Search creations"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 text-[#8C6D58] hover:text-[#2B221B] p-1 rounded-full cursor-pointer transition-colors"
+                aria-label="Clear search query"
+                title="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Pills Below Search Bar: Positioned to the LEFT same as Homepage */}
+        <div className="flex items-center justify-between gap-2 sm:gap-3 mt-3.5 sm:mt-4 w-full">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'latest', label: 'Latest' },
+              { id: 'popular', label: 'Popular' }
+            ].map((tab) => {
+              const isActive = activeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveFilter(tab.id as 'all' | 'latest' | 'popular')}
+                  className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-[#C85A32] text-white shadow-xs'
+                      : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border border-[#E5D7CA]'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-2.5 py-1 rounded-full cursor-pointer border border-[#EADBCC] shrink-0 ml-auto"
+            >
+              <X size={12} />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
+      </section>
       
-      {isLoading ? (
-        <FullScreenCircleLoader />
-      ) : (
-        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8">
+      <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-5 sm:py-8">
           {/* Header Context / Search Status banner */}
-          {searchQuery ? (
-            <div className="mb-6 flex items-center justify-between gap-3 bg-[#FAF0E6]/70 p-3.5 sm:p-4 rounded-2xl border border-[#EADBCC]">
+          {searchQuery && (
+            <div className="mb-5 flex items-center justify-between gap-3 bg-[#FAF0E6]/70 p-3 sm:p-3.5 rounded-2xl border border-[#EADBCC]">
               <div className="min-w-0">
-                <span className="text-xs font-bold text-[#C85A32] uppercase tracking-wider block mb-0.5">
+                <span className="text-[11px] font-bold text-[#C85A32] uppercase tracking-wider block mb-0.5">
                   Live Search Results
                 </span>
-                <p className="text-sm sm:text-base font-serif font-bold text-[#2B221B] truncate">
+                <p className="text-xs sm:text-sm font-serif font-bold text-[#2B221B] truncate">
                   Showing {displayedProducts.length} {displayedProducts.length === 1 ? 'creation' : 'creations'} for &ldquo;{searchQuery}&rdquo;
                 </p>
               </div>
@@ -186,12 +254,6 @@ const AllProducts: React.FC<AllProductsProps> = ({
                 <X size={14} />
                 <span>Clear Filter</span>
               </button>
-            </div>
-          ) : (
-            <div className="mb-8">
-              <p className="text-sm sm:text-base text-[#5F6368]">
-                Explore our complete collection of handcrafted terracotta pottery, stone sculptures, and artisan creations.
-              </p>
             </div>
           )}
 
@@ -231,138 +293,113 @@ const AllProducts: React.FC<AllProductsProps> = ({
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            /* Products Grid: Exactly 2 in a row on mobile, 4 in a row on desktop — same as homepage */
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
               {displayedProducts.map((prod) => (
                 <div
                   key={prod.id}
                   onClick={() => handleCardClick(prod.id)}
                   onTouchStart={handleTouchStart}
                   onTouchMove={handleTouchMove}
-                  className="bg-transparent rounded-none border-0 p-0 flex flex-col justify-between group cursor-pointer"
+                  className="bg-transparent rounded-none border-0 shadow-none p-0 flex flex-col justify-between group cursor-pointer"
                 >
                   <div>
-                    {/* Image Container directly on surface */}
-                    <div className="relative bg-transparent rounded-none p-0 aspect-square flex items-center justify-center overflow-hidden mb-4">
+                    {/* Image Container with Wishlist Heart */}
+                    <div className="relative bg-[#FAF6F0] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3 flex items-center justify-center">
                       <img
                         src={prod.image}
                         alt={prod.name}
                         loading="lazy"
                         decoding="async"
-                        className="w-full h-full object-contain rounded-xl p-1"
+                        className="w-full h-full object-contain p-2"
                         referrerPolicy="no-referrer"
                       />
-                      {prod.subCategory && (
-                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full text-[10px] font-bold text-[#8C3F1E] border border-[#DADCE0]">
-                          {prod.subCategory}
-                        </div>
+
+                      {/* Wishlist toggle icon */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleWishlist(prod.id);
+                        }}
+                        className={`absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-xs border border-[#E8DFD8] flex items-center justify-center transition-all cursor-pointer ${
+                          wishlist.includes(prod.id) ? 'text-[#C85A32]' : 'text-gray-400 hover:text-[#C85A32]'
+                        }`}
+                        aria-label="Save to Wishlist"
+                      >
+                        <Heart size={14} fill={wishlist.includes(prod.id) ? '#C85A32' : 'none'} />
+                      </button>
+                    </div>
+
+                    {/* Rating & reviews */}
+                    <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
+                      <Star className="w-3 h-3 text-amber-500 fill-current" />
+                      <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
+                      <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
+                    </div>
+
+                    {/* Product Title */}
+                    <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 mb-1.5 group-hover:text-[#B85D36] transition-colors">
+                      {prod.name}
+                    </h3>
+
+                    {/* Description snippet */}
+                    <p className="text-[11px] sm:text-xs text-[#735A4C] line-clamp-2 mb-2.5 leading-relaxed">
+                      {prod.description}
+                    </p>
+                  </div>
+
+                  <div>
+                    {/* Price Display */}
+                    <div className="flex items-baseline gap-1.5 mb-2.5 pt-1.5 border-t border-[#F0E6DC]">
+                      <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
+                        ₹{prod.price.toLocaleString()}
+                      </span>
+                      {prod.oldPrice && (
+                        <span className="text-[11px] sm:text-xs text-[#8C6D58] line-through">
+                          ₹{prod.oldPrice.toLocaleString()}
+                        </span>
+                      )}
+                      {prod.oldPrice && (
+                        <span className="text-[10px] sm:text-[11px] font-bold text-[#1E7246] bg-[#E8F5E9] px-1 sm:px-1.5 py-0.5 rounded">
+                          {Math.round(((prod.oldPrice - prod.price) / prod.oldPrice) * 100)}% OFF
+                        </span>
                       )}
                     </div>
 
-                  {/* Rating */}
-                  {(() => {
-                    let count = prod.reviewsCount || 0;
-                    let ratingVal = prod.rating || 0;
-                    try {
-                      const saved = localStorage.getItem(`marts_reviews_${prod.id}`) || localStorage.getItem(`melody_reviews_${prod.id}`);
-                      if (saved) {
-                        const parsed = JSON.parse(saved);
-                        if (Array.isArray(parsed) && parsed.length > 0) {
-                          const genuine = parsed.filter((r: any) => r.id && !['rev-1', 'rev-2', 'rev-3'].includes(r.id));
-                          if (genuine.length > 0) {
-                            count = genuine.length;
-                            const sum = genuine.reduce((acc: number, r: any) => acc + (r.rating || 5), 0);
-                            ratingVal = Number((sum / genuine.length).toFixed(1));
-                          }
-                        }
-                      }
-                    } catch {}
-                    if (count > 0 || ratingVal > 0) {
-                      return (
-                        <div className="flex items-center gap-1 text-xs text-[#5F6368] mb-2">
-                          <Star className="w-3.5 h-3.5 text-[#FBBC04] fill-current" />
-                          <span className="font-bold text-[#202124]">{ratingVal > 0 ? ratingVal.toFixed(1) : '5.0'}</span>
-                          <span>({count.toLocaleString()})</span>
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="flex items-center gap-1.5 text-[11px] text-[#8C6D58] mb-2">
-                        <span className="bg-[#FAF0E6] text-[#C85A32] px-1.5 py-0.5 rounded text-[10px] font-semibold">Handcrafted</span>
-                        <span className="text-[#A89283] text-[10px]">Artisan Original</span>
-                      </div>
-                    );
-                  })()}
+                    {/* Action Buttons: Add to Cart & Buy Now side-by-side */}
+                    <div className="grid grid-cols-2 gap-1.5 sm:gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleQuickAdd(prod);
+                        }}
+                        className="w-full py-1.5 sm:py-2 px-1 sm:px-2 bg-[#FAF0E6] hover:bg-[#F2E4D8] active:bg-[#EBDCCB] text-[#C85A32] rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-[#EADBCC]"
+                      >
+                        <ShoppingCart size={13} className="shrink-0" />
+                        <span className="truncate">Add to Cart</span>
+                      </button>
 
-                  {/* Name */}
-                  <h3 className="font-bold text-[#202124] text-sm sm:text-base leading-snug line-clamp-2 mb-2 group-hover:text-[#1A73E8] transition-colors">
-                    {prod.name}
-                  </h3>
-
-                  {/* Highlight Bullet */}
-                  <p className="text-xs text-[#5F6368] line-clamp-2 mb-4 leading-relaxed">
-                    {prod.description}
-                  </p>
-                </div>
-
-                <div>
-                  {/* Price */}
-                  <div className="flex items-baseline gap-2 mb-4">
-                    <span className="text-xl font-black text-[#202124]">
-                      ₹{prod.price.toLocaleString()}
-                    </span>
-                    {prod.oldPrice && (
-                      <del className="text-xs text-[#80868B] font-normal" aria-label="Maximum retail price">
-                        ₹{prod.oldPrice.toLocaleString()}
-                      </del>
-                    )}
-                    {prod.discount && (
-                      <span className="text-[10px] font-bold text-[#188038] bg-[#E6F4EA] px-1.5 py-0.5 rounded">
-                        {prod.discount}
-                      </span>
-                    )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDirectBuy(prod);
+                        }}
+                        className="w-full py-1.5 sm:py-2 px-1 sm:px-2 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white rounded-lg sm:rounded-xl font-bold text-[11px] sm:text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
+                      >
+                        <ShoppingBag size={13} className="shrink-0" />
+                        <span className="truncate">Buy Now</span>
+                      </button>
+                    </div>
                   </div>
-
-                {/* Action Buttons: Add to Cart (1) : Buy Now (2) Ratio */}
-                <div className="flex items-center gap-2 w-full">
-                  <button
-                    type="button"
-                    style={{ flex: 1 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isScrollingRef.current) return;
-                      handleQuickAdd(prod);
-                    }}
-                    className="flex-[1] bg-[#F1F3F4] hover:bg-[#E8EAED] text-[#3C4043] text-xs font-semibold py-2.5 px-2 rounded-full transition-all active:scale-95 flex items-center justify-center gap-1 cursor-pointer border border-gray-200/60 min-w-0"
-                    title="Add to Cart"
-                    aria-label="Add to Cart"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">Add to Cart</span>
-                  </button>
-                  <button
-                    type="button"
-                    style={{ flex: 2 }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isScrollingRef.current) return;
-                      handleDirectBuy(prod);
-                    }}
-                    className="flex-[2] bg-[#C85A32] hover:bg-[#A04724] text-white text-xs font-bold py-2.5 px-3 rounded-full transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer min-w-0"
-                    title="Buy Now"
-                    aria-label="Buy Now"
-                  >
-                    <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate font-bold">Buy Now</span>
-                  </button>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
     </div>
-  )}
-</div>
   );
 };
 
