@@ -197,7 +197,7 @@ const Header: React.FC<HeaderProps> = ({
       ref={headerRef}
       className="w-full bg-[#FAF8F5] border-b border-[#EADBCC]/60 sticky top-0 z-50 shadow-2xs"
     >
-      <div className="w-full px-4 sm:px-8 lg:px-12 py-2.5 sm:py-3 min-h-[56px] sm:min-h-[62px] relative max-w-7xl mx-auto flex items-center">
+      <div className="w-full px-3 sm:px-6 lg:px-12 py-2.5 sm:py-3 min-h-[56px] sm:min-h-[62px] relative max-w-7xl mx-auto flex items-center">
         {/* Mobile & Tablet Full-Header Search Mode (No container or background) */}
         {isSearchOpen ? (
           <div className="w-full flex items-center gap-2 sm:gap-3 lg:hidden animate-in fade-in duration-150">
@@ -269,7 +269,7 @@ const Header: React.FC<HeaderProps> = ({
             {showBack && (
               <button
                 onClick={handleBack}
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0 touch-manipulation"
+                className="w-9 h-9 sm:w-10 sm:h-10 -ml-1 sm:-ml-1.5 flex items-center justify-center hover:bg-[#F2EAE2] rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0 touch-manipulation"
                 aria-label="Go Back"
               >
                 <ArrowLeft size={22} className="pointer-events-none" />
@@ -401,7 +401,7 @@ const Header: React.FC<HeaderProps> = ({
         {showDropdown && suggestions.length > 0 && (
           <div
             ref={dropdownRef}
-            className="absolute top-full left-4 right-4 sm:left-8 sm:right-8 lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-md mt-1.5 bg-white rounded-2xl border border-[#EADBCC] shadow-xl p-1.5 overflow-hidden z-[100] animate-in fade-in duration-150"
+            className="absolute top-full left-3 right-3 sm:left-6 sm:right-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-md mt-1.5 bg-white rounded-2xl border border-[#EADBCC] shadow-xl p-1.5 overflow-hidden z-[100] animate-in fade-in duration-150"
           >
             <div className="max-h-[340px] overflow-y-auto space-y-0.5">
               {suggestions.map((item) => (

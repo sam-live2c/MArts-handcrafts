@@ -6,7 +6,7 @@ import { Phone, Mail, ShieldCheck, Compass } from 'lucide-react';
 const Footer: React.FC = () => {
   return (
     <footer className="w-full bg-[#FAF7F2] text-[#2B221B] border-t border-[#EADBCC] mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-12 sm:py-14">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-12 sm:py-14">
         {/* Main 2-Column Balanced Layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-16 pb-10 border-b border-[#EADBCC]">
           {/* Column 1: MArts Atelier Brand */}

@@ -67,21 +67,21 @@ const GlobalToastNotification: React.FC<{
         isProductPage ? 'bottom-20 sm:bottom-8' : 'bottom-6 sm:bottom-8'
       } left-1/2 -translate-x-1/2 z-[250] w-auto max-w-[94vw] sm:max-w-md pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-200`}
     >
-      <div className="bg-[#202124] text-white px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_28px_rgba(0,0,0,0.4)] border border-white/10 flex items-center gap-2.5 sm:gap-3 select-none">
+      <div className="bg-white text-gray-900 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-200/90 flex items-center gap-2.5 sm:gap-3 select-none">
         {notification.type === 'wishlist' ? (
-          <Heart size={18} className="text-rose-400 fill-rose-400 shrink-0" />
+          <Heart size={18} className="text-rose-500 fill-rose-500 shrink-0" />
         ) : (
-          <ShoppingCart size={18} className="text-[#E07A5F] shrink-0" />
+          <ShoppingCart size={18} className="text-[#C85A32] shrink-0" />
         )}
 
-        <div className="text-xs sm:text-sm font-medium text-gray-200 truncate max-w-[220px] xs:max-w-[260px] sm:max-w-sm flex-1 min-w-0">
+        <div className="text-xs sm:text-sm font-semibold text-gray-800 truncate max-w-[220px] xs:max-w-[260px] sm:max-w-sm flex-1 min-w-0">
           {notification.message}
         </div>
 
         <button
           type="button"
           onClick={onClose}
-          className="text-gray-400 hover:text-white p-1 rounded-full transition-colors cursor-pointer shrink-0 -mr-1"
+          className="text-gray-400 hover:text-gray-700 hover:bg-gray-100 p-1 rounded-full transition-colors cursor-pointer shrink-0 -mr-1"
           aria-label="Dismiss"
         >
           <X size={15} strokeWidth={2} />

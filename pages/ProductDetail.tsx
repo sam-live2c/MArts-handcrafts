@@ -564,69 +564,69 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   return (
     <div className="w-full min-h-screen bg-white font-sans selection:bg-purple-100 text-[#1F1F1F] flex flex-col">
       {/* Top Minimalist Bar: Edge-to-edge across devices with proper outer edge positioning */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between border-b border-gray-100 shadow-xs min-h-[52px] sm:min-h-[56px]">
-          {/* Back/Close Button */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 text-gray-800 transition-colors cursor-pointer"
-              aria-label="Back"
-            >
-              <ArrowLeft size={22} strokeWidth={2} />
-            </button>
-          </div>
-
-          {/* Right Action Buttons */}
-          <div className="flex items-center gap-1 sm:gap-2">
-            {/* Share link button */}
-            <button
-              type="button"
-              onClick={handleShare}
-              className="relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
-              aria-label="Share product"
-              title="Share product"
-            >
-              <Share2 size={18} strokeWidth={2} />
-              {copiedLink && (
-                <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded shadow-md whitespace-nowrap">
-                  Link copied!
-                </span>
-              )}
-            </button>
-
-            {/* Wishlist toggle button */}
-            <button
-              type="button"
-              onClick={() => onToggleWishlist(product.id)}
-              className={`relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center transition-colors cursor-pointer ${
-                isWishlisted ? "text-[#C85A32]" : "text-gray-700 hover:text-[#C85A32]"
-              }`}
-              aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
-              title={isWishlisted ? "Saved to wishlist" : "Save to wishlist"}
-            >
-              <Heart size={19} strokeWidth={2} className={isWishlisted ? "fill-[#C85A32]" : ""} />
-            </button>
-
-            {/* Cart circular button with badge */}
-            <button
-              type="button"
-              onClick={() => navigate("/cart")}
-              className="relative w-10 h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
-              aria-label="Shopping Cart"
-            >
-              <ShoppingCart size={20} strokeWidth={2} />
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#C85A32] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          </div>
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between border-b border-gray-100 shadow-xs">
+        {/* Back/Close Button */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 text-gray-800 transition-colors cursor-pointer"
+            aria-label="Back"
+          >
+            <ArrowLeft size={22} strokeWidth={2} />
+          </button>
         </div>
 
-        {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-0">
+        {/* Right Action Buttons */}
+        <div className="flex items-center gap-1.5 sm:gap-2.5 text-[#5F6368] shrink-0">
+          {/* Share link button */}
+          <button
+            type="button"
+            onClick={handleShare}
+            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+            aria-label="Share product"
+            title="Share product"
+          >
+            <Share2 size={18} strokeWidth={2} />
+            {copiedLink && (
+              <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded shadow-md whitespace-nowrap">
+                Link copied!
+              </span>
+            )}
+          </button>
+
+          {/* Wishlist toggle button */}
+          <button
+            type="button"
+            onClick={() => onToggleWishlist(product.id)}
+            className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center transition-colors cursor-pointer ${
+              isWishlisted ? "text-[#C85A32]" : "text-gray-700 hover:text-[#C85A32]"
+            }`}
+            aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
+            title={isWishlisted ? "Saved to wishlist" : "Save to wishlist"}
+          >
+            <Heart size={19} strokeWidth={2} className={isWishlisted ? "fill-[#C85A32]" : ""} />
+          </button>
+
+          {/* Cart circular button with badge */}
+          <button
+            type="button"
+            onClick={() => navigate("/cart")}
+            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+            aria-label="Shopping Cart"
+          >
+            <ShoppingCart size={20} strokeWidth={2} />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#C85A32] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-0 flex-1">
           
           {/* Left Column: Product Gallery */}
           <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">

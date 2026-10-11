@@ -41,8 +41,8 @@ const Logo: React.FC<LogoProps> = ({
       <div className={`relative inline-flex items-center gap-2 ${hClass}`}>
         {/* MArts Handcrafted Pottery & Statue Amphora Emblem */}
         <svg
-          viewBox="0 0 100 100"
-          className="h-full w-auto aspect-square shrink-0 drop-shadow-xs"
+          viewBox="13 0 74 100"
+          className="h-full w-auto aspect-[74/100] shrink-0 drop-shadow-xs"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
