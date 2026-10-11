@@ -6,7 +6,6 @@ import {
   Star
 } from 'lucide-react';
 import { Product, User } from '../types';
-import { PRODUCTS } from '../constants';
 import Header from '../components/Header';
 import { FullScreenCircleLoader } from '../components/CircleLoader';
 
@@ -19,6 +18,7 @@ interface WishlistProps {
   onMoveAllToCart?: (products: Product[]) => void;
   onClearWishlist?: () => void;
   cartCount: number;
+  products?: Product[];
 }
 
 // In-memory cache for Wishlist page
@@ -28,7 +28,8 @@ const Wishlist: React.FC<WishlistProps> = ({
   user,
   wishlist,
   onRemoveFromWishlist,
-  cartCount
+  cartCount,
+  products
 }) => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(() => !isWishlistLoadedCache);
@@ -45,22 +46,18 @@ const Wishlist: React.FC<WishlistProps> = ({
 
   // Combine products from catalog and local cache
   const allProducts = useMemo(() => {
+    if (products && products.length > 0) return products;
     try {
-      const cached = localStorage.getItem('melody_products') || localStorage.getItem('marts_products');
+      const cached = localStorage.getItem('marts_products') || localStorage.getItem('melody_products');
       if (cached) {
         const parsed: Product[] = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const map = new Map<string, Product>();
-          PRODUCTS.forEach((p) => map.set(p.id, p));
-          parsed.forEach((p) => map.set(p.id, p));
-          return Array.from(map.values());
-        }
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {
       // fallback
     }
-    return PRODUCTS;
-  }, []);
+    return [];
+  }, [products]);
 
   // Filter products that exist in the wishlist
   const wishlistProducts = useMemo(() => {
@@ -76,6 +73,7 @@ const Wishlist: React.FC<WishlistProps> = ({
         wishlistCount={wishlist.length}
         title="My Wishlist"
         showBack={true}
+        products={allProducts}
       />
 
       {isLoading ? (
@@ -127,7 +125,7 @@ const Wishlist: React.FC<WishlistProps> = ({
                           alt={prod.name}
                           loading="lazy"
                           decoding="async"
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          className="w-full h-full object-contain p-2"
                           referrerPolicy="no-referrer"
                         />
 
@@ -158,8 +156,8 @@ const Wishlist: React.FC<WishlistProps> = ({
                       {/* Rating & reviews */}
                       <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
                         <Star className="w-3 h-3 text-amber-500 fill-current" />
-                        <span className="font-bold text-[#2B221B]">{prod.rating}</span>
-                        <span className="text-[#8C6D58]">({prod.reviewsCount})</span>
+                        <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
+                        <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
                       </div>
 
                       {/* Product Title */}

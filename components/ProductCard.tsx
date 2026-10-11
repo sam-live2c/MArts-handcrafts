@@ -68,7 +68,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           alt=""
           role="presentation"
           referrerPolicy="no-referrer"
-          className="object-contain w-full h-full mix-blend-multiply p-2"
+          className="object-contain w-full h-full p-2"
         />
 
         {isOutOfStock && (
@@ -92,17 +92,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <span className="text-sm font-bold text-gray-900">
             ₹{product.price.toLocaleString()}
           </span>
-          {(product.oldPrice || 1499) && (
+          {product.oldPrice && (
             <del
               className="text-[11px] text-gray-400 font-normal"
               aria-label="Maximum retail price"
             >
-              ₹{(product.oldPrice || 1499).toLocaleString()}
+              ₹{product.oldPrice.toLocaleString()}
             </del>
           )}
-          {(product.discount || '50% off') && (
+          {product.discount && (
             <span className="text-[10px] font-bold text-green-600">
-              {product.discount || '50% off'}
+              {product.discount}
             </span>
           )}
         </div>

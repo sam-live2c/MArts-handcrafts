@@ -10,7 +10,6 @@ import {
   X,
   Search
 } from 'lucide-react';
-import { PRODUCTS } from '../constants';
 import { CartItem, Product, User, CarouselBanner } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
@@ -40,8 +39,7 @@ const BANNER_SLIDES: BannerSlide[] = [
     title: 'MArts Heirloom Terracotta Pottery',
     subtitle: 'Wheel-thrown alluvial clay vessels fired in traditional biomass wood kilns',
     tag: 'Wheel-Thrown Masterpieces',
-    link: '/product/1',
-    productId: '1',
+    link: '/products',
     ctaText: 'Shop Collection',
     active: true
   },
@@ -52,8 +50,7 @@ const BANNER_SLIDES: BannerSlide[] = [
     title: 'MArts Sacred Stone Sculptures',
     subtitle: 'Solid monolithic sandstone sculptures carved by generational master sculptors',
     tag: 'Sacred Sculptures',
-    link: '/product/2',
-    productId: '2',
+    link: '/products',
     ctaText: 'Explore Masterpieces',
     active: true
   },
@@ -64,8 +61,7 @@ const BANNER_SLIDES: BannerSlide[] = [
     title: 'MArts Ceramic Vases',
     subtitle: 'Watertight stoneware pottery dipped in tactile raw earth & oatmeal mineral glazes',
     tag: 'Artisan Ceramics',
-    link: '/product/3',
-    productId: '3',
+    link: '/products',
     ctaText: 'Discover New Arrivals',
     active: true
   },
@@ -76,8 +72,7 @@ const BANNER_SLIDES: BannerSlide[] = [
     title: 'MArts Heritage Bronze & Brass',
     subtitle: 'Heirloom bell-metal sculptures with hand-rubbed antique beeswax patina',
     tag: 'Heritage Metalwork',
-    link: '/product/4',
-    productId: '4',
+    link: '/products',
     ctaText: 'Shop Heritage Idols',
     active: true
   }
@@ -209,7 +204,7 @@ export const Home: React.FC<HomeProps> = ({
 
   // Filter & Automatic Sorting by Search Query
   const baseCatalog = useMemo(() => {
-    return products && products.length > 0 ? products : PRODUCTS;
+    return products && products.length > 0 ? products : [];
   }, [products]);
 
   const displayedProducts = useMemo(() => {
@@ -256,13 +251,15 @@ export const Home: React.FC<HomeProps> = ({
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans selection:bg-[#EBDCCB] pb-16">
-      {/* Top Header with live search connection */}
+      {/* Top Header without search (search moved below banner) */}
       <Header
         user={user || null}
         cartCount={cartCount || 0}
         wishlistCount={wishlist.length}
+        showSearch={false}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        products={products}
       />
 
       {/* Homepage Products Showcase Banner Carousel */}
@@ -288,7 +285,9 @@ export const Home: React.FC<HomeProps> = ({
         <div className="w-full aspect-[16/9] sm:aspect-[16/8] md:aspect-[16/7] lg:aspect-[16/6.5] max-h-[520px] relative flex">
           {activeBanners.map((slide, idx) => {
             const isActive = idx === currentSlide;
-            const targetLink = slide.productId ? `/product/${slide.productId}` : (slide.link || '/');
+            const targetLink = (slide.productId && products?.some(p => p.id === slide.productId))
+              ? `/product/${slide.productId}`
+              : (slide.link && !slide.link.startsWith('/product/') ? slide.link : '/products');
             return (
               <div
                 key={slide.id || `banner-${idx}`}
@@ -363,6 +362,37 @@ export const Home: React.FC<HomeProps> = ({
         </div>
       </section>
 
+      {/* Homepage Search Bar Below Banner */}
+      <section className="w-full bg-[#FAF8F5] pt-5 sm:pt-6 pb-2 px-3 sm:px-6 lg:px-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+            <Search
+              size={18}
+              className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
+            />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search handcrafted pottery, statues, vases..."
+              className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
+              aria-label="Search creations"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 text-[#8C6D58] hover:text-[#2B221B] p-1 rounded-full cursor-pointer transition-colors"
+                aria-label="Clear search query"
+                title="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Product Catalog Section */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-8 sm:py-10 w-full">
         {/* Section Header & Search Status */}
@@ -412,17 +442,23 @@ export const Home: React.FC<HomeProps> = ({
             <div className="w-14 h-14 rounded-full bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center mx-auto">
               <Search size={26} />
             </div>
-            <p className="text-base font-serif font-bold text-[#2B221B]">No creations found</p>
-            <p className="text-xs text-[#735A4C] max-w-sm mx-auto">
-              We couldn&apos;t find any pottery or statue matching &ldquo;{searchQuery}&rdquo;. Try another term or clear your search filter.
+            <p className="text-base font-serif font-bold text-[#2B221B]">
+              {searchQuery ? 'No creations found' : 'No creations available yet'}
             </p>
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="mt-2 px-4 py-2 bg-[#C85A32] text-white text-xs font-bold rounded-xl cursor-pointer"
-            >
-              View All Creations
-            </button>
+            <p className="text-xs text-[#735A4C] max-w-sm mx-auto">
+              {searchQuery
+                ? `We couldn't find any pottery or statue matching "${searchQuery}". Try another term or clear your search filter.`
+                : 'Our master artisans are currently crafting new pottery, urns, and sacred statues. Please check back shortly.'}
+            </p>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="mt-2 px-4 py-2 bg-[#C85A32] text-white text-xs font-bold rounded-xl cursor-pointer"
+              >
+                View All Creations
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
@@ -435,12 +471,14 @@ export const Home: React.FC<HomeProps> = ({
                 className="bg-transparent rounded-none border-0 shadow-none p-0 flex flex-col justify-between group cursor-pointer"
               >
                 <div>
-                  {/* Clean Product Image Container directly on surface */}
                   <div className="relative bg-[#FAF6F0] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3 flex items-center justify-center">
                     <img
                       src={prod.image}
                       alt={prod.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-contain p-2"
+                      referrerPolicy="no-referrer"
                     />
 
                     {/* Wishlist toggle icon */}
@@ -462,8 +500,8 @@ export const Home: React.FC<HomeProps> = ({
                   {/* Rating & reviews */}
                   <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
                     <Star className="w-3 h-3 text-amber-500 fill-current" />
-                    <span className="font-bold text-[#2B221B]">{prod.rating}</span>
-                    <span className="text-[#8C6D58]">({prod.reviewsCount})</span>
+                    <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
+                    <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
                   </div>
 
                   {/* Product Title */}

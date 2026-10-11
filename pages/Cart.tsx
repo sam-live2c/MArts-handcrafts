@@ -220,11 +220,11 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                        <div className={`flex gap-4 sm:gap-5 transition-opacity ${isUpdating === item.id ? 'opacity-50' : ''}`}>
                           {/* Left Image */}
                           <div className="w-[90px] sm:w-[100px] shrink-0 flex flex-col items-center">
-                             <div className="w-[90px] h-[90px] sm:w-[100px] sm:h-[100px] bg-white border border-gray-100 rounded-sm p-2 flex items-center justify-center relative overflow-hidden">
+                             <div className="w-[90px] h-[90px] sm:w-[100px] sm:h-[100px] bg-[#FAF7F2] border border-[#EADBCC]/60 rounded-xl p-2 flex items-center justify-center relative overflow-hidden">
                                 <img 
                                   src={item.image} 
                                   referrerPolicy="no-referrer" 
-                                  className="w-full h-full object-contain mix-blend-multiply" 
+                                  className="w-full h-full object-contain" 
                                   alt={item.name} 
                                 />
                              </div>

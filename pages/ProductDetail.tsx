@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { PRODUCTS } from "../constants";
 import {
   X,
   ShoppingCart,
@@ -42,38 +41,6 @@ interface ProductDetailProps {
   products?: Product[];
 }
 
-const INITIAL_REVIEWS: Review[] = [
-  {
-    id: "rev-1",
-    productId: "1",
-    userName: "Ananya Sengupta",
-    rating: 5,
-    comment: "The fluted urn arrived in pristine condition within heavy timber crating. The raw alluvial clay texture and subtle kiln flame gradient make it a true masterpiece in our foyer.",
-    date: "3 days ago",
-    isVerified: true,
-    helpfulCount: 28,
-  },
-  {
-    id: "rev-2",
-    productId: "1",
-    userName: "Dr. Vikramaditya Roy",
-    rating: 5,
-    comment: "Outstanding craftsmanship! You can immediately feel the weight and authentic wheel-thrown craft. The unglazed finish has that earthy, grounding presence.",
-    date: "1 week ago",
-    isVerified: true,
-    helpfulCount: 19,
-  },
-  {
-    id: "rev-3",
-    productId: "1",
-    userName: "Meera Kulkarni",
-    rating: 5,
-    comment: "Exceeded all expectations. Completely transformed our dining credenza. We get compliments from every single guest who visits.",
-    date: "2 weeks ago",
-    isVerified: true,
-    helpfulCount: 14,
-  },
-];
 
 // In-memory cache for visited product details
 const visitedProductsCache = new Set<string>();
@@ -97,17 +64,25 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
       const found = products.find((p) => p.id === id);
       if (found) return found;
     }
-    return PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
+    try {
+      const cached = localStorage.getItem('marts_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) {
+          const found = parsed.find((p: Product) => p.id === id);
+          if (found) return found;
+        }
+      }
+    } catch {}
+    return null;
   }, [remoteProduct, products, id]);
 
   const [isLoading, setIsLoading] = useState(() => (id ? !visitedProductsCache.has(id) : false));
 
-  // Asynchronously fetch product directly from Firestore if not found in local seed list
+  // Asynchronously fetch product directly from Firestore if not found in local catalog
   useEffect(() => {
     if (!id) return;
-    const existsLocally =
-      (products && products.some((p) => p.id === id)) ||
-      PRODUCTS.some((p) => p.id === id);
+    const existsLocally = Boolean(products && products.some((p) => p.id === id));
     if (!existsLocally) {
       getDoc(doc(db, 'products', id))
         .then((snap) => {
@@ -117,6 +92,9 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
         })
         .catch((err) => {
           console.warn('Direct product fetch notice:', err);
+        })
+        .finally(() => {
+          setIsLoading(false);
         });
     }
   }, [id, products]);
@@ -140,27 +118,41 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
-  // Reviews state with localStorage persistence
+  // Reviews state with persistence - genuine customer reviews only, no mock data
   const [reviews, setReviews] = useState<Review[]>(() => {
+    if (!id) return [];
     try {
-      const isInit = localStorage.getItem(`melody_reviews_init_v3_${product.id}`);
-      if (!isInit) {
-        localStorage.setItem(`melody_reviews_init_v3_${product.id}`, "true");
-        localStorage.setItem(`melody_reviews_${product.id}`, JSON.stringify(INITIAL_REVIEWS));
-        return INITIAL_REVIEWS;
-      }
-      const saved = localStorage.getItem(`melody_reviews_${product.id}`);
+      const saved = localStorage.getItem(`marts_reviews_${id}`) || localStorage.getItem(`melody_reviews_${id}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((r: Review) => r.id && !['rev-1', 'rev-2', 'rev-3'].includes(r.id));
         }
       }
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_REVIEWS;
+    return [];
   });
+
+  // Keep reviews updated when viewing different products
+  useEffect(() => {
+    if (!id) {
+      setReviews([]);
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`marts_reviews_${id}`) || localStorage.getItem(`melody_reviews_${id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setReviews(parsed.filter((r: Review) => r.id && !['rev-1', 'rev-2', 'rev-3'].includes(r.id)));
+          return;
+        }
+      }
+    } catch {}
+    setReviews([]);
+  }, [id]);
 
   const [authorName, setAuthorName] = useState("");
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -251,21 +243,22 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           Array.isArray(order.items) &&
           order.items.some(
             (item: any) =>
-              String(item?.id || item?.productId || "").trim() === String(product.id).trim()
+              product && String(item?.id || item?.productId || "").trim() === String(product.id).trim()
           )
       ) || null
     );
-  }, [userOrders, product.id]);
+  }, [userOrders, product]);
 
   const hasPurchased = Boolean(matchingPurchase && matchingPurchase.id);
 
   useEffect(() => {
+    if (!product?.id) return;
     try {
-      localStorage.setItem(`melody_reviews_${product.id}`, JSON.stringify(reviews));
+      localStorage.setItem(`marts_reviews_${product.id}`, JSON.stringify(reviews));
     } catch (e) {
       console.error(e);
     }
-  }, [reviews, product.id]);
+  }, [reviews, product?.id]);
 
   const ratingCounts = useMemo(() => {
     const counts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -277,10 +270,12 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   }, [reviews]);
 
   const avgRating = useMemo(() => {
-    if (reviews.length === 0) return "5.0";
+    if (reviews.length === 0) {
+      return product?.rating && product.rating > 0 ? product.rating.toFixed(1) : "0.0";
+    }
     const sum = reviews.reduce((acc, r) => acc + (r.rating || 5), 0);
     return (sum / reviews.length).toFixed(1);
-  }, [reviews]);
+  }, [reviews, product?.rating]);
 
   const displayedReviews = useMemo(() => {
     let list = [...reviews];
@@ -339,33 +334,35 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
 
   const faqs = [
     {
-      question: "How does the Melody NFC review stand work?",
-      answer: "Customers simply tap their smartphone (iPhone or Android) on the stand, or scan the high-definition QR code with their camera. Their phone automatically opens your official Google review submission screen directly—no app download or manual searching needed."
+      question: "How are MArts pottery pieces and statues crafted?",
+      answer: "Each creation is hand-thrown on the potter wheel or hand-chiseled from monolithic natural sandstone blocks by master generational artisans. Ceramic vessels are vitrified at 1,250°C Cone 10 for enduring structural strength."
     },
     {
-      question: "Are there any monthly subscription or renewal fees?",
-      answer: "Zero! This is a 100% one-time purchase. There are no monthly subscriptions, no hidden cloud fees, and lifetime free tap redirection is included."
+      question: "How are heavy pottery and delicate statues protected during shipping?",
+      answer: "We use heavy timber-crate packaging lined with high-density shock-absorbing honeycomb foam and multi-layer air cushioning. Every piece is 100% transit-insured from our atelier to your doorstep."
     },
     {
-      question: "Does the stand need charging, batteries, or Wi-Fi?",
-      answer: "No power or charging is required. The stand operates 100% passively using standard NFC electromagnetic induction. It never runs out of battery and is ready 24/7."
+      question: "Are ceramic dinnerware and drinkware food-safe?",
+      answer: "Yes, 100%. All tableware and drinkware utilize non-toxic, lead-free natural mineral glazes and are microwave, oven, and dishwasher safe."
     },
     {
-      question: "How is it configured with my Google Business profile?",
-      answer: "We pre-configure every stand before dispatch using the Google Maps link or business name provided in your order. When you unbox it, it works immediately on your counter."
+      question: "How should I maintain and care for unglazed terracotta pottery?",
+      answer: "Rinse unglazed terracotta with warm water and a soft natural coir brush. Avoid harsh chemical detergents as porous natural clay absorbs chemical residues. Allow it to sun-dry thoroughly."
     },
     {
-      question: "Is it compatible with both iPhone and Android?",
-      answer: "Yes. All modern iPhones (iPhone 7 and newer) and virtually all NFC-enabled Android smartphones support instant tap. For older devices, the laser-crisp QR code provides instant camera access."
+      question: "What happens if an artisanal piece arrives damaged?",
+      answer: "We provide a 30-day hassle-free replacement guarantee. If transit damage occurs, simply contact our support and an insured replacement is dispatched immediately at zero cost."
     }
   ];
 
   const displayImages =
-    product.images && product.images.length > 0
+    product && product.images && product.images.length > 0
       ? product.images
-      : [product.image];
+      : product?.image
+      ? [product.image]
+      : [];
 
-  const isWishlisted = wishlist.includes(product.id);
+  const isWishlisted = Boolean(product && wishlist.includes(product.id));
 
   // Touch swipe handling
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -381,7 +378,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
+    if (!touchStart || !touchEnd || displayImages.length === 0) return;
     const distance = touchStart - touchEnd;
     if (distance > 35) {
       // Next image
@@ -403,6 +400,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const handleIncreaseQty = () => {
+    if (!product) return;
     const nextQty = selectedQty + 1;
     setSelectedQty(nextQty);
     onAddToCart(
@@ -415,6 +413,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const handleAddToCart = () => {
+    if (!product) return;
     onAddToCart({
       ...product,
       quantity: selectedQty,
@@ -422,6 +421,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const handleBuyNow = () => {
+    if (!product) return;
     onAddToCart(
       {
         ...product,
@@ -438,6 +438,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   const handleShare = () => {
+    if (!product) return;
     if (navigator.share) {
       navigator.share({
         title: product.name,
@@ -462,6 +463,51 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     return <FullScreenCircleLoader />;
   }
 
+  if (!product) {
+    return (
+      <div className="w-full min-h-screen bg-white font-sans text-[#1F1F1F] flex flex-col">
+        <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-gray-100 shadow-xs">
+          <button
+            type="button"
+            onClick={handleBack}
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-800 transition-colors cursor-pointer"
+            aria-label="Back"
+          >
+            <ArrowLeft size={22} strokeWidth={2} />
+          </button>
+          <Logo size="sm" />
+          <Link
+            to="/cart"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-800 relative"
+            aria-label="Cart"
+          >
+            <ShoppingCart size={20} />
+            {cartCount > 0 && (
+              <span className="absolute top-1 right-1 bg-[#C85A32] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {cartCount}
+              </span>
+            )}
+          </Link>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center max-w-md mx-auto">
+          <div className="w-16 h-16 rounded-full bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center mb-4">
+            <ShoppingBag size={28} />
+          </div>
+          <h2 className="text-xl font-serif font-bold text-[#2B221B] mb-2">Piece Not Found</h2>
+          <p className="text-xs sm:text-sm text-[#735A4C] mb-6">
+            This handcrafted creation is no longer in our catalog. Explore our current collection of artisan pottery and sculptures.
+          </p>
+          <Link
+            to="/products"
+            className="px-6 py-2.5 bg-[#C85A32] hover:bg-[#A04724] text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition-colors"
+          >
+            Browse All Creations
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-h-screen bg-white font-sans selection:bg-purple-100 text-[#1F1F1F] flex flex-col">
       {/* Top Minimalist Bar: Edge-to-edge across devices with proper outer edge positioning */}
@@ -481,7 +527,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             <nav className="hidden md:flex items-center gap-1.5 text-xs text-gray-500 font-medium">
               <Link to="/" className="hover:text-gray-900 transition-colors">Home</Link>
               <ChevronRight size={13} className="text-gray-400" />
-              <Link to="/" className="hover:text-gray-900 transition-colors">Hardware</Link>
+              <Link to="/products" className="hover:text-gray-900 transition-colors">Creations</Link>
               <ChevronRight size={13} className="text-gray-400" />
               <span className="text-gray-900 font-semibold truncate max-w-[200px] lg:max-w-xs">{product.name}</span>
             </nav>
@@ -541,7 +587,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
           {/* Left Column: Product Gallery */}
           <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">
             <div
-              className="relative w-full aspect-square max-w-[320px] md:max-w-[420px] flex items-center justify-center select-none touch-pan-y group"
+              className="relative w-full aspect-square max-w-[360px] md:max-w-[440px] flex items-center justify-center select-none touch-pan-y group p-2"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
@@ -549,7 +595,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
               <img
                 src={displayImages[selectedImg] || product.image}
                 alt={product.name}
-                className="w-[85%] h-[85%] object-contain drop-shadow-md"
+                className="w-full h-full object-contain"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -590,54 +636,77 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                 <span className="text-2xl lg:text-3xl font-black text-[#BA3D1D] tracking-tight">
                   ₹{product.price.toLocaleString()}
                 </span>
-                {(product.oldPrice || 1499) && (
+                {product.oldPrice && (
                   <span className="flex items-baseline gap-1.5">
                     <span className="text-xs text-gray-400 font-normal">M.R.P.:</span>
                     <del className="text-sm lg:text-base text-gray-400 font-normal" aria-label="Maximum retail price">
-                      ₹{(product.oldPrice || 1499).toLocaleString()}
+                      ₹{product.oldPrice.toLocaleString()}
                     </del>
-                    <span className="text-xs lg:text-sm font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
-                      {product.discount || `${Math.round((((product.oldPrice || 1499) - product.price) / (product.oldPrice || 1499)) * 100)}% off`}
-                    </span>
+                    {product.discount && (
+                      <span className="text-xs lg:text-sm font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">
+                        {product.discount}
+                      </span>
+                    )}
                   </span>
                 )}
-                <span className="text-sm font-medium text-gray-600">
-                  Standard Countertop Edition
-                </span>
+                {product.subCategory && (
+                  <span className="text-sm font-medium text-[#735A4C]">
+                    {product.subCategory}
+                  </span>
+                )}
               </div>
 
               {/* Rating & Review count */}
               <div className="flex items-center gap-1.5 text-sm text-gray-800 -mt-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("reviews");
-                    const el = document.getElementById("reviews-tab-section");
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth" });
-                    }
-                  }}
-                  className="flex items-center gap-1.5 text-gray-800 hover:text-[#C85A32] transition-colors cursor-pointer group text-left"
-                  aria-label={`View ${reviews.length} ratings and reviews`}
-                >
-                  <span className="font-bold">{avgRating}</span>
-                  <div className="flex text-amber-400">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star
-                        key={s}
-                        size={14}
-                        className={
-                          s <= Math.round(Number(avgRating))
-                            ? "fill-current text-amber-400"
-                            : "text-gray-200"
-                        }
-                      />
-                    ))}
-                  </div>
-                  <span className="text-gray-600 group-hover:text-[#C85A32] group-hover:underline text-xs ml-0.5 font-medium">
-                    ({reviews.length} {reviews.length === 1 ? "rating" : "ratings"})
-                  </span>
-                </button>
+                {reviews.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("reviews");
+                      const el = document.getElementById("reviews-tab-section");
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className="flex items-center gap-1.5 text-gray-800 hover:text-[#C85A32] transition-colors cursor-pointer group text-left"
+                    aria-label={`View ${reviews.length} ratings and reviews`}
+                  >
+                    <span className="font-bold">{avgRating}</span>
+                    <div className="flex text-amber-400">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          size={14}
+                          className={
+                            s <= Math.round(Number(avgRating))
+                              ? "fill-current text-amber-400"
+                              : "text-gray-200"
+                          }
+                        />
+                      ))}
+                    </div>
+                    <span className="text-gray-600 group-hover:text-[#C85A32] group-hover:underline text-xs ml-0.5 font-medium">
+                      ({reviews.length} {reviews.length === 1 ? "rating" : "ratings"})
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("reviews");
+                      const el = document.getElementById("reviews-tab-section");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="flex items-center gap-1.5 text-xs text-[#8C6D58] hover:text-[#C85A32] transition-colors cursor-pointer"
+                  >
+                    <div className="flex text-gray-300">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} size={13} className="text-gray-300" />
+                      ))}
+                    </div>
+                    <span className="font-medium">No reviews yet • Be the first to review</span>
+                  </button>
+                )}
               </div>
 
               {/* Delivery & Artisan Branding Card */}
@@ -1046,17 +1115,25 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   </div>
 
                   {displayedReviews.length === 0 ? (
-                    <div className="text-center py-10 bg-gray-50 rounded-2xl border border-gray-200/80 space-y-2">
-                      <MessageSquare size={28} className="mx-auto text-gray-400" />
-                      <p className="text-sm font-bold text-gray-700">No reviews found for this filter</p>
-                      <p className="text-xs text-gray-500">Try selecting a different star rating or clear the filter.</p>
-                      <button
-                        type="button"
-                        onClick={() => setRatingFilter("all")}
-                        className="mt-2 px-4 py-1.5 bg-white border border-gray-300 text-gray-800 text-xs font-bold rounded-lg hover:bg-gray-100 cursor-pointer"
-                      >
-                        Show All Reviews
-                      </button>
+                    <div className="text-center py-10 bg-[#FAF8F5] rounded-2xl border border-[#E8DFD8] space-y-2 px-4">
+                      <MessageSquare size={28} className="mx-auto text-[#C85A32]" />
+                      <p className="text-sm font-bold text-[#2B221B]">
+                        {reviews.length === 0 ? "No customer reviews yet" : "No reviews found for this filter"}
+                      </p>
+                      <p className="text-xs text-[#735A4C] max-w-sm mx-auto">
+                        {reviews.length === 0
+                          ? "Be the first to share your feedback and help others discover this authentic handcrafted piece."
+                          : "Try selecting a different star rating or view all reviews."}
+                      </p>
+                      {reviews.length > 0 && ratingFilter !== "all" && (
+                        <button
+                          type="button"
+                          onClick={() => setRatingFilter("all")}
+                          className="mt-2 px-4 py-1.5 bg-white border border-[#E8DFD8] text-[#2B221B] text-xs font-bold rounded-lg hover:bg-gray-100 cursor-pointer"
+                        >
+                          Show All Reviews
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-100 space-y-4">

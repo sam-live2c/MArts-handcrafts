@@ -123,14 +123,14 @@ const PrivacyPolicyContent: React.FC = () => {
           1. Data We Collect from Merchants
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          When you onboard your business, order physical standees, or subscribe to software services, we collect only data necessary to fulfill commercial and hardware obligations:
+          When you place an order, commission a custom artisanal piece, or register an account, we collect only data necessary to fulfill commercial and delivery obligations:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            <strong className="text-gray-900">Contact Information:</strong> Full name, business email address, and phone number for order verification and merchant support.
+            <strong className="text-gray-900">Contact Information:</strong> Full name, email address, and phone number for order verification and fulfillment updates.
           </li>
           <li>
-            <strong className="text-gray-900">Business Profile Data:</strong> Business name, category, Google Business Place ID, and storefront address for NFC chip encoding.
+            <strong className="text-gray-900">Customization Details:</strong> Optional custom engraving dedications, specific dimension requests, or artisan notes.
           </li>
           <li>
             <strong className="text-gray-900">Shipping &amp; Delivery Details:</strong> Physical address, city, state, postal code, recipient name, and phone number for parcel shipment.
@@ -151,16 +151,16 @@ const PrivacyPolicyContent: React.FC = () => {
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            To manufacture, laser-engrave, and encode your verified Google Review URL onto physical Smart NFC Standees.
+            To handcraft, inspect, and package your commissioned pottery and sculpture pieces.
           </li>
           <li>
-            To pack, dispatch, and track your parcel shipments via authorized courier logistics partners.
+            To pack with heavy timber-crate cushioning, dispatch, and track your parcel shipments via authorized courier logistics partners.
           </li>
           <li>
-            To provide active access to the merchant workspace, Google Review emotion reactions, and sentiment sorting software.
+            To provide order tracking updates, transit insurance coverage, and customer care support.
           </li>
           <li>
-            To generate formal purchase receipts, GST invoices, and process subscription renewals or approved refunds.
+            To generate formal purchase receipts, GST invoices, and process approved replacements or refunds.
           </li>
           <li>
             To provide customer support, resolve technical issues, and respond to inquiries submitted via our contact forms.
@@ -281,13 +281,13 @@ const RefundPolicyContent: React.FC = () => {
       {/* 15-Day Guarantee Callout Box */}
       <section className="bg-gray-50 border border-gray-200 rounded-lg p-4 sm:p-5">
         <h2 className="font-bold text-gray-900 text-sm sm:text-base">
-          15-Day Hardware Replacement Guarantee &amp; 24-Hour Refund Verification
+          15-Day Transit Damage Guarantee &amp; 24-Hour Refund Verification
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 mt-2 leading-relaxed">
-          We stand behind the engineering of every MArts Smart Standee and Tap Card. If your hardware arrives damaged, defective, or fails to scan, we provide a free 15-day express replacement. For eligible order cancellations, refunds are verified within 24 hours and credited back securely to your original payment method.
+          We stand behind the craftsmanship and integrity of every MArts handcrafted creation. If your pottery, vase, or sculpture arrives with transit damage or defects, we provide a free 15-day express replacement. For eligible order cancellations, refunds are verified within 24 hours and credited back securely to your original payment method.
         </p>
         <p className="text-xs text-gray-500 mt-2.5">
-          Applicable Laws: Consumer Protection (E-Commerce) Rules 2020 • Indian Contract Act 1872 • Payment Processing Merchant Guidelines.
+          Applicable Laws: Consumer Protection (E-Commerce) Rules 2020 • Indian Contract Act 1872 • Payment Processing Guidelines.
         </p>
       </section>
 
@@ -297,14 +297,14 @@ const RefundPolicyContent: React.FC = () => {
           1. Order Cancellation Windows
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          We understand that operational circumstances may change. Cancellation requests are handled according to the manufacturing stage of your order:
+          We understand that circumstances may change. Cancellation requests are handled according to the preparation and dispatch stage:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            <strong className="text-gray-900">Before Custom Fabrication:</strong> You can cancel your order directly from the <Link to="/orders" className="text-[#1A73E8] hover:underline font-medium">My Orders</Link> dashboard or by contacting support before the laser engraving, UV printing, and NFC chip encoding phase begins.
+            <strong className="text-gray-900">Before Dispatch:</strong> You can cancel your order directly from the <Link to="/orders" className="text-[#1A73E8] hover:underline font-medium">My Orders</Link> dashboard or by contacting support before heavy timber crating and courier handover.
           </li>
           <li>
-            <strong className="text-gray-900">After Custom Fabrication Begins:</strong> Because MArts review stands are permanently customized with your specific Google Business Place ID, laser-cut acrylic, and custom business logo, customized items cannot be cancelled once laser cutting or UV curing has initiated.
+            <strong className="text-gray-900">Custom Commissioned Pieces:</strong> Custom pieces with bespoke engravings or specific sculptural modifications cannot be cancelled once firing or stone chiseling has commenced.
           </li>
           <li>
             <strong className="text-gray-900">Verification Speed:</strong> Cancellation requests submitted through the portal are audited by our accounts team within 24 hours of submission.
@@ -315,23 +315,20 @@ const RefundPolicyContent: React.FC = () => {
       {/* 2. 15-Day Replacement Guarantee */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          2. 15-Day Replacement Guarantee (Damaged / Defective Hardware)
+          2. 15-Day Replacement Guarantee (Transit Damage / Structural Defect)
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          If your shipment arrives with any defect or damage, we provide an immediate, complimentary replacement unit within 15 days of parcel delivery under the following conditions:
+          If your shipment arrives with any transit damage or defects, we provide an immediate, complimentary replacement unit within 15 days of delivery under the following conditions:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            <strong className="text-gray-900">Physical Transit Damage:</strong> Acrylic crack, wood fissure, or damaged silicone base upon unpacking.
+            <strong className="text-gray-900">Physical Transit Damage:</strong> Ceramic crack, chipped rim, stone fracture, or shattered clay upon unpacking.
           </li>
           <li>
-            <strong className="text-gray-900">Defective NFC Chip:</strong> Failure to trigger contactless URL popup on NFC-enabled iOS (iPhone 7+) or Android devices.
+            <strong className="text-gray-900">Structural Kiln Defect:</strong> Leaking stoneware vessels or firing fissures that compromise structural integrity.
           </li>
           <li>
-            <strong className="text-gray-900">Faulty Dynamic QR:</strong> Scratched, unreadable, or misaligned QR code printing that fails to scan with native phone cameras.
-          </li>
-          <li>
-            <strong className="text-gray-900">Encoding Discrepancy:</strong> The NFC chip redirects to an incorrect Google Business profile not matching your verified onboarding submission.
+            <strong className="text-gray-900">Wrong Item Delivered:</strong> Receipt of a different model or sculpt than ordered.
           </li>
         </ul>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed pt-1">
@@ -483,20 +480,20 @@ const TermsConditionsContent: React.FC = () => {
         </p>
       </section>
 
-      {/* 2. Commercial Scope & Merchant Hardware */}
+      {/* 2. Commercial Scope & Artisanal Specifications */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          2. Commercial Scope &amp; Hardware Specifications
+          2. Commercial Scope &amp; Craftsmanship Specifications
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          MArts designs, manufactures, laser-engraves, and distributes hand-thrown terracotta pottery, vitrified ceramic vases, hand-carved stone statues, and brass sculptures.
+          MArts designs, hand-shapes, kiln-fires, and distributes authentic hand-thrown terracotta pottery, vitrified ceramic vases, hand-carved stone statues, and heirloom brass sculptures.
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            <strong className="text-gray-900">Passive NFC Operation:</strong> Every MArts standee integrates an authentic NTAG216 high-frequency (13.56 MHz) RFID/NFC chip programmed with your verified Google Business review redirection URL. The hardware is completely passive, requiring no batteries, internal charging, or recurring maintenance.
+            <strong className="text-gray-900">Authentic Handcrafted Process:</strong> Every piece is individually hand-thrown on potter wheels or sculpted with hand chisels by master generational guild artisans. Subtle variations in flame gradient, glaze crystallization, and clay texture are genuine hallmarks of authentic handcrafting.
           </li>
           <li>
-            <strong className="text-gray-900">Zero Mandatory Subscriptions:</strong> Standard hardware tap-and-review redirection operates perpetually without monthly hardware usage fees.
+            <strong className="text-gray-900">Materials &amp; Vitrification:</strong> Ceramic dinnerware is fired at 1,250°C Cone 10 and certified 100% non-toxic, lead-free, and food-safe.
           </li>
         </ul>
       </section>
@@ -504,20 +501,20 @@ const TermsConditionsContent: React.FC = () => {
       {/* 3. Custom Fabrication & Content License */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          3. Custom Fabrication &amp; Content License
+          3. Custom Fabrication &amp; Bespoke Commissions
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          When submitting business names, storefront logos, artwork vectors, or Google Business Place IDs during checkout:
+          When submitting custom dimension requests, dedication engravings, or custom sculptural references during checkout:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            You represent and warrant that you own or hold the requisite licenses and commercial authorization to reproduce the submitted logo and trademarks.
+            You represent and warrant that you own or hold the requisite authorization to reproduce any submitted crests, text dedications, or family insignias.
           </li>
           <li>
-            You grant MArts a limited, non-exclusive license to format, laser-engrave, UV-cure, and encode the provided assets solely for producing your ordered physical hardware.
+            You grant MArts a limited license to format, chisel, or engrave the provided artwork solely for producing your commissioned artisanal piece.
           </li>
           <li>
-            We reserve the right to decline manufacture of materials containing defamatory, hate-speech, fraudulent, or copyright-infringing content.
+            We reserve the right to decline manufacture of materials containing defamatory, hate-speech, or copyright-infringing content.
           </li>
         </ul>
       </section>
@@ -560,26 +557,26 @@ const TermsConditionsContent: React.FC = () => {
         </p>
       </section>
 
-      {/* 6. Google LLC Disclaimer & Intellectual Property */}
+      {/* 6. Handcrafted Authenticity & Intellectual Property */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          6. Google LLC Disclaimer &amp; Intellectual Property
+          6. Handcrafted Authenticity &amp; Intellectual Property
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Google, Google Maps, Google Reviews, and the Google "G" emblem are registered trademarks of Google LLC. MArts Handcrafted is an independent hardware manufacturer and software provider and is not affiliated with, endorsed by, or an official agent of Google LLC.
+          MArts Handcrafted is an independent artisanal guild and studio. All terracotta, stoneware ceramic, sculpted stone, and bronze/brass artworks are crafted by traditional master artisans.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          The proprietary hardware designs, structural acrylic contours, website user interface, and branding of MArts are the intellectual property of MArts Handcrafted.
+          The proprietary sculptural designs, terracotta contours, website user interface, photography, and branding of MArts are the intellectual property of MArts Handcrafted.
         </p>
       </section>
 
-      {/* 7. Permitted Use & Hardware Restrictions */}
+      {/* 7. Permitted Use & Authenticity */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          7. Permitted Use &amp; Hardware Restrictions
+          7. Permitted Use &amp; Authenticity
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Merchants agree to deploy MArts Handcrafted Creations strictly for legitimate customer review solicitation and feedback gathering at retail, dining, professional, or service counters. Merchants agree not to re-encode the NFC chips with malicious URLs, phishing portals, or malware distribution endpoints.
+          Patrons agree to acquire MArts Handcrafted Creations for authentic decorative, functional, ritual, architectural, or collector purposes. Resale under false artistic attribution or unauthorized reproduction is strictly prohibited.
         </p>
       </section>
 
@@ -589,10 +586,10 @@ const TermsConditionsContent: React.FC = () => {
           8. Limitation of Liability &amp; Warranty
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Except as provided under our <Link to="/refund-policy" className="text-[#1A73E8] hover:underline font-medium">15-Day Replacement Guarantee</Link>, all hardware and software services are provided on an &quot;as is&quot; and &quot;as available&quot; basis. MArts shall not be liable for indirect, punitive, or consequential damages resulting from algorithmic rating adjustments, review filters, or policy modifications enacted independently by Google LLC.
+          Except as provided under our <Link to="/refund-policy" className="text-[#1A73E8] hover:underline font-medium">15-Day Replacement Guarantee</Link>, all handcrafted pottery, ceramics, and statues are provided with full transit insurance. Because pieces are handmade with natural materials, standard natural weathering from outdoor exposure is inherent to natural terra cotta and sandstone.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Our aggregate maximum liability under any claim arising out of your purchase shall not exceed the actual amount paid by you for the specific order. Furthermore, MArts (MArts, MArts Guild, and its operators) holds zero financial liability, responsibility, or further obligation for unnotified claims, billing discrepancies, or unclaimed amounts where the customer/merchant failed to contact support via WhatsApp within the mandatory 30-day reporting window.
+          Our aggregate maximum liability under any claim arising out of your purchase shall not exceed the actual amount paid by you for the specific order.
         </p>
       </section>
 
@@ -673,17 +670,17 @@ const ShippingPolicyContent: React.FC = () => {
       {/* 1. Production & Dispatch Turnaround */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          1. Production &amp; Dispatch Turnaround
+          1. Packaging &amp; Dispatch Turnaround
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Because MArts products combine physical hardware fabrication with digital chip programming, order processing adheres to strict quality assurance steps:
+          Because MArts pottery and sculptures are fragile and heavy artisanal creations, each piece undergoes meticulous quality inspection before dispatch:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
-            <strong className="text-gray-900">Custom Engraved Standees:</strong> Laser cutting, UV printing of your storefront logo, and NTAG216 chip programming take approximately 24 to 48 hours following order confirmation.
+            <strong className="text-gray-900">Heavy Sculptures &amp; Large Urns:</strong> Sealed with multi-layered shock-absorbing foam and reinforced in heavy timber crating within 24 to 48 hours of order confirmation.
           </li>
           <li>
-            <strong className="text-gray-900">Standard Hardware &amp; Accessories:</strong> Non-customized tap pucks and standard stands are packaged and handed over to courier carriers within 24 hours of payment verification.
+            <strong className="text-gray-900">Standard Tableware &amp; Vases:</strong> Cushioned in biodegradable honeycomb wrap and reinforced corrugation within 24 hours of payment verification.
           </li>
         </ul>
       </section>

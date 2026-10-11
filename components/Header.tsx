@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   User as UserIcon,
   ShoppingCart,
@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { User, Product } from "../types";
-import { PRODUCTS } from "../constants";
 import Logo from "./Logo";
 import { handleGoBack } from "../utils/navigation";
 import { useScrollDirection } from "../hooks/useScrollDirection";
@@ -26,6 +25,7 @@ interface HeaderProps {
   wishlistCount?: number;
   showSearch?: boolean;
   showWishlist?: boolean;
+  products?: Product[];
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -37,7 +37,8 @@ const Header: React.FC<HeaderProps> = ({
   onSearchChange,
   wishlistCount,
   showSearch = true,
-  showWishlist = true
+  showWishlist = true,
+  products
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -53,6 +54,18 @@ const Header: React.FC<HeaderProps> = ({
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const desktopSearchInputRef = useRef<HTMLInputElement>(null);
 
+  const liveCatalog = useMemo(() => {
+    if (products && products.length > 0) return products;
+    try {
+      const cached = localStorage.getItem('marts_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  }, [products]);
+
   // Sync external query prop
   useEffect(() => {
     setInternalQuery(searchQuery);
@@ -67,15 +80,15 @@ const Header: React.FC<HeaderProps> = ({
       return;
     }
 
-    const filtered = PRODUCTS.filter((p) => {
-      const name = p.name.toLowerCase();
-      const cat = p.category.toLowerCase();
-      const sub = p.subCategory.toLowerCase();
-      const desc = p.description.toLowerCase();
+    const filtered = liveCatalog.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      const cat = (p.category || '').toLowerCase();
+      const sub = (p.subCategory || '').toLowerCase();
+      const desc = (p.description || '').toLowerCase();
       return name.includes(q) || cat.includes(q) || sub.includes(q) || desc.includes(q);
     }).sort((a, b) => {
-      const aStarts = a.name.toLowerCase().startsWith(q);
-      const bStarts = b.name.toLowerCase().startsWith(q);
+      const aStarts = (a.name || '').toLowerCase().startsWith(q);
+      const bStarts = (b.name || '').toLowerCase().startsWith(q);
       if (aStarts && !bStarts) return -1;
       if (!aStarts && bStarts) return 1;
       return 0;
@@ -83,7 +96,7 @@ const Header: React.FC<HeaderProps> = ({
 
     setSuggestions(filtered.slice(0, 5));
     setShowDropdown(filtered.length > 0);
-  }, [internalQuery]);
+  }, [internalQuery, liveCatalog]);
 
   // Auto-focus mobile search input when opened
   useEffect(() => {
@@ -139,11 +152,9 @@ const Header: React.FC<HeaderProps> = ({
     setInternalQuery(val);
     if (onSearchChange) {
       onSearchChange(val);
-    }
-
-    // If currently not on homepage, navigate to homepage so search acts on catalog
-    if (location.pathname !== '/' && val.trim().length > 0) {
-      navigate('/', { state: { initialSearch: val } });
+    } else if (location.pathname !== '/' && location.pathname !== '/products' && val.trim().length > 0) {
+      // If current page doesn't have custom search handler and isn't products page, route to /products
+      navigate('/products', { state: { initialSearch: val } });
     }
   };
 
@@ -152,8 +163,8 @@ const Header: React.FC<HeaderProps> = ({
       setShowDropdown(false);
       (e.target as HTMLInputElement).blur();
       const val = internalQuery.trim();
-      if (location.pathname !== '/' && val.length > 0) {
-        navigate('/', { state: { initialSearch: val } });
+      if (!onSearchChange && location.pathname !== '/' && location.pathname !== '/products' && val.length > 0) {
+        navigate('/products', { state: { initialSearch: val } });
       }
     }
   };

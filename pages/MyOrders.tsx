@@ -7,7 +7,6 @@ import {
   ChevronRight, Truck, XCircle
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
-import { PRODUCTS } from '../constants';
 import { auth } from '../firebase';
 import { updateOrderStatusInFirestore } from '../services/dbService';
 import { FullScreenCircleLoader } from '../components/CircleLoader';

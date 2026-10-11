@@ -23,7 +23,6 @@ const About = lazy(() => import('./pages/About'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
 import { CartItem, User, Order, Product, CarouselBanner } from './types';
 import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
-import { PRODUCTS } from './constants';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -178,10 +177,10 @@ const App: React.FC = () => {
 
   const [products, setProducts] = useState<Product[]>(() => {
     try {
-      const saved = localStorage.getItem('marts_products') || localStorage.getItem('melody_products');
-      return saved ? JSON.parse(saved) : PRODUCTS;
+      const saved = localStorage.getItem('marts_products');
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return PRODUCTS;
+      return [];
     }
   });
 
@@ -428,7 +427,7 @@ const App: React.FC = () => {
     setWishlist(prev => {
       const isRemoving = prev.includes(productId);
       if (!isRemoving) {
-        const product = products.find(p => p.id === productId) || PRODUCTS.find(p => p.id === productId);
+        const product = products.find(p => p.id === productId);
         if (product) showToast(`${product.name} added to wishlist!`, 'wishlist', product);
       }
       return isRemoving ? prev.filter(id => id !== productId) : [...prev, productId];
@@ -508,7 +507,7 @@ const App: React.FC = () => {
                     onToggleWishlist={toggleWishlist}
                     onRemoveFromWishlist={(id) => {
                       setWishlist(prev => prev.filter(item => item !== id));
-                      const p = PRODUCTS.find(prod => prod.id === id);
+                      const p = products.find(prod => prod.id === id);
                       showToast(p ? `${p.name} removed from wishlist` : 'Removed from wishlist', 'wishlist');
                     }}
                     onMoveToCart={(product) => {
@@ -527,6 +526,7 @@ const App: React.FC = () => {
                       showToast('Wishlist cleared', 'wishlist');
                     }}
                     cartCount={cartTotalQuantity}
+                    products={products}
                   />
                 </Suspense>
               }

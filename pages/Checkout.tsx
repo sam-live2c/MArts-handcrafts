@@ -626,8 +626,8 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                           <div key={idx} className="py-5 sm:py-6 first:pt-0 last:pb-0">
                              <div className="flex gap-4 sm:gap-5">
                                 <div className="w-[90px] sm:w-[100px] shrink-0 flex flex-col items-center">
-                                   <div className="w-[90px] h-[90px] sm:w-[100px] sm:h-[100px] bg-white border border-gray-100 rounded-sm p-2 flex items-center justify-center relative overflow-hidden">
-                                     <img src={item.image} className="w-full h-full object-contain mix-blend-multiply" alt={item.name} />
+                                   <div className="w-[90px] h-[90px] sm:w-[100px] sm:h-[100px] bg-[#FAF7F2] border border-[#EADBCC]/60 rounded-xl p-2 flex items-center justify-center relative overflow-hidden">
+                                     <img src={item.image} referrerPolicy="no-referrer" className="w-full h-full object-contain" alt={item.name} />
                                    </div>
                                 </div>
                                 <div className="flex-1 relative">
