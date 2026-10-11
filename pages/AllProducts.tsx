@@ -3,6 +3,7 @@ import { User, CartItem, Product } from '../types';
 import Header from '../components/Header';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Star, ShoppingCart, ShoppingBag, X, Search, Heart } from 'lucide-react';
+import { getProductRatingInfo } from '../utils/productRating';
 
 interface AllProductsProps {
   user: User | null;
@@ -23,6 +24,18 @@ const AllProducts: React.FC<AllProductsProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [reviewsTick, setReviewsTick] = useState(0);
+
+  useEffect(() => {
+    const handleReviewsUpdated = () => setReviewsTick((t) => t + 1);
+    window.addEventListener('marts_reviews_updated', handleReviewsUpdated);
+    window.addEventListener('storage', handleReviewsUpdated);
+    return () => {
+      window.removeEventListener('marts_reviews_updated', handleReviewsUpdated);
+      window.removeEventListener('storage', handleReviewsUpdated);
+    };
+  }, []);
+
   const catalog = useMemo(() => {
     return products && products.length > 0 ? products : [];
   }, [products]);
@@ -116,11 +129,13 @@ const AllProducts: React.FC<AllProductsProps> = ({
     }
 
     if (activeFilter === 'popular') {
-      // For popular use most rated product (highest rating, then reviews count)
+      // For popular use most rated product (genuine highest rating, then authentic review count)
       list.sort((a, b) => {
-        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        const aInfo = getProductRatingInfo(a);
+        const bInfo = getProductRatingInfo(b);
+        const ratingDiff = bInfo.rating - aInfo.rating;
         if (ratingDiff !== 0) return ratingDiff;
-        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+        return bInfo.reviewsCount - aInfo.reviewsCount;
       });
     } else if (activeFilter === 'latest') {
       // Latest products
@@ -142,12 +157,14 @@ const AllProducts: React.FC<AllProductsProps> = ({
           return aIdx - bIdx;
         }
 
-        return (b.rating || 0) - (a.rating || 0);
+        const aInfo = getProductRatingInfo(a);
+        const bInfo = getProductRatingInfo(b);
+        return bInfo.rating - aInfo.rating;
       });
     }
 
     return list;
-  }, [searchQuery, catalog, activeFilter]);
+  }, [searchQuery, catalog, activeFilter, reviewsTick]);
 
   return (
     <div className="flex flex-col min-h-screen bg-[#FAF8F5] text-[#2B221B]">
@@ -296,11 +313,22 @@ const AllProducts: React.FC<AllProductsProps> = ({
                     </div>
 
                     {/* Rating & reviews */}
-                    <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
-                      <Star className="w-3 h-3 text-amber-500 fill-current" />
-                      <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
-                      <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
-                    </div>
+                    {(() => {
+                      const ratingInfo = getProductRatingInfo(prod);
+                      return (
+                        <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
+                          {!ratingInfo.isUnrated && ratingInfo.reviewsCount > 0 && ratingInfo.rating > 0 ? (
+                            <>
+                              <Star className="w-3 h-3 text-amber-500 fill-current" />
+                              <span className="font-bold text-[#2B221B]">{ratingInfo.rating.toFixed(1)}</span>
+                              <span className="text-[#8C6D58]">({ratingInfo.reviewsCount})</span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] sm:text-[11px] font-medium text-[#A89283]">Unrated</span>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Product Title */}
                     <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 mb-1.5 group-hover:text-[#B85D36] transition-colors">

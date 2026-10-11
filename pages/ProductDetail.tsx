@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { CartItem, User, Review, Order, Product } from "../types";
 import { db } from "../firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
 import { ProductDetailSkeleton } from "../components/Skeleton";
@@ -273,11 +273,11 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
 
   const avgRating = useMemo(() => {
     if (reviews.length === 0) {
-      return product?.rating && product.rating > 0 ? product.rating.toFixed(1) : "0.0";
+      return "0.0";
     }
     const sum = reviews.reduce((acc, r) => acc + (r.rating || 5), 0);
     return (sum / reviews.length).toFixed(1);
-  }, [reviews, product?.rating]);
+  }, [reviews]);
 
   const displayedReviews = useMemo(() => {
     let list = [...reviews];
@@ -310,7 +310,22 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
         orderId: matchingPurchase?.id,
         helpfulCount: 0,
       };
-      setReviews((prev) => [newRev, ...prev]);
+      const updatedReviews = [newRev, ...reviews];
+      setReviews(updatedReviews);
+
+      const calculatedAvg = Number((updatedReviews.reduce((acc, r) => acc + r.rating, 0) / updatedReviews.length).toFixed(1));
+      try {
+        updateDoc(doc(db, 'products', product.id), {
+          rating: calculatedAvg,
+          reviewsCount: updatedReviews.length,
+          updatedAt: Date.now()
+        }).catch(err => console.warn('Product rating update notice:', err));
+      } catch (_) {}
+
+      try {
+        window.dispatchEvent(new Event('marts_reviews_updated'));
+      } catch (_) {}
+
       setNewComment("");
       setAuthorName("");
       setSubmittingReview(false);
@@ -951,26 +966,39 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                 {/* Rating & Review Summary Banner */}
                 <div className="bg-transparent rounded-none p-0 border-0 grid grid-cols-1 md:grid-cols-3 gap-6 items-center pb-5 border-b border-gray-100">
                   <div className="text-center md:text-left space-y-2 md:border-r border-gray-200 pr-0 md:pr-6">
-                    <div className="flex items-baseline justify-center md:justify-start gap-2">
-                      <span className="text-4xl font-extrabold text-gray-900">{avgRating}</span>
-                      <span className="text-sm font-semibold text-gray-500">out of 5</span>
-                    </div>
-                    <div className="flex items-center justify-center md:justify-start gap-1 text-amber-400">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          size={18}
-                          className={
-                            star <= Math.round(Number(avgRating))
-                              ? "fill-current text-amber-400"
-                              : "text-gray-200"
-                          }
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-600 font-medium">
-                      Based on {reviews.length} authentic customer reviews
-                    </p>
+                    {reviews.length > 0 ? (
+                      <>
+                        <div className="flex items-baseline justify-center md:justify-start gap-2">
+                          <span className="text-4xl font-extrabold text-gray-900">{avgRating}</span>
+                          <span className="text-sm font-semibold text-gray-500">out of 5</span>
+                        </div>
+                        <div className="flex items-center justify-center md:justify-start gap-1 text-amber-400">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={18}
+                              className={
+                                star <= Math.round(Number(avgRating))
+                                  ? "fill-current text-amber-400"
+                                  : "text-gray-200"
+                              }
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-600 font-medium">
+                          Based on {reviews.length} authentic customer reviews
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="inline-block px-2.5 py-1 rounded bg-[#FAF0E6] text-xs font-bold text-[#8C6D58] border border-[#EADBCC]">
+                          Unrated
+                        </div>
+                        <p className="text-xs text-gray-600 font-medium pt-1">
+                          No customer reviews yet. Be the first to share your experience with this piece!
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {/* Rating Breakdown Bars */}

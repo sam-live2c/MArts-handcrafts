@@ -7,6 +7,7 @@ import {
 import { Product, User } from '../types';
 import Header from '../components/Header';
 import { FullScreenCircleLoader } from '../components/CircleLoader';
+import { getProductRatingInfo } from '../utils/productRating';
 
 interface WishlistProps {
   user: User | null;
@@ -28,6 +29,17 @@ const Wishlist: React.FC<WishlistProps> = ({
   products
 }) => {
   const navigate = useNavigate();
+  const [reviewsTick, setReviewsTick] = useState(0);
+
+  useEffect(() => {
+    const handleReviewsUpdated = () => setReviewsTick((t) => t + 1);
+    window.addEventListener('marts_reviews_updated', handleReviewsUpdated);
+    window.addEventListener('storage', handleReviewsUpdated);
+    return () => {
+      window.removeEventListener('marts_reviews_updated', handleReviewsUpdated);
+      window.removeEventListener('storage', handleReviewsUpdated);
+    };
+  }, []);
 
   // Combine products from catalog and local cache
   const allProducts = useMemo(() => {
@@ -127,11 +139,22 @@ const Wishlist: React.FC<WishlistProps> = ({
                       </div>
 
                       {/* Rating & reviews */}
-                      <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
-                        <Star className="w-3 h-3 text-amber-500 fill-current" />
-                        <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
-                        <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
-                      </div>
+                      {(() => {
+                        const ratingInfo = getProductRatingInfo(prod);
+                        return (
+                          <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
+                            {!ratingInfo.isUnrated && ratingInfo.reviewsCount > 0 && ratingInfo.rating > 0 ? (
+                              <>
+                                <Star className="w-3 h-3 text-amber-500 fill-current" />
+                                <span className="font-bold text-[#2B221B]">{ratingInfo.rating.toFixed(1)}</span>
+                                <span className="text-[#8C6D58]">({ratingInfo.reviewsCount})</span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] sm:text-[11px] font-medium text-[#A89283]">Unrated</span>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Product Title */}
                       <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 mb-1.5 group-hover:text-[#B85D36] transition-colors">

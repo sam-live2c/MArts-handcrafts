@@ -39,6 +39,7 @@ import {
   subscribeToCarouselBanners,
   saveOrderToFirestore
 } from './services/dbService';
+import { sanitizeProductRatings } from './utils/productRating';
 
 const ConditionalFooter = () => {
   const location = useLocation();
@@ -126,7 +127,7 @@ const App: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('marts_products');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? sanitizeProductRatings(JSON.parse(saved)) : [];
     } catch {
       return [];
     }

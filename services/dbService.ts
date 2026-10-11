@@ -15,6 +15,7 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { CartItem, User, Order, Product, StoreDeliveryAddress } from '../types';
+import { sanitizeProductRatings } from '../utils/productRating';
 
 export type { StoreDeliveryAddress };
 
@@ -426,18 +427,19 @@ export const fetchProductsFromFirestore = async (): Promise<Product[]> => {
       }
     });
 
+    const sanitized = sanitizeProductRatings(firestoreProducts);
     try {
-      localStorage.setItem('marts_products', JSON.stringify(firestoreProducts));
+      localStorage.setItem('marts_products', JSON.stringify(sanitized));
       localStorage.removeItem('melody_products');
     } catch (_) {}
-    return firestoreProducts;
+    return sanitized;
   } catch (err) {
     console.warn('Firestore offline or products query timed out, using local cache:', err);
     try {
       const cached = localStorage.getItem('marts_products');
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return sanitizeProductRatings(parsed);
       }
     } catch (_) {}
     return [];
@@ -461,11 +463,12 @@ export const subscribeToLiveProducts = (
           firestoreProducts.push(data);
         }
       });
+      const sanitized = sanitizeProductRatings(firestoreProducts);
       try {
-        localStorage.setItem('marts_products', JSON.stringify(firestoreProducts));
+        localStorage.setItem('marts_products', JSON.stringify(sanitized));
         localStorage.removeItem('melody_products');
       } catch (_) {}
-      onUpdate(firestoreProducts);
+      onUpdate(sanitized);
     },
     (err) => {
       console.warn('Live products subscription notice (operating in local cache mode):', err);

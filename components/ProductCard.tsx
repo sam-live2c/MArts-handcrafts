@@ -1,6 +1,8 @@
 import React, { useRef } from "react";
 import { Product, CartItem } from "../types";
 import { Link } from "react-router-dom";
+import { Star } from "lucide-react";
+import { getProductRatingInfo } from "../utils/productRating";
 
 interface ProductCardProps {
   product: Product;
@@ -83,6 +85,24 @@ const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       <div className="pt-2 px-2 flex-1 flex flex-col items-start bg-white z-10 relative">
+        {/* Rating & reviews */}
+        {(() => {
+          const ratingInfo = getProductRatingInfo(product);
+          return (
+            <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
+              {!ratingInfo.isUnrated && ratingInfo.reviewsCount > 0 && ratingInfo.rating > 0 ? (
+                <>
+                  <Star className="w-3 h-3 text-amber-500 fill-current" />
+                  <span className="font-bold text-[#2B221B]">{ratingInfo.rating.toFixed(1)}</span>
+                  <span className="text-[#8C6D58]">({ratingInfo.reviewsCount})</span>
+                </>
+              ) : (
+                <span className="text-[10px] sm:text-[11px] font-medium text-[#A89283]">Unrated</span>
+              )}
+            </div>
+          );
+        })()}
+
         <h3 className="text-xs font-semibold text-gray-700 leading-tight line-clamp-1 mb-1">
           {product.name}
         </h3>

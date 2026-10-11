@@ -34,11 +34,9 @@ export const ProductCardSkeleton: React.FC = () => {
           </div>
         </div>
 
-        {/* Rating & Reviews line */}
+        {/* Rating or status line placeholder */}
         <div className="flex items-center gap-1.5 mb-1.5">
-          <div className="w-3 h-3 rounded-full bg-amber-300/70" />
-          <div className="h-3 w-7 bg-[#EADBCC]/70 rounded" />
-          <div className="h-3 w-8 bg-[#EADBCC]/50 rounded" />
+          <div className="h-3 w-16 bg-[#EADBCC]/50 rounded" />
         </div>
 
         {/* Product Title (2-line font-serif) */}
@@ -180,7 +178,6 @@ export const ProductDetailSkeleton: React.FC = () => {
 
               {/* Rating */}
               <div className="flex items-center gap-2">
-                <div className="h-4 w-20 bg-amber-200/80 rounded" />
                 <div className="h-4 w-28 bg-gray-200 rounded" />
               </div>
 

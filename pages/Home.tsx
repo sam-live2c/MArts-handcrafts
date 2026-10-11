@@ -13,6 +13,7 @@ import {
 import { CartItem, Product, User, CarouselBanner } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
+import { getProductRatingInfo } from '../utils/productRating';
 import terracottaBanner from '../src/assets/images/marts_terracotta_banner_1791637410497.jpg';
 import stoneStatuesBanner from '../src/assets/images/marts_stone_statues_banner_1791637432558.jpg';
 import ceramicVasesBanner from '../src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg';
@@ -220,6 +221,19 @@ export const Home: React.FC<HomeProps> = ({
 
   // Filter & Automatic Sorting by Search Query and Active Filter
   const [activeFilter, setActiveFilter] = useState<'all' | 'latest' | 'popular'>('all');
+  const [reviewsTick, setReviewsTick] = useState(0);
+
+  useEffect(() => {
+    const handleReviewsUpdated = () => {
+      setReviewsTick((t) => t + 1);
+    };
+    window.addEventListener('marts_reviews_updated', handleReviewsUpdated);
+    window.addEventListener('storage', handleReviewsUpdated);
+    return () => {
+      window.removeEventListener('marts_reviews_updated', handleReviewsUpdated);
+      window.removeEventListener('storage', handleReviewsUpdated);
+    };
+  }, []);
 
   const baseCatalog = useMemo(() => {
     return products && products.length > 0 ? products : [];
@@ -242,11 +256,13 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     if (activeFilter === 'popular') {
-      // For popular use most rated product (highest rating, then review count)
+      // For popular use most rated product (genuine highest rating, then authentic review count)
       list.sort((a, b) => {
-        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        const aInfo = getProductRatingInfo(a);
+        const bInfo = getProductRatingInfo(b);
+        const ratingDiff = bInfo.rating - aInfo.rating;
         if (ratingDiff !== 0) return ratingDiff;
-        return (b.reviewsCount || 0) - (a.reviewsCount || 0);
+        return bInfo.reviewsCount - aInfo.reviewsCount;
       });
     } else if (activeFilter === 'latest') {
       // Latest products
@@ -268,12 +284,14 @@ export const Home: React.FC<HomeProps> = ({
           return aIdx - bIdx;
         }
 
-        return (b.rating || 0) - (a.rating || 0);
+        const aInfo = getProductRatingInfo(a);
+        const bInfo = getProductRatingInfo(b);
+        return bInfo.rating - aInfo.rating;
       });
     }
 
     return list;
-  }, [searchQuery, baseCatalog, activeFilter]);
+  }, [searchQuery, baseCatalog, activeFilter, reviewsTick]);
 
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-[#2B221B] font-sans selection:bg-[#EBDCCB] pb-16">
@@ -532,11 +550,22 @@ export const Home: React.FC<HomeProps> = ({
                   </div>
 
                   {/* Rating & reviews */}
-                  <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
-                    <Star className="w-3 h-3 text-amber-500 fill-current" />
-                    <span className="font-bold text-[#2B221B]">{prod.rating || 0}</span>
-                    <span className="text-[#8C6D58]">({prod.reviewsCount || 0})</span>
-                  </div>
+                  {(() => {
+                    const ratingInfo = getProductRatingInfo(prod);
+                    return (
+                      <div className="flex items-center gap-1 text-[11px] sm:text-xs text-[#735A4C] mb-1">
+                        {!ratingInfo.isUnrated && ratingInfo.reviewsCount > 0 && ratingInfo.rating > 0 ? (
+                          <>
+                            <Star className="w-3 h-3 text-amber-500 fill-current" />
+                            <span className="font-bold text-[#2B221B]">{ratingInfo.rating.toFixed(1)}</span>
+                            <span className="text-[#8C6D58]">({ratingInfo.reviewsCount})</span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] sm:text-[11px] font-medium text-[#A89283]">Unrated</span>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Product Title */}
                   <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 mb-1.5 group-hover:text-[#B85D36] transition-colors">
