@@ -579,74 +579,77 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   return (
     <div className="w-full min-h-screen bg-white font-sans selection:bg-purple-100 text-[#1F1F1F] flex flex-col">
       {/* Top Minimalist Bar: Edge-to-edge across devices with proper outer edge positioning */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md px-2 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between border-b border-gray-100 shadow-xs">
-        {/* Back/Close Button */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 text-gray-800 transition-colors cursor-pointer"
-            aria-label="Back"
-          >
-            <ArrowLeft size={22} strokeWidth={2} />
-          </button>
-        </div>
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5 flex items-center justify-between">
+          {/* Back/Close Button */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 text-gray-800 transition-colors cursor-pointer"
+              aria-label="Back"
+            >
+              <ArrowLeft size={22} strokeWidth={2} />
+            </button>
+          </div>
 
-        {/* Right Action Buttons */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 text-[#5F6368] shrink-0">
-          {/* Share link button */}
-          <button
-            type="button"
-            onClick={handleShare}
-            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
-            aria-label="Share product"
-            title="Share product"
-          >
-            <Share2 size={18} strokeWidth={2} />
-            {copiedLink && (
-              <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded shadow-md whitespace-nowrap">
-                Link copied!
-              </span>
-            )}
-          </button>
+          {/* Right Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 text-[#5F6368] shrink-0">
+            {/* Share link button */}
+            <button
+              type="button"
+              onClick={handleShare}
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+              aria-label="Share product"
+              title="Share product"
+            >
+              <Share2 size={18} strokeWidth={2} />
+              {copiedLink && (
+                <span className="absolute -bottom-7 right-0 text-[10px] font-bold bg-black text-white px-2 py-0.5 rounded shadow-md whitespace-nowrap">
+                  Link copied!
+                </span>
+              )}
+            </button>
 
-          {/* Wishlist toggle button */}
-          <button
-            type="button"
-            onClick={() => onToggleWishlist(product.id)}
-            className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center transition-colors cursor-pointer ${
-              isWishlisted ? "text-[#C85A32]" : "text-gray-700 hover:text-[#C85A32]"
-            }`}
-            aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
-            title={isWishlisted ? "Saved to wishlist" : "Save to wishlist"}
-          >
-            <Heart size={19} strokeWidth={2} className={isWishlisted ? "fill-[#C85A32]" : ""} />
-          </button>
+            {/* Wishlist toggle button */}
+            <button
+              type="button"
+              onClick={() => onToggleWishlist(product.id)}
+              className={`relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center transition-colors cursor-pointer ${
+                isWishlisted ? "text-[#C85A32]" : "text-gray-700 hover:text-[#C85A32]"
+              }`}
+              aria-label={isWishlisted ? "Remove from wishlist" : "Save to wishlist"}
+              title={isWishlisted ? "Saved to wishlist" : "Save to wishlist"}
+            >
+              <Heart size={19} strokeWidth={2} className={isWishlisted ? "fill-[#C85A32]" : ""} />
+            </button>
 
-          {/* Cart circular button with badge */}
-          <button
-            type="button"
-            onClick={() => navigate("/cart")}
-            className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
-            aria-label="Shopping Cart"
-          >
-            <ShoppingCart size={20} strokeWidth={2} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#C85A32] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
-                {cartCount}
-              </span>
-            )}
-          </button>
+            {/* Cart circular button with badge */}
+            <button
+              type="button"
+              onClick={() => navigate("/cart")}
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-gray-100 active:scale-95 flex items-center justify-center text-gray-700 transition-colors cursor-pointer"
+              aria-label="Shopping Cart"
+            >
+              <ShoppingCart size={20} strokeWidth={2} />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#C85A32] text-white rounded-full text-[11px] font-bold flex items-center justify-center shadow-xs">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Dynamic Grid Body: 1 Column on Mobile, 2 Columns on Tablet & Desktop */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-0 flex-1">
-          
+      <div className="w-full max-w-7xl mx-auto flex-1 flex flex-col">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-0 items-start md:items-stretch">
+            
           {/* Left Column: Product Gallery */}
-          <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-10 flex flex-col items-center justify-center bg-white md:border-r border-gray-100">
+          <div className="md:col-span-6 lg:col-span-6 p-4 sm:p-6 lg:p-8 flex flex-col items-center justify-start bg-white md:border-r border-gray-100 md:sticky md:top-16 self-start">
             <div
-              className="relative w-full aspect-square max-w-[360px] md:max-w-[440px] flex items-center justify-center select-none touch-pan-y group p-2"
+              className="relative w-full aspect-square max-w-[340px] md:max-w-[420px] lg:max-w-[460px] flex items-center justify-center select-none touch-pan-y group p-2"
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
@@ -660,25 +663,27 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             </div>
 
             {/* Pagination dots (o o • o) */}
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {displayImages.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setSelectedImg(idx)}
-                  className={`transition-all duration-300 rounded-full cursor-pointer ${
-                    idx === selectedImg
-                      ? "w-2.5 h-2.5 bg-[#2E2E2E]"
-                      : "w-2 h-2 bg-[#E5E7EB] hover:bg-gray-400"
-                  }`}
-                  aria-label={`Image slide ${idx + 1}`}
-                />
-              ))}
-            </div>
+            {displayImages.length > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-3">
+                {displayImages.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedImg(idx)}
+                    className={`transition-all duration-300 rounded-full cursor-pointer ${
+                      idx === selectedImg
+                        ? "w-2.5 h-2.5 bg-[#2E2E2E]"
+                        : "w-2 h-2 bg-[#E5E7EB] hover:bg-gray-400"
+                    }`}
+                    aria-label={`Image slide ${idx + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Right Column: Metadata, Pricing, Stepper & Purchase Flow */}
-          <div className="md:col-span-6 lg:col-span-6 px-5 sm:px-6 lg:px-10 pt-3 md:pt-6 lg:pt-10 pb-6 flex flex-col gap-3.5 bg-white justify-between">
+          <div className="md:col-span-6 lg:col-span-6 px-4 sm:px-6 lg:px-8 py-3 md:py-6 lg:py-8 flex flex-col justify-between bg-white">
             <div className="flex flex-col gap-3.5">
               {/* Eyebrow / Brand */}
               <div className="text-[#C85A32] font-bold text-xs uppercase tracking-wider">
@@ -829,32 +834,32 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   <Plus size={16} strokeWidth={2.5} />
                 </button>
               </div>
+            </div>
 
-              {/* Instant High-Conversion CTAs (Desktop / Tablet: Inline; Mobile: Fixed Bottom Bar) */}
-              <div className="pt-1 hidden sm:flex flex-row gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleAddToCart}
-                  className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 active:scale-98 text-gray-900 font-bold text-[15px] sm:text-[16px] rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ShoppingCart size={18} />
-                  <span>Add to Cart</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleBuyNow}
-                  className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:scale-98 text-white font-bold text-[15px] sm:text-[16px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <ShoppingBag size={18} />
-                  <span>Buy Now</span>
-                </button>
-              </div>
+            {/* Instant High-Conversion CTAs (Desktop / Tablet: Inline; Mobile: Fixed Bottom Bar) - Aligned down with carousel dots */}
+            <div className="mt-5 md:mt-auto pt-2 hidden sm:flex flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                className="flex-1 h-12 bg-gray-100 hover:bg-gray-200 active:scale-98 text-gray-900 font-bold text-[15px] sm:text-[16px] rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+              >
+                <ShoppingCart size={18} />
+                <span>Add to Cart</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:scale-98 text-white font-bold text-[15px] sm:text-[16px] rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <ShoppingBag size={18} />
+                <span>Buy Now</span>
+              </button>
             </div>
           </div>
         </div>
 
-        {/* Tabbed Info Section (Details | Specifications | Reviews) with Green Underline Indicator */}
-        <div id="reviews-tab-section" className="border-t border-gray-100 bg-white flex-1 pb-28 sm:pb-16">
+        {/* Tabbed Info Section (Details | Specifications | Reviews) */}
+        <div id="reviews-tab-section" className="border-t border-gray-100 bg-white pb-28 sm:pb-16">
           {/* Tab Headers: Straight up left-aligned with other options starting */}
           <div className="flex items-center justify-start gap-6 sm:gap-8 lg:gap-10 border-b border-gray-200 px-5 sm:px-6 lg:px-10 overflow-x-auto no-scrollbar">
             <button
@@ -991,7 +996,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                       </>
                     ) : (
                       <>
-                        <div className="inline-block px-2.5 py-1 rounded bg-[#FAF0E6] text-xs font-bold text-[#8C6D58] border border-[#EADBCC]">
+                        <div className="text-xs font-bold text-[#8C6D58]">
                           Unrated
                         </div>
                         <p className="text-xs text-gray-600 font-medium pt-1">
@@ -1190,8 +1195,8 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                   </div>
 
                   {displayedReviews.length === 0 ? (
-                    <div className="text-center py-10 bg-[#FAF8F5] rounded-2xl border border-[#E8DFD8] space-y-2 px-4">
-                      <MessageSquare size={28} className="mx-auto text-[#C85A32]" />
+                    <div className="text-center py-8 bg-transparent border-0 space-y-2 px-4">
+                      <MessageSquare size={26} className="mx-auto text-[#C85A32]" />
                       <p className="text-sm font-bold text-[#2B221B]">
                         {reviews.length === 0 ? "No customer reviews yet" : "No reviews found for this filter"}
                       </p>
@@ -1204,7 +1209,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                         <button
                           type="button"
                           onClick={() => setRatingFilter("all")}
-                          className="mt-2 px-4 py-1.5 bg-white border border-[#E8DFD8] text-[#2B221B] text-xs font-bold rounded-lg hover:bg-gray-100 cursor-pointer"
+                          className="mt-2 px-4 py-1.5 bg-transparent border border-[#C5B3A1] hover:border-gray-400 text-[#2B221B] text-xs font-bold rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
                         >
                           Show All Reviews
                         </button>
@@ -1276,6 +1281,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             )}
           </div>
         </div>
+      </div>
 
       {/* Mobile Native-App Fixed Bottom Action Bar (Mobile Only) */}
       <div 
