@@ -382,10 +382,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
 
   return (
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">
-      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm pb-24 md:pb-8">
+      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-7xl mx-auto shadow-sm pb-24 md:pb-8">
         {/* Header */}
         <div className="bg-white border-b border-gray-100 shadow-xs px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between sticky top-0 z-[100]">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button 
               type="button"
               onClick={() => handleGoBack(navigate, '/account')} 
@@ -398,10 +398,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Search bar as in homepage */}
-        <div className="w-full bg-[#FAF8F5] pt-4 sm:pt-5 pb-3 px-3 sm:px-8 lg:px-12">
+        {/* Search bar */}
+        <div className="w-full bg-transparent pt-4 sm:pt-5 pb-3 px-3 sm:px-8 lg:px-12">
           <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
+            <div className="relative flex items-center bg-transparent rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-xs hover:border-[#D5C2B2] transition-all">
               <Search
                 size={18}
                 className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"

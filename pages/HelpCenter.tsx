@@ -166,26 +166,26 @@ const HelpCenter: React.FC = () => {
 
   return (
     <div className="w-full bg-[#FAF8F5] min-h-screen text-[#2B221B] font-sans selection:bg-[#F2E4D8] selection:text-[#2B221B] flex flex-col">
-      {/* Header Bar */}
-      <header className="sticky top-0 z-50 bg-[#FAF8F5] border-b border-[#EADBCC]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      {/* Header Bar with unified styling and back button */}
+      <header className="sticky top-0 z-[100] bg-white border-b border-gray-100 shadow-xs">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center gap-4">
           <button
             type="button"
-            onClick={() => handleGoBack(navigate, '/')}
-            className="inline-flex items-center gap-2 text-[#4E392D] hover:text-[#C85A32] rounded-lg cursor-pointer"
-            aria-label="Back"
+            onClick={() => handleGoBack(navigate, '/account')}
+            className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
+            aria-label="Go back to Profile"
           >
-            <ArrowLeft size={20} />
-            <span className="text-sm sm:text-base font-bold text-[#2B221B]">Back</span>
+            <ArrowLeft size={22} strokeWidth={2.5} />
           </button>
+          <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">Help Center</h1>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col gap-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12 flex flex-col gap-8">
         
         {/* Hero Section */}
-        <div className="text-center space-y-3 max-w-2xl mx-auto">
+        <div className="text-center space-y-3 max-w-3xl mx-auto w-full">
           <h1 className="text-2xl sm:text-4xl font-serif font-black tracking-tight text-[#2B221B]">
             Frequently Asked Questions
           </h1>
@@ -194,7 +194,7 @@ const HelpCenter: React.FC = () => {
           </p>
 
           {/* Search Bar */}
-          <div className="relative pt-3 max-w-xl mx-auto">
+          <div className="relative pt-3 max-w-2xl mx-auto w-full">
             <div className="relative flex items-center">
               <Search className="absolute left-4 text-[#A89283] w-4 h-4 pointer-events-none" />
               <input
@@ -244,10 +244,10 @@ const HelpCenter: React.FC = () => {
           })}
         </div>
 
-        {/* Simple FAQ Accordion Section */}
-        <section className="space-y-3" aria-label="FAQ Accordion">
+        {/* Simple FAQ Accordion Section - 2 columns on desktop to cover the area without adding new UI */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start w-full" aria-label="FAQ Accordion">
           {filteredFAQs.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#EADBCC] p-8 text-center space-y-3">
+            <div className="col-span-full bg-white rounded-2xl border border-[#EADBCC] p-8 text-center space-y-3">
               <HelpCircle className="w-10 h-10 text-[#C85A32] mx-auto opacity-70" />
               <h3 className="text-base font-bold text-[#2B221B]">No matching questions found</h3>
               <p className="text-xs text-[#735A4C] max-w-md mx-auto">

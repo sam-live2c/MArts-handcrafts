@@ -24,17 +24,19 @@ const Contact: React.FC = () => {
   return (
     <div className="w-full bg-[#FAF8F5] min-h-screen text-[#2B221B] font-sans flex flex-col">
       {/* Header Bar */}
-      <header className="sticky top-0 z-50 bg-[#FAF8F5]/95 backdrop-blur-md border-b border-[#EADBCC]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-8 py-3 sm:py-3.5 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => handleGoBack(navigate, '/')}
-            className="inline-flex items-center gap-2 text-[#4E392D] hover:text-[#C85A32] rounded-lg transition-colors cursor-pointer"
-            aria-label="Go back"
-          >
-            <ArrowLeft size={20} />
-            <span className="text-sm sm:text-base font-bold">Back</span>
-          </button>
+      <header className="sticky top-0 z-[100] bg-white border-b border-gray-100 shadow-xs">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => handleGoBack(navigate, '/')}
+              className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
+              aria-label="Go back"
+            >
+              <ArrowLeft size={22} strokeWidth={2.5} />
+            </button>
+            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">Contact Us</h1>
+          </div>
           <Link to="/" className="hover:opacity-90 transition-opacity">
             <Logo variant="dark" size="sm" showStoreTag={false} />
           </Link>
@@ -42,7 +44,7 @@ const Contact: React.FC = () => {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-10 sm:py-14">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-10 sm:py-14">
         <div className="text-center max-w-2xl mx-auto mb-10 sm:mb-12 space-y-3">
           <span className="inline-block px-3 py-1 rounded-full bg-[#FAF0E6] text-xs font-semibold uppercase tracking-wider text-[#C85A32] border border-[#EADBCC]">
             Direct Atelier Connect

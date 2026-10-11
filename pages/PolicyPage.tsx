@@ -27,25 +27,25 @@ const PolicyPage: React.FC<PolicyPageProps> = ({ type }) => {
 
   return (
     <div className="w-full bg-white min-h-screen text-gray-800 font-sans selection:bg-[#F2E4D8] selection:text-[#2B221B] flex flex-col">
-      {/* Top Header Bar with separation line and page-specific headline beside back button */}
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
-        <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 sm:py-3.5 flex items-center">
+      {/* Top Header Bar with unified styling and back button */}
+      <header className="sticky top-0 z-[100] bg-white border-b border-gray-100 shadow-xs">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center gap-4">
           <button
             type="button"
             onClick={() => handleGoBack(navigate, '/')}
-            className="inline-flex items-center gap-2.5 text-gray-800 hover:text-gray-900 rounded-lg transition-colors cursor-pointer group"
+            className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
             aria-label={`Go back from ${headerTitles[type]}`}
           >
-            <ArrowLeft size={20} className="text-gray-700 transition-transform group-hover:-translate-x-0.5" />
-            <span className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">
-              {headerTitles[type]}
-            </span>
+            <ArrowLeft size={22} strokeWidth={2.5} />
           </button>
+          <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">
+            {headerTitles[type]}
+          </h1>
         </div>
       </header>
 
       {/* Main Document Body */}
-      <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-8 pt-4 pb-12 sm:pt-6 sm:pb-16">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 pt-6 pb-12 sm:pt-8 sm:pb-16">
         {type === 'privacy' && <PrivacyPolicyContent />}
         {type === 'refunds' && <RefundPolicyContent />}
         {type === 'terms' && <TermsConditionsContent />}

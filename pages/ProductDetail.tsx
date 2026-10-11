@@ -840,12 +840,12 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
 
         {/* Tabbed Info Section (Details | Specifications | Reviews) with Green Underline Indicator */}
         <div id="reviews-tab-section" className="border-t border-gray-100 bg-white flex-1 pb-28 sm:pb-16">
-          {/* Tab Headers */}
-          <div className="flex border-b border-gray-200 px-5 sm:px-8 lg:px-12 overflow-x-auto">
+          {/* Tab Headers: Straight up left-aligned with other options starting */}
+          <div className="flex items-center justify-start gap-6 sm:gap-8 lg:gap-10 border-b border-gray-200 px-5 sm:px-6 lg:px-10 overflow-x-auto no-scrollbar">
             <button
               type="button"
               onClick={() => setActiveTab("details")}
-              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`py-3.5 text-left text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "details"
                   ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
@@ -856,7 +856,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab("specs")}
-              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
+              className={`py-3.5 text-left text-sm font-bold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === "specs"
                   ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
@@ -867,21 +867,21 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab("reviews")}
-              className={`flex-1 md:flex-none md:px-10 py-3.5 text-center text-sm font-bold transition-all cursor-pointer whitespace-nowrap flex items-center justify-center gap-2 ${
+              className={`py-3.5 text-left text-sm font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === "reviews"
                   ? "text-gray-900 border-b-[2.5px] border-[#C85A32]"
                   : "text-gray-500 hover:text-gray-800 border-b-[2.5px] border-transparent"
               }`}
             >
               <span>Reviews</span>
-              <span className="text-[#C85A32] text-xs font-extrabold px-1">
+              <span className="text-[#C85A32] text-xs font-extrabold">
                 ({reviews.length})
               </span>
             </button>
           </div>
 
           {/* Tab Content */}
-          <div className="p-5 sm:p-8 lg:p-12">
+          <div className="p-5 sm:p-6 lg:p-10">
             {activeTab === "details" && (
               <div className="space-y-6 text-[13.5px] md:text-[14.5px] leading-relaxed text-gray-700 w-full">
                 <p>

@@ -595,19 +595,21 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
   return (
     <div className="w-full bg-white min-h-screen">
       {/* Header */}
-      <div className="bg-white border-b border-gray-100 shadow-xs px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center gap-4 sticky top-0 z-[100]">
-        <button 
-          type="button"
-          onClick={() => handleGoBack(navigate, '/account')} 
-          className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer"
-          aria-label="Go back to Profile"
-        >
-          <ArrowLeft size={22} />
-        </button>
-        <h1 className="text-lg font-bold text-gray-900 capitalize">{type === 'edit' ? 'Edit Profile' : type}</h1>
+      <div className="bg-white border-b border-gray-100 shadow-xs sticky top-0 z-[100]">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center gap-4">
+          <button 
+            type="button"
+            onClick={() => handleGoBack(navigate, '/account')} 
+            className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
+            aria-label="Go back to Profile"
+          >
+            <ArrowLeft size={22} strokeWidth={2.5} />
+          </button>
+          <h1 className="text-[17px] font-semibold text-gray-900 leading-tight capitalize">{type === 'edit' ? 'Edit Profile' : type}</h1>
+        </div>
       </div>
 
-      <div className="w-full px-4 sm:px-8 lg:px-12 py-6 pb-20">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-6 pb-20">
         <div className="w-full bg-white min-h-[600px]">
         {isLoading ? (
           <div className="py-24 flex items-center justify-center">

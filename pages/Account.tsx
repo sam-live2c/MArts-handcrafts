@@ -78,7 +78,7 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
   if (!user) {
     return (
       <div className="w-full bg-white min-h-screen font-sans relative">
-        <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto pb-24 md:pb-8">
+        <div className="w-full bg-white min-h-screen relative flex flex-col max-w-7xl mx-auto pb-24 md:pb-8">
           {/* Page Header with Back Button */}
           <div className="bg-white py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] px-4 sm:px-8 lg:px-12 flex items-center gap-4 sticky top-0 z-[100] border-b border-gray-100 shadow-xs">
             <button 
@@ -160,7 +160,7 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
 
   return (
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">
-      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm pb-24 md:pb-8">
+      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-7xl mx-auto shadow-sm pb-24 md:pb-8">
       {/* Page Header with Back Button */}
       <div className="bg-white py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] px-4 sm:px-8 lg:px-12 flex items-center gap-4 sticky top-0 z-[100] border-b border-gray-100 shadow-xs">
         <button 

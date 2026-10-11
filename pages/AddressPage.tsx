@@ -403,7 +403,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
   return (
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">
-      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm">
+      <div className="w-full bg-white min-h-screen relative flex flex-col max-w-7xl mx-auto shadow-sm">
         {/* Header - EXACT MATCH to prompt image without checkout steps */}
         <div className="bg-white py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] px-4 sm:px-8 lg:px-12 flex items-center gap-4 sticky top-0 z-30 border-b border-gray-100 shadow-xs">
           <button 
@@ -415,7 +415,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                 handleGoBack(navigate, '/account');
               }
             }} 
-            className="p-1 -ml-1 text-gray-800 hover:text-black rounded-full active:bg-gray-100 transition-colors cursor-pointer"
+            className="p-1 -ml-1 hover:bg-gray-100 rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
             aria-label="Go back"
           >
             <ArrowLeft strokeWidth={2.5} size={22} />
@@ -428,96 +428,218 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
           {/* Form Modal / Inline View */}
           {showForm ? (
-            <div className="pt-3 w-full max-w-2xl">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base font-bold text-gray-900 tracking-tight">
+            <div className="pt-3 sm:pt-5 w-full">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base sm:text-lg font-bold text-gray-900 tracking-tight">
                   {editingId ? 'Edit Delivery Address' : 'Add New Delivery Address'}
                 </h2>
               </div>
 
-              <form id="address-form" onSubmit={handleSaveForm} className="space-y-4 pb-28 sm:pb-8">
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
-                      {formData.name.length}/60
-                    </span>
+              <form id="address-form" onSubmit={handleSaveForm} className="space-y-4 sm:space-y-5 pb-28 sm:pb-8 w-full">
+                {/* Row 1: Contact Details - Full Name, Mobile Number, and Email (3 columns on desktop lg) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
+                        {formData.name.length}/60
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        maxLength={60}
+                        value={formData.name}
+                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="Enter full name (e.g. Rahul Sharma)"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
+                      />
+                      {formData.name.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, name: '' })}
+                          className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                          aria-label="Clear full name"
+                          title="Clear"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      required
-                      maxLength={60}
-                      value={formData.name}
-                      onChange={e => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter full name (e.g. Rahul Sharma)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
-                    />
-                    {formData.name.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, name: '' })}
-                        className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-                        aria-label="Clear full name"
-                        title="Clear"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Mobile Number <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
+                        {formData.phone.length}/10
+                      </span>
+                    </div>
+                    <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-[#C85A32] focus-within:border-transparent transition-shadow bg-transparent overflow-hidden">
+                      <input
+                        type="text"
+                        value={formData.countryCode}
+                        onChange={e => {
+                          let val = e.target.value.trim();
+                          if (val === '') {
+                            setFormData({ ...formData, countryCode: '' });
+                          } else if (!val.startsWith('+')) {
+                            setFormData({ ...formData, countryCode: '+' + val.replace(/[^\d]/g, '') });
+                          } else {
+                            setFormData({ ...formData, countryCode: '+' + val.slice(1).replace(/[^\d]/g, '') });
+                          }
+                        }}
+                        onBlur={() => {
+                          if (!formData.countryCode || formData.countryCode === '+') {
+                            setFormData({ ...formData, countryCode: '+91' });
+                          }
+                        }}
+                        maxLength={5}
+                        placeholder="+91"
+                        aria-label="Country Code"
+                        className="w-16 sm:w-20 px-2 sm:px-3 py-2.5 text-sm font-semibold text-gray-800 bg-transparent border-r border-gray-300 outline-none text-center focus:text-[#C85A32] transition-colors"
+                      />
+                      <div className="relative flex-1 flex items-center min-w-0">
+                        <input
+                          type="tel"
+                          required
+                          maxLength={10}
+                          value={formData.phone}
+                          onChange={e => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                          placeholder="10-digit mobile number"
+                          className="w-full bg-transparent pl-3.5 pr-9 py-2.5 text-sm text-gray-900 outline-none"
+                        />
+                        {formData.phone.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setFormData({ ...formData, phone: '' })}
+                            className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                            aria-label="Clear mobile number"
+                            title="Clear"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Authenticated Email Field (3rd column on desktop lg) */}
+                  <div className="md:col-span-2 lg:col-span-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                        <span>Email Address</span>
+                        {isGoogleAccount ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8C3F1E] bg-[#FAF0E6] border border-[#EADBCC] px-2 py-0.5 rounded-full">
+                            <GoogleBrandIcon />
+                            <span>Google</span>
+                          </span>
+                        ) : (
+                          <span className="text-xs font-normal text-gray-500">(Verified)</span>
+                        )}
+                      </label>
+                    </div>
+
+                    <div className="relative flex items-center">
+                      <div className="absolute left-3.5 flex items-center pointer-events-none">
+                        {isGoogleAccount ? (
+                          <GoogleBrandIcon />
+                        ) : (
+                          <Mail size={16} className="text-gray-400 shrink-0" />
+                        )}
+                      </div>
+
+                      <input
+                        type="email"
+                        readOnly
+                        tabIndex={-1}
+                        value={loggedInEmail || 'No account logged in'}
+                        aria-readonly="true"
+                        title="This email is linked to your authenticated login and cannot be edited for security concerns."
+                        className="w-full bg-gray-100/90 border border-gray-300 rounded-md pl-10 pr-10 py-2.5 text-sm text-gray-800 font-medium cursor-not-allowed select-none outline-none focus:outline-none"
+                      />
+
+                      <div className="absolute right-3.5 flex items-center pointer-events-none text-emerald-600" title="Security Verified">
+                        <ShieldCheck size={18} />
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 mt-1.5 flex items-center gap-1.5 truncate">
+                      <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
+                      <span className="truncate">
+                        {isGoogleAccount
+                          ? 'Google authenticated. Uneditable for security.'
+                          : 'Linked to your account. Uneditable for security.'}
+                      </span>
+                    </p>
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Mobile Number <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
-                      {formData.phone.length}/10
-                    </span>
-                  </div>
-                  <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-[#C85A32] focus-within:border-transparent transition-shadow bg-transparent overflow-hidden">
-                    <input
-                      type="text"
-                      value={formData.countryCode}
-                      onChange={e => {
-                        let val = e.target.value.trim();
-                        if (val === '') {
-                          setFormData({ ...formData, countryCode: '' });
-                        } else if (!val.startsWith('+')) {
-                          setFormData({ ...formData, countryCode: '+' + val.replace(/[^\d]/g, '') });
-                        } else {
-                          setFormData({ ...formData, countryCode: '+' + val.slice(1).replace(/[^\d]/g, '') });
-                        }
-                      }}
-                      onBlur={() => {
-                        if (!formData.countryCode || formData.countryCode === '+') {
-                          setFormData({ ...formData, countryCode: '+91' });
-                        }
-                      }}
-                      maxLength={5}
-                      placeholder="+91"
-                      aria-label="Country Code"
-                      className="w-16 sm:w-20 px-2 sm:px-3 py-2.5 text-sm font-semibold text-gray-800 bg-transparent border-r border-gray-300 outline-none text-center focus:text-[#C85A32] transition-colors"
-                    />
-                    <div className="relative flex-1 flex items-center min-w-0">
+                {/* Row 2: Flat / House No. & Area / Street / Locality (2 columns on md/lg) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Flat, House No., Building <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
+                        {formData.houseNo.length}/100
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
                       <input
-                        type="tel"
+                        type="text"
                         required
-                        maxLength={10}
-                        value={formData.phone}
-                        onChange={e => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                        placeholder="10-digit mobile number"
-                        className="w-full bg-transparent pl-3.5 pr-9 py-2.5 text-sm text-gray-900 outline-none"
+                        maxLength={100}
+                        value={formData.houseNo}
+                        onChange={e => setFormData({ ...formData, houseNo: e.target.value })}
+                        placeholder="Flat, House no., Building name (e.g. 42A, Greenwood)"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
                       />
-                      {formData.phone.length > 0 && (
+                      {formData.houseNo.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => setFormData({ ...formData, phone: '' })}
+                          onClick={() => setFormData({ ...formData, houseNo: '' })}
                           className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-                          aria-label="Clear mobile number"
+                          aria-label="Clear house number"
+                          title="Clear"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Area, Street, Locality <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
+                        {formData.area.length}/100
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        maxLength={100}
+                        value={formData.area}
+                        onChange={e => setFormData({ ...formData, area: e.target.value })}
+                        placeholder="Area, Street, Sector, Landmark"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
+                      />
+                      {formData.area.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, area: '' })}
+                          className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                          aria-label="Clear area"
                           title="Clear"
                         >
                           <X size={15} />
@@ -527,57 +649,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                   </div>
                 </div>
 
-                {/* Authenticated Email Field (Uneditable for Security Concerns) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
-                      <span>Email Address</span>
-                      {isGoogleAccount ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#8C3F1E] bg-[#FAF0E6] border border-[#EADBCC] px-2 py-0.5 rounded-full">
-                          <GoogleBrandIcon />
-                          <span>Google Sign-In</span>
-                        </span>
-                      ) : (
-                        <span className="text-xs font-normal text-gray-500">(Verified Account)</span>
-                      )}
-                    </label>
-                  </div>
-
-                  <div className="relative flex items-center">
-                    <div className="absolute left-3.5 flex items-center pointer-events-none">
-                      {isGoogleAccount ? (
-                        <GoogleBrandIcon />
-                      ) : (
-                        <Mail size={16} className="text-gray-400 shrink-0" />
-                      )}
-                    </div>
-
-                    <input
-                      type="email"
-                      readOnly
-                      tabIndex={-1}
-                      value={loggedInEmail || 'No account logged in'}
-                      aria-readonly="true"
-                      title="This email is linked to your authenticated login and cannot be edited for security concerns."
-                      className="w-full bg-gray-100/90 border border-gray-300 rounded-md pl-10 pr-10 py-2.5 text-sm text-gray-800 font-medium cursor-not-allowed select-none outline-none focus:outline-none"
-                    />
-
-                    <div className="absolute right-3.5 flex items-center pointer-events-none text-emerald-600" title="Security Verified">
-                      <ShieldCheck size={18} />
-                    </div>
-                  </div>
-
-                  <p className="text-[11.5px] text-gray-500 mt-1.5 flex items-center gap-1.5">
-                    <ShieldCheck size={13} className="text-emerald-600 shrink-0" />
-                    <span>
-                      {isGoogleAccount
-                        ? 'Authenticated via Google. Uneditable for account security and order receipts.'
-                        : 'Linked to your logged-in account. Uneditable for security concerns and order verification.'}
-                    </span>
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Row 3: Pincode, City / District, State (3 columns on md/lg, responsive) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-5">
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-sm font-semibold text-gray-700">
@@ -610,6 +683,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       )}
                     </div>
                   </div>
+
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <label className="text-sm font-semibold text-gray-700">
@@ -642,127 +716,82 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       )}
                     </div>
                   </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-sm font-semibold text-gray-700">
+                        State <span className="text-red-500">*</span>
+                      </label>
+                      <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
+                        {formData.state.length}/50
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        required
+                        maxLength={50}
+                        value={formData.state}
+                        onChange={e => setFormData({ ...formData, state: e.target.value })}
+                        placeholder="State (e.g. Karnataka)"
+                        className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
+                      />
+                      {formData.state.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, state: '' })}
+                          className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                          aria-label="Clear state"
+                          title="Clear"
+                        >
+                          <X size={15} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Flat, House No., Building <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
-                      {formData.houseNo.length}/100
-                    </span>
-                  </div>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      required
-                      maxLength={100}
-                      value={formData.houseNo}
-                      onChange={e => setFormData({ ...formData, houseNo: e.target.value })}
-                      placeholder="Flat, House no., Building name (e.g. 42A, Greenwood)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
-                    />
-                    {formData.houseNo.length > 0 && (
+                {/* Row 4: Address Type & Default Delivery Checkbox */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 pb-1 border-t border-gray-100">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700">Address Type:</span>
+                    {(['HOME', 'WORK', 'OTHER'] as const).map(t => (
                       <button
+                        key={t}
                         type="button"
-                        onClick={() => setFormData({ ...formData, houseNo: '' })}
-                        className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-                        aria-label="Clear house number"
-                        title="Clear"
+                        onClick={() => setFormData({ ...formData, type: t })}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                          formData.type === t
+                            ? 'bg-[#C85A32] text-white border-[#C85A32] shadow-2xs'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
                       >
-                        <X size={15} />
+                        {t === 'HOME' ? 'Home' : t === 'WORK' ? 'Work' : 'Other'}
                       </button>
-                    )}
+                    ))}
                   </div>
-                </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Area, Street, Locality <span className="text-red-500">*</span>
-                    </label>
-                    <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
-                      {formData.area.length}/100
-                    </span>
-                  </div>
-                  <div className="relative flex items-center">
+                  <div className="flex items-center gap-2.5">
                     <input
-                      type="text"
-                      required
-                      maxLength={100}
-                      value={formData.area}
-                      onChange={e => setFormData({ ...formData, area: e.target.value })}
-                      placeholder="Area, Street, Sector, Landmark"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
+                      type="checkbox"
+                      id="isDefault"
+                      checked={formData.isDefault}
+                      onChange={e => setFormData({ ...formData, isDefault: e.target.checked })}
+                      className="w-4 h-4 text-[#C85A32] border-gray-300 rounded focus:ring-2 focus:ring-[#C85A32] focus:ring-offset-1 transition-shadow cursor-pointer"
                     />
-                    {formData.area.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, area: '' })}
-                        className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-                        aria-label="Clear area"
-                        title="Clear"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-semibold text-gray-700">
-                      State <span className="text-red-500">*</span>
+                    <label htmlFor="isDefault" className="text-xs sm:text-sm font-medium text-gray-700 cursor-pointer select-none">
+                      Make this my default delivery address
                     </label>
-                    <span className="text-[10px] sm:text-[11px] font-mono text-gray-400 font-medium">
-                      {formData.state.length}/50
-                    </span>
-                  </div>
-                  <div className="relative flex items-center">
-                    <input
-                      type="text"
-                      required
-                      maxLength={50}
-                      value={formData.state}
-                      onChange={e => setFormData({ ...formData, state: e.target.value })}
-                      placeholder="State (e.g. Karnataka)"
-                      className="w-full bg-transparent border border-gray-300 rounded-md pl-3.5 pr-9 py-2.5 text-sm text-gray-900 focus:ring-2 focus:ring-[#C85A32] focus:border-transparent outline-none transition-shadow"
-                    />
-                    {formData.state.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, state: '' })}
-                        className="absolute right-2.5 p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
-                        aria-label="Clear state"
-                        title="Clear"
-                      >
-                        <X size={15} />
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-2 pb-2">
-                  <input
-                    type="checkbox"
-                    id="isDefault"
-                    checked={formData.isDefault}
-                    onChange={e => setFormData({ ...formData, isDefault: e.target.checked })}
-                    className="w-5 h-5 text-[#C85A32] border-gray-300 rounded focus:ring-2 focus:ring-[#C85A32] focus:ring-offset-1 transition-shadow cursor-pointer"
-                  />
-                  <label htmlFor="isDefault" className="text-sm font-medium text-gray-700 cursor-pointer">
-                    Make this my default delivery address
-                  </label>
-                </div>
-
-                {/* Save and Cancel buttons: Fixed bottom buttons on mobile, compact & properly proportioned on tablet/desktop */}
-                <div className="fixed sm:static bottom-0 left-0 right-0 z-40 bg-white/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border-t border-gray-200 sm:border-gray-100 px-4 sm:px-0 py-2.5 sm:py-0 pb-[calc(env(safe-area-inset-bottom)+0.6rem)] sm:pb-0 sm:pt-6 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] sm:shadow-none flex items-center gap-3 sm:justify-start">
+                {/* Save and Cancel buttons: Positioned straight to the right on both desktop & mobile */}
+                <div className="fixed sm:static bottom-0 left-0 right-0 z-40 bg-white/95 sm:bg-transparent backdrop-blur-md sm:backdrop-blur-none border-t border-gray-200 sm:border-t-0 px-4 sm:px-0 py-2.5 sm:py-0 pb-[calc(env(safe-area-inset-bottom)+0.6rem)] sm:pb-0 sm:pt-6 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] sm:shadow-none flex items-center justify-end gap-3 w-full">
                   <button
                     type="button"
                     id="address-cancel-btn"
                     onClick={() => setShowForm(false)}
-                    className="flex-1 sm:flex-none sm:w-auto sm:min-w-[130px] h-12 sm:h-11 px-4 sm:px-6 bg-white border border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-bold text-[15px] sm:text-sm rounded-xl sm:rounded-lg transition-all flex items-center justify-center cursor-pointer"
+                    className="w-auto min-w-[110px] sm:min-w-[130px] h-11 px-5 sm:px-6 bg-white border border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-gray-700 font-bold text-sm rounded-lg transition-all flex items-center justify-center cursor-pointer shadow-2xs hover:border-gray-400"
                   >
                     Cancel
                   </button>
@@ -770,7 +799,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                     type="submit"
                     id="address-save-btn"
                     form="address-form"
-                    className="flex-1 sm:flex-none sm:w-auto sm:min-w-[160px] h-12 sm:h-11 px-6 sm:px-8 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold text-[15px] sm:text-sm rounded-xl sm:rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center cursor-pointer"
+                    className="w-auto min-w-[150px] sm:min-w-[170px] h-11 px-6 sm:px-8 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold text-sm rounded-lg shadow-sm hover:shadow transition-all flex items-center justify-center cursor-pointer"
                   >
                     Save Address
                   </button>
@@ -814,7 +843,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
                       )}
 
                       {/* Full Address String */}
-                      <p className="text-sm text-gray-600 leading-relaxed max-w-[290px] sm:max-w-xs">
+                      <p className="text-sm text-gray-600 leading-relaxed max-w-[290px] sm:max-w-2xl">
                         {addr.houseNo}, {addr.area ? `${addr.area}, ` : ''}{addr.city}, {addr.state} {addr.pincode}
                       </p>
 
