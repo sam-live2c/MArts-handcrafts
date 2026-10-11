@@ -874,7 +874,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                     <div className="py-3 border-b border-gray-100 space-y-4">
                        <label 
                          onClick={() => setPaymentOption('razorpay')}
-                         className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                         className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer ${
                            paymentOption === 'razorpay' 
                              ? 'border-[#C85A32] bg-[#FAF6F2]' 
                              : 'border-gray-200 hover:border-gray-300'
@@ -914,7 +914,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
 
                        <label 
                          onClick={() => setPaymentOption('cod')}
-                         className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-all ${
+                         className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer ${
                            paymentOption === 'cod' 
                              ? 'border-[#C85A32] bg-[#FAF6F2]' 
                              : 'border-gray-200 hover:border-gray-300'
