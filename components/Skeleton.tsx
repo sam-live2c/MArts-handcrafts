@@ -315,7 +315,7 @@ export const OrderHistorySkeleton: React.FC<{ count?: number }> = ({ count = 3 }
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="hidden sm:block h-7 w-20 bg-[#FAF5EF] border border-[#EADBCC] rounded-full" />
-              <div className="h-7 w-24 bg-[#FAF0E6] rounded-full border border-[#EADBCC]/80" />
+              <div className="h-7 w-24 bg-[#FAF0E6] rounded-full" />
             </div>
           </div>
 

@@ -699,27 +699,27 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                         <div className="flex items-center gap-2.5 flex-wrap">
                           <span className="text-sm sm:text-base font-bold text-[#2B221B] tracking-tight">Order #{order.id}</span>
                           {isDelivered && (
-                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200/60">
+                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
                             </span>
                           )}
                           {isProcessing && (
-                            <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-amber-200/60">
+                            <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               Processing
                             </span>
                           )}
                           {isShipped && (
-                            <span className="bg-blue-50 text-blue-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-blue-200/60">
+                            <span className="bg-blue-50 text-blue-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <Truck size={12} /> Shipped
                             </span>
                           )}
                           {isCancelled && (
-                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-rose-200/60">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <XCircle size={12} strokeWidth={2.5} /> Cancelled
                             </span>
                           )}
                           {isFailed && (
-                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-rose-200/60">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <AlertCircle size={12} strokeWidth={2.5} /> Failed
                             </span>
                           )}

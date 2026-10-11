@@ -169,37 +169,39 @@ const Wishlist: React.FC<WishlistProps> = ({
                     </div>
 
                     <div>
-                      {/* Price Display */}
-                      <div className="flex items-baseline gap-1.5 pt-1.5 border-t border-[#F0E6DC]">
-                        <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
-                          ₹{prod.price.toLocaleString()}
-                        </span>
-                        {prod.oldPrice && (
-                          <del className="text-[10px] sm:text-xs text-[#A89283] font-normal">
-                            ₹{prod.oldPrice.toLocaleString()}
-                          </del>
-                        )}
-                        {prod.discount && (
-                          <span className="text-[9px] sm:text-[10px] font-bold text-[#9C4320] bg-[#F7ECE4] px-1.5 py-0.2 rounded">
-                            {prod.discount}
+                      {/* Price Display with Remove button beside price */}
+                      <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#F0E6DC]">
+                        <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap">
+                          <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
+                            ₹{prod.price.toLocaleString()}
                           </span>
-                        )}
-                      </div>
+                          {prod.oldPrice && (
+                            <del className="text-[10px] sm:text-xs text-[#A89283] font-normal">
+                              ₹{prod.oldPrice.toLocaleString()}
+                            </del>
+                          )}
+                          {prod.discount && (
+                            <span className="text-[9px] sm:text-[10px] font-bold text-[#9C4320] bg-[#F7ECE4] px-1.5 py-0.2 rounded">
+                              {prod.discount}
+                            </span>
+                          )}
+                        </div>
 
-                      {/* Remove from Wishlist Button */}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onRemoveFromWishlist(prod.id);
-                        }}
-                        className="w-full mt-2.5 bg-[#FAF5EE] hover:bg-rose-50 text-[#8C3F1E] hover:text-rose-700 text-[11px] sm:text-xs font-semibold py-1.5 sm:py-2 px-2.5 rounded-lg border border-[#E5D7CA] hover:border-rose-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs group/btn"
-                        title="Remove from Wishlist"
-                        aria-label="Remove from Wishlist"
-                      >
-                        <Trash2 size={13} className="shrink-0 text-[#C85A32] group-hover/btn:text-rose-600 transition-colors" />
-                        <span className="truncate">Remove from Wishlist</span>
-                      </button>
+                        {/* Remove button beside price with distinct border and icon */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveFromWishlist(prod.id);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold text-[#8C3F1E] hover:text-rose-600 bg-white hover:bg-rose-50 border border-[#C5B3A1] hover:border-rose-400 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs group/btn"
+                          title="Remove from Wishlist"
+                          aria-label="Remove from Wishlist"
+                        >
+                          <Trash2 size={13} strokeWidth={1.8} className="shrink-0 text-[#C85A32] group-hover/btn:text-rose-600 transition-colors" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
