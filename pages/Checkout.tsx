@@ -277,23 +277,27 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     loadAddress();
   }, [user]);
 
-  const baseTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const customizedCount = (Object.values(customizations) as ItemCustomization[]).filter(c => c.confirmed && c.files.length > 0).length;
+  const baseTotal = (cart || []).reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
+  const customizedCount = (Object.values(customizations || {}) as ItemCustomization[]).filter(c => c && c.confirmed && Array.isArray(c.files) && c.files.length > 0).length;
   const customizationFee = customizedCount > 0 ? customizedCount * 5 : 0;
   const total = baseTotal + customizationFee;
-  const originalTotal = cart.reduce((sum, item) => sum + ((item.oldPrice || item.price) * item.quantity), 0);
-  const savings = originalTotal - baseTotal;
+  const originalTotal = (cart || []).reduce((sum, item) => sum + (((item?.oldPrice && Number(item.oldPrice) > Number(item.price)) ? Number(item.oldPrice) : Number(item?.price || 0)) * (Number(item?.quantity) || 1)), 0);
+  const savings = Math.max(0, originalTotal - baseTotal);
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login?redirect=checkout');
-      return;
+    if (!user && !auth.currentUser) {
+      const timer = setTimeout(() => {
+        if (!user && !auth.currentUser) {
+          navigate('/login?redirect=checkout');
+        }
+      }, 500);
+      return () => clearTimeout(timer);
     }
-    const savedAddr = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user.address;
+    const savedAddr = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address;
     if ((!savedAddr || savedAddr.trim() === '') && (!activeAddress.houseNo || activeAddress.houseNo.trim() === '')) {
-      navigate('/address?redirect=checkout');
+      setStep(1);
     }
-  }, [user, activeAddress, navigate]);
+  }, [user, activeAddress.houseNo, navigate]);
 
   useEffect(() => {
     // scroll to top on step change
@@ -459,6 +463,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
         });
       } catch (err: unknown) {
         setIsProcessing(false);
+        setIsOrderPlaced(false);
         if (err instanceof Error && err.message === 'PAYMENT_CANCELLED') {
           setPaymentError('Payment cancelled. Please try again.');
         } else {
@@ -472,119 +477,142 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     } else {
       // Cash on Delivery
       setTimeout(async () => {
-        const orderId = 'OD' + Math.floor(Math.random() * 1000000000000);
-        const customerDeliveryAddr = [
-          activeAddress.houseNo,
-          activeAddress.area,
-          activeAddress.city,
-          activeAddress.state,
-          activeAddress.pincode
-        ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
+        try {
+          const orderId = 'OD' + Math.floor(Math.random() * 1000000000000);
+          const customerDeliveryAddr = [
+            activeAddress.houseNo,
+            activeAddress.area,
+            activeAddress.city,
+            activeAddress.state,
+            activeAddress.pincode
+          ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
 
-        const storeDeliveryAddr: StoreDeliveryAddress = {
-          recipientName: activeAddress.name || user?.name || 'Customer',
-          phone: activeAddress.phone || user?.phone || '',
-          street: activeAddress.houseNo,
-          apartment: activeAddress.area || undefined,
-          postalCode: activeAddress.pincode,
-          pin: activeAddress.pincode,
-          city: activeAddress.city,
-          state: activeAddress.state,
-          country: 'India',
-          isDefault: true,
-          updatedAt: new Date().toISOString()
-        };
+          const storeDeliveryAddr: StoreDeliveryAddress = {
+            recipientName: activeAddress.name || user?.name || 'Customer',
+            phone: activeAddress.phone || user?.phone || '',
+            street: activeAddress.houseNo,
+            apartment: activeAddress.area || undefined,
+            postalCode: activeAddress.pincode,
+            pin: activeAddress.pincode,
+            city: activeAddress.city,
+            state: activeAddress.state,
+            country: 'India',
+            isDefault: true,
+            updatedAt: new Date().toISOString()
+          };
 
-        const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+          const totalItemsCount = (cart || []).reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
 
-        const pricingBreakdown = {
-          mrp: originalTotal,
-          subtotal: baseTotal,
-          discount: Math.max(0, originalTotal - baseTotal),
-          savings: Math.max(0, originalTotal - baseTotal),
-          customizationFee: customizationFee,
-          deliveryFee: 0,
-          total: total
-        };
+          const pricingBreakdown = {
+            mrp: originalTotal,
+            subtotal: baseTotal,
+            discount: Math.max(0, originalTotal - baseTotal),
+            savings: Math.max(0, originalTotal - baseTotal),
+            customizationFee: customizationFee,
+            deliveryFee: 0,
+            total: total
+          };
 
-        const initialTracking = {
-          currentStatus: 'Processing' as const,
-          updatedAt: Date.now(),
-          steps: [
-            { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
-            { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
-            { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
-            { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
-          ]
-        };
+          const initialTracking = {
+            currentStatus: 'Processing' as const,
+            updatedAt: Date.now(),
+            steps: [
+              { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
+              { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
+              { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
+              { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
+            ]
+          };
 
-        const initialStatusHistory = [
-          {
-            status: 'Processing' as const,
-            timestamp: Date.now(),
-            label: 'Order Placed & Processing',
-            note: 'Cash on Delivery order placed. Collect payment on doorstep arrival.'
-          }
-        ];
+          const initialStatusHistory = [
+            {
+              status: 'Processing' as const,
+              timestamp: Date.now(),
+              label: 'Order Placed & Processing',
+              note: 'Cash on Delivery order placed. Collect payment on doorstep arrival.'
+            }
+          ];
 
-        const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
+          const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
 
-        const newOrder: Order = {
-          id: orderId,
-          userId: effectiveUid,
-          date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          items: cart.map(item => ({
-            ...item,
-            customization: customizations[item.id] || null
-          })),
-          total: total,
-          mrp: originalTotal,
-          subtotal: baseTotal,
-          discount: pricingBreakdown.discount,
-          savings: pricingBreakdown.savings,
-          customizationFee: customizationFee,
-          deliveryFee: 0,
-          itemCount: totalItemsCount,
-          pricing: pricingBreakdown,
-          status: 'Processing',
-          paymentMethod: 'Cash on Delivery',
-          paymentStatus: 'PENDING',
-          customerName: activeAddress.name || user?.name || 'Customer',
-          customerPhone: activeAddress.phone || user?.phone || '',
-          customerEmail: user?.email || '',
-          customerAddress: customerDeliveryAddr,
-          shippingAddress: storeDeliveryAddr,
-          tracking: initialTracking,
-          statusHistory: initialStatusHistory,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-
-        setIsOrderPlaced(true);
-        await Promise.resolve(onOrderSuccess(newOrder));
-        clearCart();
-        navigate('/orders', { 
-          replace: true,
-          state: {
-            paymentStatus: 'success',
-            orderId: orderId,
+          const newOrder: Order = {
+            id: orderId,
+            userId: effectiveUid,
+            date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+            items: (cart || []).map(item => ({
+              ...item,
+              customization: customizations[item.id] || null
+            })),
+            total: total,
+            mrp: originalTotal,
+            subtotal: baseTotal,
+            discount: pricingBreakdown.discount,
+            savings: pricingBreakdown.savings,
+            customizationFee: customizationFee,
+            deliveryFee: 0,
+            itemCount: totalItemsCount,
+            pricing: pricingBreakdown,
+            status: 'Processing',
             paymentMethod: 'Cash on Delivery',
-            amount: total
-          }
-        });
-      }, 1000);
+            paymentStatus: 'PENDING',
+            customerName: activeAddress.name || user?.name || 'Customer',
+            customerPhone: activeAddress.phone || user?.phone || '',
+            customerEmail: user?.email || '',
+            customerAddress: customerDeliveryAddr,
+            shippingAddress: storeDeliveryAddr,
+            tracking: initialTracking,
+            statusHistory: initialStatusHistory,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+
+          setIsOrderPlaced(true);
+          await Promise.resolve(onOrderSuccess(newOrder));
+          clearCart();
+          navigate('/orders', { 
+            replace: true,
+            state: {
+              paymentStatus: 'success',
+              orderId: orderId,
+              paymentMethod: 'Cash on Delivery',
+              amount: total
+            }
+          });
+        } catch (err: unknown) {
+          setIsProcessing(false);
+          setIsOrderPlaced(false);
+          setPaymentError(err instanceof Error ? err.message : 'Could not place order. Please try again.');
+          console.error('COD Order Error:', err);
+        }
+      }, 800);
     }
   };
 
 
   useEffect(() => {
     if (cart.length === 0 && !isOrderPlaced) {
-      navigate('/cart', { replace: true });
+      const timer = setTimeout(() => {
+        if (cart.length === 0 && !isOrderPlaced) {
+          navigate('/cart', { replace: true });
+        }
+      }, 600);
+      return () => clearTimeout(timer);
     }
   }, [cart.length, navigate, isOrderPlaced]);
 
   if (cart.length === 0 && !isOrderPlaced) {
-    return null;
+    return (
+      <div className="w-full bg-[#FAF8F5] min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-[#C85A32] flex items-center justify-center mb-3">
+          <svg className="w-7 h-7 animate-spin text-[#C85A32]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <p className="text-sm font-bold text-[#2B221B]">Loading Checkout...</p>
+        <p className="text-xs text-[#735A4C] mt-1">Preparing your artisan order</p>
+      </div>
+    );
   }
 
   return (

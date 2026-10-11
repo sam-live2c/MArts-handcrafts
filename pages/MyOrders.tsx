@@ -41,17 +41,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
 
   // Sync when user prop updates if not in initial loading
   useEffect(() => {
-    if (user?.orders && user.orders.length > 0) {
+    if (Array.isArray(user?.orders) && user.orders.length > 0) {
       setOrders(prev => {
         const map = new Map<string, Order>();
-        prev.forEach(o => map.set(o.id, o));
-        user.orders.forEach(o => map.set(o.id, o));
+        (prev || []).forEach(o => { if (o && o.id) map.set(o.id, o); });
+        user.orders.forEach(o => { if (o && o.id) map.set(o.id, o); });
         const merged = Array.from(map.values());
         merged.sort((a, b) => {
-          const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-          const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+          const timeA = a?.createdAt || (a?.date ? new Date(a.date).getTime() : 0);
+          const timeB = b?.createdAt || (b?.date ? new Date(b.date).getTime() : 0);
           if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-          return (b.id || '').localeCompare(a.id || '');
+          return (b?.id || '').localeCompare(a?.id || '');
         });
         return merged;
       });
@@ -236,12 +236,12 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
   }, [location.state]);
 
   const currentOrders: Order[] = React.useMemo(() => {
-    const list = [...orders];
+    const list = Array.isArray(orders) ? [...orders].filter(Boolean) : [];
     return list.sort((a, b) => {
-      const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-      const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+      const timeA = a?.createdAt || (a?.date ? new Date(a.date).getTime() : 0);
+      const timeB = b?.createdAt || (b?.date ? new Date(b.date).getTime() : 0);
       if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-      return (b.id || '').localeCompare(a.id || '');
+      return (b?.id || '').localeCompare(a?.id || '');
     });
   }, [orders]);
 
@@ -287,18 +287,20 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     setActiveMenuOrderId(null);
 
     const isItemSpecific = !!specificItem;
-    const items = isItemSpecific ? [specificItem] : order.items;
+    const items = isItemSpecific 
+      ? [specificItem] 
+      : (Array.isArray(order?.items) ? order.items.filter(Boolean) : []);
 
     const mrp = items.reduce((acc, item) => {
-      const unitMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+      const unitMrp = item?.oldPrice && Number(item.oldPrice) > Number(item.price) 
         ? Number(item.oldPrice) 
-        : Number(item.price || 0);
-      return acc + (unitMrp * (Number(item.quantity) || 1));
+        : Number(item?.price || 0);
+      return acc + (unitMrp * (Number(item?.quantity) || 1));
     }, 0);
-    const itemsNet = items.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+    const itemsNet = items.reduce((acc, item) => acc + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
     const itemsTotal = isItemSpecific 
-      ? ((Number(specificItem.price) || 0) * (Number(specificItem.quantity) || 1)) 
-      : order.total;
+      ? ((Number(specificItem?.price) || 0) * (Number(specificItem?.quantity) || 1)) 
+      : Number(order?.total || itemsNet);
     const discount = Math.max(0, mrp - itemsNet);
 
     // Accurately determine payment method, status, transaction ref, and badge styling
@@ -544,10 +546,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
 
   // Filter logic
   const filteredOrders = currentOrders.filter(ord => {
+    if (!ord) return false;
+    const ordId = ord.id ? String(ord.id).toLowerCase() : '';
+    const ordItems = Array.isArray(ord.items) ? ord.items.filter(Boolean) : [];
+
     // Search query filter
-    const matchesSearch = searchQuery.trim() === '' || 
-      ord.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ord.items.some(item => item.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = query === '' || 
+      ordId.includes(query) ||
+      ordItems.some(item => (item?.name ? String(item.name).toLowerCase() : '').includes(query));
 
     if (!matchesSearch) return false;
 
@@ -660,21 +667,22 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                 const isActiveOrder = isProcessing || isShipped;
                 const isMenuOpen = activeMenuOrderId === order.id;
 
-                const totalItemQty = order.itemCount !== undefined 
+                const safeItems = Array.isArray(order?.items) ? order.items.filter(Boolean) : [];
+                const totalItemQty = order?.itemCount !== undefined 
                   ? order.itemCount 
-                  : order.items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
-                const itemsBaseTotal = order.subtotal !== undefined 
+                  : safeItems.reduce((s, i) => s + (Number(i?.quantity) || 1), 0);
+                const itemsBaseTotal = order?.subtotal !== undefined 
                   ? order.subtotal 
-                  : order.items.reduce((acc, item) => acc + (Number(item.price || 0) * (Number(item.quantity) || 1)), 0);
-                const mrp = order.mrp !== undefined 
+                  : safeItems.reduce((acc, item) => acc + (Number(item?.price || 0) * (Number(item?.quantity) || 1)), 0);
+                const mrp = order?.mrp !== undefined 
                   ? order.mrp 
-                  : order.items.reduce((acc, item) => {
-                    const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+                  : safeItems.reduce((acc, item) => {
+                    const itemMrp = item?.oldPrice && Number(item.oldPrice) > Number(item?.price || 0) 
                       ? Number(item.oldPrice) 
-                      : Number(item.price || 0);
-                    return acc + (itemMrp * (Number(item.quantity) || 1));
+                      : Number(item?.price || 0);
+                    return acc + (itemMrp * (Number(item?.quantity) || 1));
                   }, 0);
-                const discount = order.discount !== undefined 
+                const discount = order?.discount !== undefined 
                   ? order.discount 
                   : Math.max(0, mrp - itemsBaseTotal);
 
@@ -787,7 +795,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                       {/* Products List */}
                       <div className="lg:col-span-7 xl:col-span-8 divide-y divide-[#EADBCC]/60">
-                        {order.items.map((item, idx) => (
+                        {safeItems.map((item, idx) => (
                           <div 
                             key={idx} 
                             onClick={() => navigate(item.id ? `/product/${item.id}` : '/')}
@@ -800,7 +808,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                                   src={item.image} 
                                   alt={item.name} 
                                   loading="lazy" 
-                                  decoding="async"
+                                  decoding="async" 
                                   referrerPolicy="no-referrer"
                                   className="w-full h-full object-contain" 
                                 />
@@ -810,9 +818,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                                   {item.name}
                                 </h4>
                                 <div className="flex items-center gap-2 text-xs text-[#735A4C]">
-                                  <span>Qty: <strong className="text-[#2B221B]">{item.quantity}</strong></span>
+                                  <span>Qty: <strong className="text-[#2B221B]">{item.quantity || 1}</strong></span>
                                   <span>•</span>
-                                  <span className="font-semibold text-[#2B221B]">₹{(item.price * item.quantity).toLocaleString()}</span>
+                                  <span className="font-semibold text-[#2B221B]">₹{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString()}</span>
                                 </div>
                                 <div className="mt-2 text-xs text-[#735A4C]">
                                   {isDelivered ? (
@@ -881,7 +889,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                         {/* Total price row */}
                         <div className="flex items-center justify-between font-bold text-[#2B221B] text-sm sm:text-base pt-2.5 mt-1 border-t border-[#EADBCC]">
                           <span>Total Amount</span>
-                          <span className="text-base sm:text-lg font-bold text-[#C85A32]">₹{order.total.toLocaleString()}</span>
+                          <span className="text-base sm:text-lg font-bold text-[#C85A32]">₹{Number(order.total || itemsBaseTotal).toLocaleString()}</span>
                         </div>
                       </div>
                     </div>

@@ -4,6 +4,7 @@ import { HashRouter as Router, Routes, Route, Link, Navigate, useLocation } from
 import Footer from './components/Footer';
 import { FullScreenCircleLoader } from './components/CircleLoader';
 import { AddressPageSkeleton, PolicyPageSkeleton } from './components/Skeleton';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
@@ -366,83 +367,91 @@ const App: React.FC = () => {
   };
 
   const handleAddOrder = async (order: Order) => {
-    const currentFirebaseUser = auth.currentUser;
-    const uid = currentFirebaseUser 
-      ? currentFirebaseUser.uid 
-      : (order.userId && order.userId !== 'guest' ? order.userId : ((user as any)?.uid || user?.phone || user?.email || null));
-
-    if (!order.userId && uid) {
-      order.userId = uid;
-    }
-
-    const currentOrders = user?.orders || [];
-    const updatedOrders = [order, ...currentOrders.filter(o => o.id !== order.id)];
-
-    const updatedUser: User = user 
-      ? { ...user, orders: updatedOrders } 
-      : {
-          name: order.customerName || 'Customer',
-          phone: order.customerPhone || '',
-          email: order.customerEmail || '',
-          address: order.customerAddress || '',
-          orders: updatedOrders
-        };
-
-    setUser(updatedUser);
     try {
-      localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-      localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
-      if (uid) {
-        localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
+      const currentFirebaseUser = auth.currentUser;
+      const uid = currentFirebaseUser 
+        ? currentFirebaseUser.uid 
+        : (order.userId && order.userId !== 'guest' ? order.userId : ((user as any)?.uid || user?.phone || user?.email || null));
+
+      if (!order.userId && uid) {
+        order.userId = uid;
       }
-    } catch (_) {}
 
-    await saveOrderToFirestore(uid, order, {
-      name: order.customerName || updatedUser.name || '',
-      phone: order.customerPhone || updatedUser.phone || '',
-      email: order.customerEmail || updatedUser.email || '',
-      address: order.customerAddress || updatedUser.address || ''
-    });
+      const currentOrders = user?.orders || [];
+      const updatedOrders = [order, ...currentOrders.filter(o => o.id !== order.id)];
 
-    if (uid && currentFirebaseUser) {
+      const updatedUser: User = user 
+        ? { ...user, orders: updatedOrders } 
+        : {
+            name: order.customerName || 'Customer',
+            phone: order.customerPhone || '',
+            email: order.customerEmail || '',
+            address: order.customerAddress || '',
+            orders: updatedOrders
+          };
+
+      setUser(updatedUser);
       try {
-        await setDoc(doc(db, 'users', uid), {
-          orders: updatedOrders,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (e) {
-        console.warn('Notice: user doc orders update offline:', e);
+        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
+        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
+        localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+        if (uid) {
+          localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
+        }
+      } catch (_) {}
+
+      await saveOrderToFirestore(uid, order, {
+        name: order.customerName || updatedUser.name || '',
+        phone: order.customerPhone || updatedUser.phone || '',
+        email: order.customerEmail || updatedUser.email || '',
+        address: order.customerAddress || updatedUser.address || ''
+      }).catch(e => console.warn('saveOrderToFirestore notice:', e));
+
+      if (uid && currentFirebaseUser) {
+        try {
+          await setDoc(doc(db, 'users', uid), {
+            orders: updatedOrders,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Notice: user doc orders update offline:', e);
+        }
       }
+    } catch (err) {
+      console.warn('Error in handleAddOrder:', err);
     }
   };
 
   const handleUpdateOrders = async (updatedOrders: Order[]) => {
-    const updatedUser: User = user 
-      ? { ...user, orders: updatedOrders } 
-      : {
-          name: 'Customer',
-          address: '',
-          orders: updatedOrders
-        };
-    setUser(updatedUser);
     try {
-      localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-      localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
-    } catch (_) {}
-
-    const currentFirebaseUser = auth.currentUser;
-    if (currentFirebaseUser) {
+      const updatedUser: User = user 
+        ? { ...user, orders: updatedOrders } 
+        : {
+            name: 'Customer',
+            address: '',
+            orders: updatedOrders
+          };
+      setUser(updatedUser);
       try {
-        localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
-        await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
-          orders: updatedOrders,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (e) {
-        console.warn('Notice: Firestore order update operated offline:', e);
+        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
+        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
+        localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+      } catch (_) {}
+
+      const currentFirebaseUser = auth.currentUser;
+      if (currentFirebaseUser) {
+        try {
+          localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
+          await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
+            orders: updatedOrders,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {
+          console.warn('Notice: Firestore order update operated offline:', e);
+        }
       }
+    } catch (err) {
+      console.warn('Error in handleUpdateOrders:', err);
     }
   };
 
@@ -457,13 +466,14 @@ const App: React.FC = () => {
     });
   };
 
-  const cartTotalQuantity = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const cartTotalQuantity = (cart || []).reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
 
   return (
     <Router>
       <div className="min-h-screen w-full flex flex-col bg-white">
         <main className="flex-1 w-full">
-          <Routes>
+          <ErrorBoundary>
+            <Routes>
             <Route 
               path="/" 
               element={
@@ -579,7 +589,7 @@ const App: React.FC = () => {
                 <MyOrders 
                   user={user} 
                   onUpdateOrders={handleUpdateOrders} 
-                  cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+                  cartCount={cartTotalQuantity}
                   wishlistCount={wishlist.length}
                 />
               } 
@@ -695,6 +705,7 @@ const App: React.FC = () => {
             {/* Fallback route: Always redirect unknown paths to Home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </main>
         <ConditionalFooter />
         <GlobalToastNotification notification={notification} onClose={() => setNotification(null)} />
