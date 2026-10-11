@@ -11,6 +11,7 @@ import {
   deleteUserAddress,
   deduplicateAddresses
 } from '../services/dbService';
+import { AddressPageSkeleton } from '../components/Skeleton';
 
 export type { AddressItem };
 
@@ -400,6 +401,10 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
   // Cart pricing calculation
   const totalAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const oldTotalAmount = Math.round(totalAmount * 1.15);
+
+  if (isLoading) {
+    return <AddressPageSkeleton />;
+  }
 
   return (
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">

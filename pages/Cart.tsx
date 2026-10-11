@@ -6,7 +6,7 @@ import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
 import { fetchUserAddresses } from '../services/dbService';
 import { CustomizationModal } from '../components/CustomizationModal';
-import { FullScreenCircleLoader } from '../components/CircleLoader';
+import { CartSkeleton } from '../components/Skeleton';
 
 interface CartProps {
   cart: CartItem[];
@@ -145,7 +145,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
   const finalAmount = currentTotal + delivery;
 
   if (isLoading) {
-    return <FullScreenCircleLoader />;
+    return <CartSkeleton />;
   }
 
   return (

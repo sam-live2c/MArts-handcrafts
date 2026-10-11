@@ -3,6 +3,7 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import Footer from './components/Footer';
 import { FullScreenCircleLoader } from './components/CircleLoader';
+import { AddressPageSkeleton, PolicyPageSkeleton } from './components/Skeleton';
 
 import Home from './pages/Home';
 import ProductDetail from './pages/ProductDetail';
@@ -519,7 +520,7 @@ const App: React.FC = () => {
             <Route 
               path="/help" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -527,7 +528,7 @@ const App: React.FC = () => {
             <Route 
               path="/support" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -535,7 +536,7 @@ const App: React.FC = () => {
             <Route 
               path="/contact" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <HelpCenter />
                 </Suspense>
               } 
@@ -543,7 +544,7 @@ const App: React.FC = () => {
             <Route 
               path="/about" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <About />
                 </Suspense>
               } 
@@ -553,7 +554,7 @@ const App: React.FC = () => {
             <Route 
               path="/addresses" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<AddressPageSkeleton />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -561,7 +562,7 @@ const App: React.FC = () => {
             <Route 
               path="/address" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<AddressPageSkeleton />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -569,7 +570,7 @@ const App: React.FC = () => {
             <Route 
               path="/add-address" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<AddressPageSkeleton />}>
                   <AddressPage cart={cart} user={user} onUpdateUser={setUser} />
                 </Suspense>
               } 
@@ -593,7 +594,7 @@ const App: React.FC = () => {
             <Route 
               path="/privacy-policy" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <PolicyPage type="privacy" />
                 </Suspense>
               } 
@@ -601,7 +602,7 @@ const App: React.FC = () => {
             <Route 
               path="/refund-policy" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <PolicyPage type="refunds" />
                 </Suspense>
               } 
@@ -609,7 +610,7 @@ const App: React.FC = () => {
             <Route 
               path="/terms-and-conditions" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <PolicyPage type="terms" />
                 </Suspense>
               } 
@@ -617,7 +618,7 @@ const App: React.FC = () => {
             <Route 
               path="/shipping-policy" 
               element={
-                <Suspense fallback={<FullScreenCircleLoader />}>
+                <Suspense fallback={<PolicyPageSkeleton />}>
                   <PolicyPage type="shipping" />
                 </Suspense>
               } 

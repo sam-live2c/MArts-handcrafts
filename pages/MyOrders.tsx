@@ -9,7 +9,7 @@ import {
 import { User, Order, CartItem } from '../types';
 import { auth } from '../firebase';
 import { updateOrderStatusInFirestore } from '../services/dbService';
-import { FullScreenCircleLoader } from '../components/CircleLoader';
+import { OrderHistorySkeleton } from '../components/Skeleton';
 
 interface MyOrdersProps {
   user: User | null;
@@ -455,10 +455,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Orders List or Full Screen Circle Loader on load/refresh */}
+        {/* Orders List or OrderHistorySkeleton on load/refresh */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-4 pb-28 md:pb-8">
           {isLoading ? (
-            <FullScreenCircleLoader />
+            <OrderHistorySkeleton />
           ) : filteredOrders.length === 0 ? (
             <div className="py-12 text-center my-2">
               <Package size={48} className="text-gray-300 mx-auto mb-3" />

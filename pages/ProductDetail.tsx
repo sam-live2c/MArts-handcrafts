@@ -29,7 +29,7 @@ import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
-import { FullScreenCircleLoader } from "../components/CircleLoader";
+import { ProductDetailSkeleton } from "../components/Skeleton";
 
 interface ProductDetailProps {
   onAddToCart: (item: CartItem, silent?: boolean) => void;
@@ -513,7 +513,7 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   };
 
   if (isLoading) {
-    return <FullScreenCircleLoader />;
+    return <ProductDetailSkeleton />;
   }
 
   if (!product) {
