@@ -576,7 +576,12 @@ const App: React.FC = () => {
             <Route 
               path="/orders" 
               element={
-                <MyOrders user={user} onUpdateOrders={handleUpdateOrders} />
+                <MyOrders 
+                  user={user} 
+                  onUpdateOrders={handleUpdateOrders} 
+                  cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+                  wishlistCount={wishlist.length}
+                />
               } 
             />
             

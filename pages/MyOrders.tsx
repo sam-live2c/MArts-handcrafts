@@ -7,6 +7,7 @@ import {
   ChevronRight, Truck, XCircle
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
+import Header from '../components/Header';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { updateOrderStatusInFirestore, fetchUserOrders } from '../services/dbService';
@@ -15,9 +16,11 @@ import { OrderHistorySkeleton } from '../components/Skeleton';
 interface MyOrdersProps {
   user: User | null;
   onUpdateOrders: (orders: Order[]) => void;
+  cartCount?: number;
+  wishlistCount?: number;
 }
 
-const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
+const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wishlistCount }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
@@ -564,27 +567,49 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
   });
 
   return (
-    <div className="w-full bg-[#FAF6F3] min-h-screen font-sans relative">
-      <div className="w-full bg-[#FAF6F3] min-h-screen relative flex flex-col max-w-4xl mx-auto pb-24 md:pb-12">
-        {/* Header */}
-        <div className="bg-white/90 backdrop-blur-md border-b border-[#F2E8DF] shadow-2xs px-4 sm:px-8 py-3 sm:py-3.5 min-h-[56px] sm:min-h-[64px] flex items-center justify-between sticky top-0 z-[100]">
-          <div className="flex items-center gap-4">
-            <button 
-              type="button"
-              onClick={() => handleGoBack(navigate, '/account')} 
-              className="p-1 -ml-1 hover:bg-[#FAF4EE] rounded-full transition-colors text-gray-800 cursor-pointer shrink-0"
-              aria-label="Go back"
-            >
-              <ArrowLeft size={22} strokeWidth={2.5} />
-            </button>
-            <h1 className="text-[17px] font-semibold text-gray-900 leading-tight">My Orders</h1>
+    <div className="w-full bg-[#FAF8F5] min-h-screen font-sans flex flex-col text-[#2B221B] selection:bg-[#EBDCCB]">
+      {/* Universal Header with matching alignment, searchless mode and account back navigation */}
+      <Header
+        user={user}
+        cartCount={cartCount || 0}
+        wishlistCount={wishlistCount || 0}
+        title="My Orders"
+        showBack={true}
+        backPath="/account"
+        showSearch={false}
+      />
+
+      <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-5 sm:py-8 flex flex-col">
+        {/* Page Heading & Artisanal Context Header */}
+        <div className="pb-5 mb-5 border-b border-[#EADBCC]/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
+                My Orders
+              </h1>
+              <span className="text-xs sm:text-sm font-bold bg-[#F2E8DE] text-[#C85A32] px-2.5 py-0.5 rounded-full">
+                {orders.length} {orders.length === 1 ? 'order' : 'orders'}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#735A4C] mt-1">
+              Track your artisanal creations, view fulfillment milestones, and download invoices.
+            </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/products')}
+            className="self-start sm:self-auto text-xs font-semibold text-[#8C3F1E] hover:text-[#C85A32] flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span>Explore All Crafts</span>
+            <ChevronRight size={14} />
+          </button>
         </div>
 
-        {/* Search bar */}
-        <div className="w-full bg-transparent pt-4 sm:pt-5 pb-2 px-4 sm:px-8">
-          <div className="max-w-2xl mx-auto">
-            <div className="relative flex items-center bg-white rounded-full shadow-[0_2px_12px_rgba(43,34,27,0.04)] focus-within:ring-2 focus-within:ring-[#C85A32]/25 transition-all">
+        {/* Search Bar & Horizontal Filters */}
+        <div className="w-full mb-6 space-y-3.5">
+          <div className="max-w-xl">
+            <div className="relative flex items-center bg-white rounded-full border border-[#E5D7CA] focus-within:border-[#C85A32] focus-within:ring-2 focus-within:ring-[#C85A32]/20 shadow-2xs hover:border-[#D5C2B2] transition-all">
               <Search
                 size={18}
                 className="absolute left-4 text-[#8C6D58] pointer-events-none shrink-0"
@@ -594,7 +619,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by Order ID or Product name..."
-                className="w-full pl-11 pr-11 py-2.5 sm:py-3 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
+                className="w-full pl-11 pr-11 py-2.5 bg-transparent rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58]/80 outline-none font-medium"
                 aria-label="Search orders"
               />
               {searchQuery && (
@@ -610,11 +635,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
               )}
             </div>
           </div>
-        </div>
 
-        {/* Horizontal Filters */}
-        <div className="px-4 sm:px-8 py-2.5 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-2 min-w-max">
+          {/* Filter Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
             {[
               { id: 'all', label: 'All Orders' },
               { id: 'delivered', label: 'Delivered' },
@@ -628,7 +651,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                   className={`h-8 px-4 inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer ${
                     isActive
                       ? 'bg-[#C85A32] text-white shadow-xs'
-                      : 'bg-white text-gray-700 hover:bg-[#F7EFE8] shadow-[0_1px_4px_rgba(43,34,27,0.03)]'
+                      : 'bg-transparent text-[#4E392D] hover:bg-[#F2E8DE]/60 border border-[#EADBCC]'
                   }`}
                 >
                   {filter.label}
@@ -638,20 +661,20 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
           </div>
         </div>
 
-        {/* Orders List or OrderHistorySkeleton on load/refresh */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-3 pb-28 md:pb-8">
+        {/* Orders List */}
+        <div className="flex-1 pb-24 md:pb-12">
           {isLoading ? (
             <OrderHistorySkeleton />
           ) : filteredOrders.length === 0 ? (
-            <div className="py-16 text-center my-4 bg-white rounded-3xl p-8 shadow-[0_4px_20px_rgba(43,34,27,0.03)]">
+            <div className="py-16 text-center my-4 bg-transparent border border-[#EADBCC] rounded-3xl p-8">
               <Package size={52} className="text-[#C85A32]/40 mx-auto mb-3" />
-              <h3 className="text-base font-bold text-gray-800">No orders found</h3>
-              <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+              <h3 className="text-base font-bold text-[#2B221B]">No orders found</h3>
+              <p className="text-xs text-[#735A4C] mt-1 max-w-xs mx-auto">
                 {searchQuery ? `No orders matching "${searchQuery}"` : 'You have not placed any orders in this category yet.'}
               </p>
               <button
-                onClick={() => navigate('/')}
-                className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-full hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-sm"
+                onClick={() => navigate('/products')}
+                className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-full hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-xs"
               >
                 Start Shopping
               </button>
@@ -699,48 +722,58 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 return (
                   <div 
                     key={`${order.id}-${orderIdx}`} 
-                    className="bg-white rounded-3xl p-5 sm:p-7 shadow-[0_4px_24px_rgba(43,34,27,0.04)] hover:shadow-[0_8px_32px_rgba(43,34,27,0.07)] transition-all space-y-4"
+                    className="bg-transparent rounded-2xl sm:rounded-3xl border border-[#EADBCC] p-5 sm:p-7 hover:border-[#D5C2B2] transition-colors space-y-5"
                   >
                     {/* Order Subheader */}
-                    <div className="flex items-center justify-between gap-3 pb-3 border-b border-[#F4ECE3]">
+                    <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#EADBCC]/80">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="text-sm font-bold text-gray-900 tracking-tight">Order #{order.id}</span>
+                          <span className="text-sm sm:text-base font-bold text-[#2B221B] tracking-tight">Order #{order.id}</span>
                           {isDelivered && (
-                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-emerald-200/60">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
                             </span>
                           )}
                           {isProcessing && (
-                            <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-amber-200/60">
                               Processing
                             </span>
                           )}
                           {isShipped && (
-                            <span className="bg-blue-50 text-blue-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="bg-blue-50 text-blue-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-blue-200/60">
                               <Truck size={12} /> Shipped
                             </span>
                           )}
                           {isCancelled && (
-                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-rose-200/60">
                               <XCircle size={12} strokeWidth={2.5} /> Cancelled
                             </span>
                           )}
                           {isFailed && (
-                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="bg-rose-50 text-rose-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-rose-200/60">
                               <AlertCircle size={12} strokeWidth={2.5} /> Failed
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">Placed on {order.date}</p>
+                        <p className="text-xs text-[#735A4C] mt-0.5">Placed on {order.date}</p>
                       </div>
 
-                      {/* Single Menu Button */}
-                      <div className="relative shrink-0 -mr-1">
+                      {/* Menu & Receipt Actions */}
+                      <div className="relative shrink-0 -mr-1 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadReceipt(order)}
+                          className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-[#8C3F1E] hover:bg-[#F2E8DE]/60 border border-[#EADBCC] transition-colors cursor-pointer"
+                          title="Download order receipt"
+                        >
+                          <Download size={13} />
+                          <span>Receipt</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => setActiveMenuOrderId(isMenuOpen ? null : order.id)}
-                          className="p-1.5 hover:bg-[#FAF4EE] rounded-full text-gray-700 transition-colors cursor-pointer shrink-0"
+                          className="p-1.5 hover:bg-[#F2E8DE]/60 rounded-full text-[#4E392D] transition-colors cursor-pointer shrink-0"
                           aria-label="Order Options"
                         >
                           <MoreVertical size={19} />
@@ -753,7 +786,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                               className="fixed inset-0 z-40" 
                               onClick={() => setActiveMenuOrderId(null)} 
                             />
-                            <div className="absolute right-0 top-9 sm:top-10 z-50 w-[170px] bg-white rounded-2xl py-1 shadow-xl border border-black/[0.04] animate-in fade-in duration-100">
+                            <div className="absolute right-0 top-9 sm:top-10 z-50 w-[180px] bg-white rounded-2xl py-1 shadow-xl border border-[#EADBCC] animate-in fade-in duration-100">
                               <button
                                 type="button"
                                 onClick={() => handleDownloadReceipt(order)}
@@ -781,99 +814,106 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                       </div>
                     </div>
 
-                    {/* Products List */}
-                    <div className="divide-y divide-[#F4ECE3]">
-                      {order.items.map((item, idx) => (
-                        <div 
-                          key={idx} 
-                          onClick={() => navigate(item.id ? `/product/${item.id}` : '/')}
-                          className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:bg-[#FAF6F3]/80 p-2 -mx-2 rounded-2xl transition-colors group"
-                          title="Click to view product details"
-                        >
-                          <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
-                            <div className="w-[76px] h-[76px] bg-[#FAF5EF] rounded-2xl p-1.5 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-102 transition-transform">
-                              <img 
-                                src={item.image} 
-                                alt={item.name} 
-                                loading="lazy"
-                                decoding="async"
-                                referrerPolicy="no-referrer"
-                                className="w-full h-full object-contain" 
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0 pr-1">
-                              <h4 className="text-[15px] font-medium text-gray-900 group-hover:text-[#C85A32] transition-colors line-clamp-1 leading-tight mb-1">
-                                {item.name}
-                              </h4>
-                              <div className="flex items-center gap-2 text-xs text-gray-500">
-                                <span>Qty: <strong className="text-gray-800">{item.quantity}</strong></span>
-                                <span>•</span>
-                                <span className="font-semibold text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>
+                    {/* Order Body Grid: Products on Left, Price Breakdown on Right on desktop */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                      {/* Products List */}
+                      <div className="lg:col-span-7 xl:col-span-8 divide-y divide-[#EADBCC]/60">
+                        {order.items.map((item, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => navigate(item.id ? `/product/${item.id}` : '/')}
+                            className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3 sm:gap-4 cursor-pointer hover:bg-[#F2E8DE]/40 p-2 -mx-2 rounded-2xl transition-colors group"
+                            title="Click to view product details"
+                          >
+                            <div className="flex gap-3 sm:gap-4 items-start min-w-0 flex-1">
+                              <div className="w-[76px] h-[76px] sm:w-[84px] sm:h-[84px] bg-[#FAF5EF] border border-[#EADBCC]/60 rounded-2xl p-1.5 flex items-center justify-center shrink-0 overflow-hidden group-hover:scale-102 transition-transform">
+                                <img 
+                                  src={item.image} 
+                                  alt={item.name} 
+                                  loading="lazy" 
+                                  decoding="async"
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-contain" 
+                                />
                               </div>
-                              <div className="mt-2 text-xs text-gray-600">
-                                {isDelivered ? (
-                                  <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                                    <CheckCircle2 size={13} strokeWidth={2.5} />
-                                    Delivered on {order.date}
-                                  </span>
-                                ) : isCancelled ? (
-                                  <span className="font-semibold text-rose-600 flex items-center gap-1">
-                                    <XCircle size={13} strokeWidth={2.5} />
-                                    Cancelled on {order.date}
-                                  </span>
-                                ) : isFailed ? (
-                                  <span className="font-semibold text-rose-600 flex items-center gap-1">
-                                    <AlertCircle size={13} strokeWidth={2.5} />
-                                    Payment Failed on {order.date}
-                                  </span>
-                                ) : isShipped ? (
-                                  <span className="font-semibold text-blue-700 flex items-center gap-1">
-                                    <Truck size={13} />
-                                    Shipped • On the way
-                                  </span>
-                                ) : (
-                                  <>
-                                    Delivery by <span className="font-semibold text-gray-900">{deliveryDateText.replace('Delivery by ', '')}</span>
-                                  </>
-                                )}
+                              <div className="flex-1 min-w-0 pr-1">
+                                <h4 className="text-[15px] font-medium text-[#2B221B] group-hover:text-[#C85A32] transition-colors line-clamp-1 leading-tight mb-1">
+                                  {item.name}
+                                </h4>
+                                <div className="flex items-center gap-2 text-xs text-[#735A4C]">
+                                  <span>Qty: <strong className="text-[#2B221B]">{item.quantity}</strong></span>
+                                  <span>•</span>
+                                  <span className="font-semibold text-[#2B221B]">₹{(item.price * item.quantity).toLocaleString()}</span>
+                                </div>
+                                <div className="mt-2 text-xs text-[#735A4C]">
+                                  {isDelivered ? (
+                                    <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                                      <CheckCircle2 size={13} strokeWidth={2.5} />
+                                      Delivered on {order.date}
+                                    </span>
+                                  ) : isCancelled ? (
+                                    <span className="font-semibold text-rose-600 flex items-center gap-1">
+                                      <XCircle size={13} strokeWidth={2.5} />
+                                      Cancelled on {order.date}
+                                    </span>
+                                  ) : isFailed ? (
+                                    <span className="font-semibold text-rose-600 flex items-center gap-1">
+                                      <AlertCircle size={13} strokeWidth={2.5} />
+                                      Payment Failed on {order.date}
+                                    </span>
+                                  ) : isShipped ? (
+                                    <span className="font-semibold text-blue-700 flex items-center gap-1">
+                                      <Truck size={13} />
+                                      Shipped • Dispatched in Insured Crate
+                                    </span>
+                                  ) : (
+                                    <>
+                                      Delivery by <span className="font-semibold text-[#2B221B]">{deliveryDateText.replace('Delivery by ', '')}</span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
+                            <ChevronRight size={18} className="text-[#8C6D58]/60 group-hover:text-[#C85A32] shrink-0 transition-colors" />
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
 
-                    {/* Price Details Breakdown */}
-                    <div className="pt-3 border-t border-[#F4ECE3] space-y-2 text-xs sm:text-sm text-gray-700">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">MRP ({totalItemQty} {totalItemQty === 1 ? 'item' : 'items'})</span>
-                        <span className="text-gray-800 font-medium">₹{mrp.toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Discount</span>
-                        <span className="text-[#8C3F1E] font-medium">
-                          {discount > 0 ? `- ₹${discount.toLocaleString()}` : '- ₹0'}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-500">Delivery</span>
-                        <span className="text-[#8C3F1E] font-medium">Free</span>
-                      </div>
-                      <div className="flex justify-between text-xs pt-1 border-t border-[#F4ECE3]">
-                        <span className="text-gray-500">Payment Method</span>
-                        <span className="text-gray-800 font-semibold">{order.paymentMethod || 'Razorpay Online'}</span>
-                      </div>
-                      {order.paymentId && (
-                        <div className="flex justify-between font-mono text-[11px]">
-                          <span className="text-gray-500">Razorpay Ref</span>
-                          <span className="text-gray-700 font-semibold">{order.paymentId}</span>
+                      {/* Price Details Breakdown */}
+                      <div className="lg:col-span-5 xl:col-span-4 border-t lg:border-t-0 lg:border-l border-[#EADBCC]/80 pt-4 lg:pt-0 lg:pl-6 space-y-2 text-xs sm:text-sm text-[#4E392D]">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#8C3F1E] pb-1">
+                          Price & Payment Details
                         </div>
-                      )}
+                        <div className="flex justify-between">
+                          <span className="text-[#735A4C]">MRP ({totalItemQty} {totalItemQty === 1 ? 'item' : 'items'})</span>
+                          <span className="text-[#2B221B] font-medium">₹{mrp.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#735A4C]">Artisan Discount</span>
+                          <span className="text-[#8C3F1E] font-medium">
+                            {discount > 0 ? `- ₹${discount.toLocaleString()}` : '- ₹0'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-[#735A4C]">Insured Delivery</span>
+                          <span className="text-emerald-700 font-medium">Free</span>
+                        </div>
+                        <div className="flex justify-between text-xs pt-1.5 border-t border-[#EADBCC]/60">
+                          <span className="text-[#735A4C]">Payment Method</span>
+                          <span className="text-[#2B221B] font-semibold">{order.paymentMethod || 'Razorpay Online'}</span>
+                        </div>
+                        {order.paymentId && (
+                          <div className="flex justify-between font-mono text-[11px]">
+                            <span className="text-[#735A4C]">Transaction Ref</span>
+                            <span className="text-[#4E392D] font-medium truncate max-w-[180px] text-right">{order.paymentId}</span>
+                          </div>
+                        )}
 
-                      {/* Total price row */}
-                      <div className="flex items-center justify-between font-bold text-gray-900 text-sm sm:text-base pt-2.5 mt-1 border-t border-[#F4ECE3]">
-                        <span>Total price</span>
-                        <span className="text-base sm:text-lg font-bold text-[#2B221B]">₹{order.total.toLocaleString()}</span>
+                        {/* Total price row */}
+                        <div className="flex items-center justify-between font-bold text-[#2B221B] text-sm sm:text-base pt-2.5 mt-1 border-t border-[#EADBCC]">
+                          <span>Total Amount</span>
+                          <span className="text-base sm:text-lg font-bold text-[#C85A32]">₹{order.total.toLocaleString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

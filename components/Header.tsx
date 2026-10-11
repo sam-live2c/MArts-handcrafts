@@ -19,6 +19,8 @@ interface HeaderProps {
   onLogout?: () => void;
   title?: string;
   showBack?: boolean;
+  backPath?: string;
+  onBack?: () => void;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   wishlistCount?: number;
@@ -32,6 +34,8 @@ const Header: React.FC<HeaderProps> = ({
   cartCount,
   title,
   showBack,
+  backPath,
+  onBack,
   searchQuery = "",
   onSearchChange,
   wishlistCount,
@@ -70,7 +74,11 @@ const Header: React.FC<HeaderProps> = ({
   }, [location.pathname]);
 
   const handleBack = () => {
-    handleGoBack(navigate, '/');
+    if (onBack) {
+      onBack();
+    } else {
+      handleGoBack(navigate, backPath || '/');
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
