@@ -305,11 +305,23 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 3500);
   };
 
-  const addToCart = (item: CartItem) => {
+  const addToCart = (item: CartItem, silent?: boolean) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id);
       if (existing) return prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + (item.quantity || 1) } : i);
       return [...prev, item];
+    });
+    if (!silent) {
+      showToast(`${item.name} added to cart!`, 'cart', item);
+    }
+  };
+
+  const updateCartQuantity = (productId: string, quantity: number) => {
+    setCart(prev => {
+      if (quantity <= 0) {
+        return prev.filter(item => item.id !== productId);
+      }
+      return prev.map(item => item.id === productId ? { ...item, quantity } : item);
     });
   };
 
@@ -420,8 +432,10 @@ const App: React.FC = () => {
               element={
                 <ProductDetail
                   user={user}
+                  cart={cart}
                   cartCount={cartTotalQuantity}
                   onAddToCart={addToCart}
+                  onUpdateCartQuantity={updateCartQuantity}
                   wishlist={wishlist}
                   onToggleWishlist={toggleWishlist}
                   products={products}

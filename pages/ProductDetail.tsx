@@ -38,6 +38,8 @@ interface ProductDetailProps {
   user?: User | null;
   cartCount?: number;
   products?: Product[];
+  cart?: CartItem[];
+  onUpdateCartQuantity?: (productId: string, quantity: number) => void;
 }
 
 
@@ -50,7 +52,9 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   onToggleWishlist,
   user,
   cartCount = 0,
-  products
+  products,
+  cart = [],
+  onUpdateCartQuantity,
 }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -112,7 +116,6 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   }, [id]);
 
   const [selectedImg, setSelectedImg] = useState(0);
-  const [selectedQty, setSelectedQty] = useState(1);
   const [activeTab, setActiveTab] = useState<"details" | "specs" | "reviews">("details");
   const [copiedLink, setCopiedLink] = useState(false);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -388,46 +391,97 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     }
   };
 
+  const inCartItem = useMemo(() => {
+    if (!product) return null;
+    if (cart && Array.isArray(cart)) {
+      return cart.find((item) => item.id === product.id) || null;
+    }
+    try {
+      const saved = localStorage.getItem('marts_cart') || localStorage.getItem('melody_cart');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.find((item: CartItem) => item.id === product.id) || null;
+        }
+      }
+    } catch {}
+    return null;
+  }, [product, cart]);
+
+  const quantityInCart = inCartItem ? inCartItem.quantity : 0;
+
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [id]);
 
   const handleDecreaseQty = () => {
-    if (selectedQty > 1) {
-      setSelectedQty((prev) => prev - 1);
+    if (!product) return;
+    if (quantityInCart > 1) {
+      if (onUpdateCartQuantity) {
+        onUpdateCartQuantity(product.id, quantityInCart - 1);
+      }
+    } else if (quantityInCart === 1) {
+      if (onUpdateCartQuantity) {
+        onUpdateCartQuantity(product.id, 0);
+      }
     }
   };
 
   const handleIncreaseQty = () => {
     if (!product) return;
-    const nextQty = selectedQty + 1;
-    setSelectedQty(nextQty);
-    onAddToCart(
-      {
-        ...product,
-        quantity: 1,
-      },
-      true
-    );
+    if (quantityInCart === 0) {
+      onAddToCart(
+        {
+          ...product,
+          quantity: 1,
+        },
+        true
+      );
+    } else {
+      if (onUpdateCartQuantity) {
+        onUpdateCartQuantity(product.id, quantityInCart + 1);
+      } else {
+        onAddToCart(
+          {
+            ...product,
+            quantity: 1,
+          },
+          true
+        );
+      }
+    }
   };
 
   const handleAddToCart = () => {
     if (!product) return;
-    onAddToCart({
-      ...product,
-      quantity: selectedQty,
-    });
+    if (quantityInCart === 0) {
+      onAddToCart({
+        ...product,
+        quantity: 1,
+      });
+    } else {
+      if (onUpdateCartQuantity) {
+        onUpdateCartQuantity(product.id, quantityInCart + 1);
+      } else {
+        onAddToCart({
+          ...product,
+          quantity: 1,
+        });
+      }
+    }
   };
 
   const handleBuyNow = () => {
     if (!product) return;
-    onAddToCart(
-      {
-        ...product,
-        quantity: selectedQty,
-      },
-      true
-    );
+    if (quantityInCart === 0) {
+      onAddToCart(
+        {
+          ...product,
+          quantity: 1,
+        },
+        true
+      );
+    }
 
     if (!user) {
       navigate("/login?redirect=checkout");
@@ -733,25 +787,28 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
                 </div>
               </div>
 
-              {/* Quantity Stepper with theme terracotta styling */}
-              <div className="mt-1 w-full bg-[#FAF5EE] border border-[#EADBCC] text-[#2B221B] h-[48px] rounded-xl px-2.5 hidden sm:flex items-center justify-between shadow-2xs">
+              {/* Quantity Stepper synced with Cart - No border */}
+              <div className="mt-1 w-full bg-[#FAF5EE] text-[#2B221B] h-[48px] rounded-xl px-2.5 flex items-center justify-between border-0 shadow-2xs">
                 <button
                   type="button"
                   onClick={handleDecreaseQty}
-                  className="w-8 h-8 rounded-lg bg-white border border-[#E5D7CA] text-[#2B221B] flex items-center justify-center active:scale-90 hover:bg-[#FAF0E6] transition-transform cursor-pointer shadow-2xs"
+                  disabled={quantityInCart <= 0}
+                  className={`w-8 h-8 rounded-lg bg-white text-[#2B221B] flex items-center justify-center transition-all cursor-pointer shadow-2xs border-0 ${
+                    quantityInCart <= 0 ? "opacity-35 cursor-not-allowed" : "active:scale-90 hover:bg-[#FAF0E6]"
+                  }`}
                   aria-label="Decrease quantity"
                 >
                   <Minus size={16} strokeWidth={2.5} />
                 </button>
 
                 <span className="font-bold text-sm text-[#2B221B] tracking-wide select-none">
-                  {selectedQty} in cart
+                  {quantityInCart} in cart
                 </span>
 
                 <button
                   type="button"
                   onClick={handleIncreaseQty}
-                  className="w-8 h-8 rounded-lg bg-white border border-[#E5D7CA] text-[#2B221B] flex items-center justify-center active:scale-90 hover:bg-[#FAF0E6] transition-transform cursor-pointer shadow-2xs"
+                  className="w-8 h-8 rounded-lg bg-white text-[#2B221B] flex items-center justify-center active:scale-90 hover:bg-[#FAF0E6] transition-transform cursor-pointer shadow-2xs border-0"
                   aria-label="Increase quantity"
                 >
                   <Plus size={16} strokeWidth={2.5} />
