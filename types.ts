@@ -115,6 +115,36 @@ export interface User {
   role?: 'customer' | 'admin' | string;
 }
 
+export interface OrderPricing {
+  mrp: number;
+  subtotal: number;
+  discount: number;
+  customizationFee: number;
+  deliveryFee: number;
+  total: number;
+  savings?: number;
+}
+
+export interface OrderTrackingStep {
+  status: string;
+  label: string;
+  completed: boolean;
+  timestamp: number | null;
+}
+
+export interface OrderTracking {
+  currentStatus: Order['status'];
+  updatedAt: number;
+  steps: OrderTrackingStep[];
+}
+
+export interface OrderStatusHistoryItem {
+  status: Order['status'];
+  timestamp: number;
+  label?: string;
+  note?: string;
+}
+
 export interface Order {
   id: string;
   date: string;
@@ -133,4 +163,16 @@ export interface Order {
   createdAt?: number;
   updatedAt?: number;
   cancelReason?: string;
+  // Standardized order pricing calculations for tracking & admin panel
+  mrp?: number;
+  subtotal?: number;
+  discount?: number;
+  savings?: number;
+  customizationFee?: number;
+  deliveryFee?: number;
+  itemCount?: number;
+  pricing?: OrderPricing;
+  // Standardized order status tracking for tracking & admin panel
+  tracking?: OrderTracking;
+  statusHistory?: OrderStatusHistoryItem[];
 }

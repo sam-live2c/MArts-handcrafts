@@ -469,36 +469,122 @@ export const fetchAllOrdersAdmin = async (): Promise<Order[]> => {
 };
 
 /**
+ * Calculates or retrieves the standardized pricing breakdown for an order
+ */
+export const getOrderPricingBreakdown = (order: Order) => {
+  if (order.pricing) {
+    return order.pricing;
+  }
+  const safeItems = Array.isArray(order.items) ? order.items : [];
+  const mrp = order.mrp !== undefined ? order.mrp : safeItems.reduce((acc, item) => {
+    const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+      ? Number(item.oldPrice) 
+      : Number(item.price || 0);
+    return acc + (itemMrp * (Number(item.quantity) || 1));
+  }, 0);
+  const subtotal = order.subtotal !== undefined ? order.subtotal : safeItems.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+  const discount = order.discount !== undefined ? order.discount : Math.max(0, mrp - subtotal);
+  const customizationFee = order.customizationFee !== undefined ? order.customizationFee : 0;
+  const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : 0;
+  const total = order.total || (subtotal + customizationFee + deliveryFee);
+
+  return {
+    mrp,
+    subtotal,
+    discount,
+    savings: discount,
+    customizationFee,
+    deliveryFee,
+    total
+  };
+};
+
+/**
  * Updates order fulfillment status (e.g. Processing -> Shipped -> Delivered)
+ * Maintains exact status tracking timeline, status history audit trail, and pricing consistency.
  */
 export const updateOrderStatusAdmin = async (
   orderId: string,
   userId: string,
-  newStatus: Order['status']
+  newStatus: Order['status'],
+  note?: string
 ): Promise<void> => {
   try {
     const globalOrderRef = doc(db, 'orders', orderId);
-    await setDoc(globalOrderRef, {
-      status: newStatus,
-      updatedAt: Date.now()
-    }, { merge: true });
+    const snap = await getDoc(globalOrderRef);
+    const existingOrder = snap.exists() ? (snap.data() as Order) : null;
 
-    let targetUid = userId;
+    const now = Date.now();
+    const isDelivered = newStatus === 'Delivered';
+    const isShipped = newStatus === 'Shipped' || isDelivered;
+    const isProcessing = newStatus !== 'Cancelled' && newStatus !== 'Failed';
+
+    let updatedTracking = existingOrder?.tracking;
+    if (updatedTracking && Array.isArray(updatedTracking.steps)) {
+      updatedTracking = {
+        currentStatus: newStatus,
+        updatedAt: now,
+        steps: updatedTracking.steps.map(step => {
+          if (step.status === 'Placed') return { ...step, completed: true };
+          if (step.status === 'Processing') return { ...step, completed: isProcessing };
+          if (step.status === 'Shipped') {
+            return {
+              ...step,
+              completed: isShipped,
+              timestamp: isShipped ? (step.timestamp || now) : null
+            };
+          }
+          if (step.status === 'Delivered') {
+            return {
+              ...step,
+              completed: isDelivered,
+              timestamp: isDelivered ? (step.timestamp || now) : null
+            };
+          }
+          return step;
+        })
+      };
+    } else {
+      updatedTracking = {
+        currentStatus: newStatus,
+        updatedAt: now,
+        steps: [
+          { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: existingOrder?.createdAt || now },
+          { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: isProcessing, timestamp: existingOrder?.createdAt || now },
+          { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: isShipped, timestamp: isShipped ? now : null },
+          { status: 'Delivered', label: 'Delivered to Doorstep', completed: isDelivered, timestamp: isDelivered ? now : null }
+        ]
+      };
+    }
+
+    const existingHistory = Array.isArray(existingOrder?.statusHistory) ? existingOrder.statusHistory : [];
+    const updatedHistory = [
+      ...existingHistory,
+      {
+        status: newStatus,
+        timestamp: now,
+        label: `Order status set to ${newStatus}`,
+        note: note || `Fulfillment milestone updated by admin: ${newStatus}.`
+      }
+    ];
+
+    const updateFields: Partial<Order> = {
+      status: newStatus,
+      updatedAt: now,
+      tracking: updatedTracking,
+      statusHistory: updatedHistory
+    };
+
+    await setDoc(globalOrderRef, updateFields, { merge: true });
+
+    let targetUid = userId || existingOrder?.userId;
     if (!targetUid) {
-      try {
-        const snap = await getDoc(globalOrderRef);
-        if (snap.exists()) {
-          targetUid = snap.data()?.userId;
-        }
-      } catch (_) {}
+      targetUid = snap.data()?.userId;
     }
 
     if (targetUid && targetUid !== 'guest') {
       const userOrderRef = doc(db, 'users', targetUid, 'orders', orderId);
-      await setDoc(userOrderRef, {
-        status: newStatus,
-        updatedAt: Date.now()
-      }, { merge: true });
+      await setDoc(userOrderRef, updateFields, { merge: true });
 
       try {
         const userDocRef = doc(db, 'users', targetUid);
@@ -506,7 +592,7 @@ export const updateOrderStatusAdmin = async (
         if (userSnap.exists()) {
           const uData = userSnap.data();
           if (Array.isArray(uData.orders)) {
-            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, status: newStatus } : o);
+            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, ...updateFields } : o);
             await setDoc(userDocRef, { orders: updatedOrders, updatedAt: new Date().toISOString() }, { merge: true });
           }
         }

@@ -258,7 +258,7 @@
     },
     "Order": {
       "title": "Order",
-      "description": "Customer purchase order",
+      "description": "Customer purchase order with standardized pricing calculations and fulfillment milestone tracking",
       "type": "object",
       "properties": {
         "id": {
@@ -277,26 +277,94 @@
           "type": "string",
           "description": "Customer contact number"
         },
+        "customerEmail": {
+          "type": "string",
+          "description": "Customer contact email address"
+        },
         "customerAddress": {
           "type": "string",
-          "description": "Full shipping address"
+          "description": "Full shipping address text string"
+        },
+        "shippingAddress": {
+          "type": "object",
+          "description": "Standardized StoreDeliveryAddress object for shipment and courier routing"
         },
         "total": {
           "type": "number",
-          "description": "Order total amount in INR"
+          "description": "Final payable order total in INR"
+        },
+        "mrp": {
+          "type": "number",
+          "description": "Original Maximum Retail Price sum of all line items"
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Base subtotal amount before customization and discounts"
+        },
+        "discount": {
+          "type": "number",
+          "description": "Discount applied on the order"
+        },
+        "savings": {
+          "type": "number",
+          "description": "Customer savings amount in INR"
+        },
+        "customizationFee": {
+          "type": "number",
+          "description": "Customization fee for bespoke engraving or personalization"
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Delivery / shipping charge in INR"
+        },
+        "itemCount": {
+          "type": "number",
+          "description": "Total quantity of artisan goods in the order"
+        },
+        "pricing": {
+          "type": "object",
+          "description": "Complete standardized order pricing breakdown calculation object"
         },
         "status": {
           "type": "string",
           "description": "Current order lifecycle status",
           "enum": ["Processing", "Shipped", "Delivered", "Cancelled", "Failed"]
         },
+        "paymentId": {
+          "type": "string",
+          "description": "Payment gateway transaction reference identifier"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment instrument used (Online Payment / Cash on Delivery)"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Settlement state of payment (PAID / PENDING / REFUNDED / FAILED)"
+        },
+        "tracking": {
+          "type": "object",
+          "description": "Milestone-by-milestone fulfillment tracking steps with completion states and timestamps"
+        },
+        "statusHistory": {
+          "type": "array",
+          "description": "Audit history array documenting timestamped order state changes"
+        },
         "items": {
           "type": "array",
-          "description": "Line items in the order"
+          "description": "Line items in the order including quantities and customizations"
+        },
+        "date": {
+          "type": "string",
+          "description": "Formatted local order date string"
         },
         "createdAt": {
           "type": "number",
           "description": "Order placement timestamp"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last order status or details modification timestamp"
         }
       },
       "required": ["id", "userId", "total", "status"]

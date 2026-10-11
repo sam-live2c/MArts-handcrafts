@@ -610,15 +610,23 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 const isActiveOrder = isProcessing || isShipped;
                 const isMenuOpen = activeMenuOrderId === order.id;
 
-                const totalItemQty = order.items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
-                const itemsBaseTotal = order.items.reduce((acc, item) => acc + (Number(item.price || 0) * (Number(item.quantity) || 1)), 0);
-                const mrp = order.items.reduce((acc, item) => {
-                  const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
-                    ? Number(item.oldPrice) 
-                    : Number(item.price || 0);
-                  return acc + (itemMrp * (Number(item.quantity) || 1));
-                }, 0);
-                const discount = Math.max(0, mrp - itemsBaseTotal);
+                const totalItemQty = order.itemCount !== undefined 
+                  ? order.itemCount 
+                  : order.items.reduce((s, i) => s + (Number(i.quantity) || 1), 0);
+                const itemsBaseTotal = order.subtotal !== undefined 
+                  ? order.subtotal 
+                  : order.items.reduce((acc, item) => acc + (Number(item.price || 0) * (Number(item.quantity) || 1)), 0);
+                const mrp = order.mrp !== undefined 
+                  ? order.mrp 
+                  : order.items.reduce((acc, item) => {
+                    const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+                      ? Number(item.oldPrice) 
+                      : Number(item.price || 0);
+                    return acc + (itemMrp * (Number(item.quantity) || 1));
+                  }, 0);
+                const discount = order.discount !== undefined 
+                  ? order.discount 
+                  : Math.max(0, mrp - itemsBaseTotal);
 
                 const deliveryDateText = isDelivered
                   ? `Delivered on ${order.date}`

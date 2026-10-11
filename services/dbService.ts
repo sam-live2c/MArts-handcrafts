@@ -837,6 +837,101 @@ export const deleteNotificationFromFirestore = async (uid: string, notifId: stri
   }
 };
 
+// ================= ORDER PRICING & TRACKING HELPERS =================
+export const calculateOrderPricing = (
+  items: CartItem[], 
+  customizationFee: number = 0, 
+  deliveryFee: number = 0
+): {
+  mrp: number;
+  subtotal: number;
+  discount: number;
+  savings: number;
+  customizationFee: number;
+  deliveryFee: number;
+  total: number;
+  itemCount: number;
+} => {
+  const safeItems = Array.isArray(items) ? items : [];
+  const itemCount = safeItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const mrp = safeItems.reduce((acc, item) => {
+    const itemMrp = item.oldPrice && Number(item.oldPrice) > Number(item.price) 
+      ? Number(item.oldPrice) 
+      : Number(item.price || 0);
+    return acc + (itemMrp * (Number(item.quantity) || 1));
+  }, 0);
+  const subtotal = safeItems.reduce((acc, item) => acc + ((Number(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+  const discount = Math.max(0, mrp - subtotal);
+  const total = subtotal + customizationFee + deliveryFee;
+
+  return {
+    mrp,
+    subtotal,
+    discount,
+    savings: discount,
+    customizationFee,
+    deliveryFee,
+    total,
+    itemCount
+  };
+};
+
+export const createOrderTracking = (
+  status: Order['status'] = 'Processing', 
+  createdAt: number = Date.now()
+) => {
+  const isDelivered = status === 'Delivered';
+  const isShipped = status === 'Shipped' || isDelivered;
+  const isProcessing = status !== 'Cancelled' && status !== 'Failed';
+
+  return {
+    currentStatus: status,
+    updatedAt: Date.now(),
+    steps: [
+      { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: createdAt },
+      { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: isProcessing, timestamp: createdAt },
+      { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: isShipped, timestamp: isShipped ? Date.now() : null },
+      { status: 'Delivered', label: 'Delivered to Doorstep', completed: isDelivered, timestamp: isDelivered ? Date.now() : null }
+    ]
+  };
+};
+
+export const updateOrderTracking = (
+  existingTracking: any, 
+  newStatus: Order['status'], 
+  createdAt?: number
+) => {
+  const base = existingTracking || createOrderTracking(newStatus, createdAt);
+  const now = Date.now();
+  const isDelivered = newStatus === 'Delivered';
+  const isShipped = newStatus === 'Shipped' || isDelivered;
+  const isProcessing = newStatus !== 'Cancelled' && newStatus !== 'Failed';
+
+  return {
+    currentStatus: newStatus,
+    updatedAt: now,
+    steps: base.steps.map((step: any) => {
+      if (step.status === 'Placed') return { ...step, completed: true };
+      if (step.status === 'Processing') return { ...step, completed: isProcessing };
+      if (step.status === 'Shipped') {
+        return {
+          ...step,
+          completed: isShipped,
+          timestamp: isShipped ? (step.timestamp || now) : null
+        };
+      }
+      if (step.status === 'Delivered') {
+        return {
+          ...step,
+          completed: isDelivered,
+          timestamp: isDelivered ? (step.timestamp || now) : null
+        };
+      }
+      return step;
+    })
+  };
+};
+
 // ================= MY ORDERS =================
 export const fetchUserOrders = async (uid: string): Promise<Order[]> => {
   try {
@@ -859,16 +954,73 @@ export const fetchUserOrders = async (uid: string): Promise<Order[]> => {
   }
 };
 
-export const saveOrderToFirestore = async (uid: string | null, order: Order, customerInfo?: { name: string; phone: string; email: string; address?: string }): Promise<void> => {
-  const finalAddress = customerInfo?.address || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || '';
-  const orderData = {
+export const saveOrderToFirestore = async (
+  uid: string | null, 
+  order: Order, 
+  customerInfo?: { name?: string; phone?: string; email?: string; address?: string }
+): Promise<void> => {
+  const finalAddress = customerInfo?.address || order.customerAddress || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || '';
+
+  const pricingCalculated = calculateOrderPricing(
+    order.items, 
+    order.customizationFee || order.pricing?.customizationFee || 0,
+    order.deliveryFee || order.pricing?.deliveryFee || 0
+  );
+
+  const mrp = order.mrp !== undefined ? order.mrp : pricingCalculated.mrp;
+  const subtotal = order.subtotal !== undefined ? order.subtotal : pricingCalculated.subtotal;
+  const discount = order.discount !== undefined ? order.discount : pricingCalculated.discount;
+  const savings = order.savings !== undefined ? order.savings : discount;
+  const customizationFee = order.customizationFee !== undefined ? order.customizationFee : pricingCalculated.customizationFee;
+  const deliveryFee = order.deliveryFee !== undefined ? order.deliveryFee : pricingCalculated.deliveryFee;
+  const total = order.total || pricingCalculated.total;
+  const itemCount = order.itemCount !== undefined ? order.itemCount : pricingCalculated.itemCount;
+
+  const pricingData = order.pricing || {
+    mrp,
+    subtotal,
+    discount,
+    savings,
+    customizationFee,
+    deliveryFee,
+    total
+  };
+
+  const trackingData = order.tracking || createOrderTracking(order.status || 'Processing', order.createdAt || Date.now());
+
+  const statusHistory = Array.isArray(order.statusHistory) && order.statusHistory.length > 0 
+    ? order.statusHistory 
+    : [
+        {
+          status: order.status || 'Processing',
+          timestamp: order.createdAt || Date.now(),
+          label: `Order ${order.status || 'Processing'}`,
+          note: order.paymentMethod ? `Placed with ${order.paymentMethod}` : 'Order registered in fulfillment pipeline'
+        }
+      ];
+
+  const orderData: Order = {
     ...order,
-    userId: uid || 'guest',
-    customerName: customerInfo?.name || '',
-    customerPhone: customerInfo?.phone || '',
-    customerEmail: customerInfo?.email || '',
+    userId: uid || order.userId || 'guest',
+    customerName: customerInfo?.name || order.customerName || 'Customer',
+    customerPhone: customerInfo?.phone || order.customerPhone || '',
+    customerEmail: customerInfo?.email || order.customerEmail || '',
     customerAddress: finalAddress,
-    createdAt: Date.now()
+    shippingAddress: order.shippingAddress || null,
+    total,
+    mrp,
+    subtotal,
+    discount,
+    savings,
+    customizationFee,
+    deliveryFee,
+    itemCount,
+    pricing: pricingData,
+    status: order.status || 'Processing',
+    tracking: trackingData,
+    statusHistory,
+    createdAt: order.createdAt || Date.now(),
+    updatedAt: Date.now()
   };
 
   if (uid) {
@@ -917,39 +1069,62 @@ export const saveOrderToFirestore = async (uid: string | null, order: Order, cus
   }
 };
 
-export const updateOrderStatusInFirestore = async (uid: string | null, orderId: string, status: Order['status']): Promise<void> => {
-  if (uid) {
+export const updateOrderStatusInFirestore = async (
+  uid: string | null, 
+  orderId: string, 
+  status: Order['status'],
+  note?: string
+): Promise<void> => {
+  const now = Date.now();
+  let targetUid = uid;
+  let existingOrder: Order | null = null;
+
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'orders', orderId)), 2000);
+    if (snap.exists()) {
+      existingOrder = snap.data() as Order;
+      if (!targetUid) {
+        targetUid = existingOrder.userId;
+      }
+    }
+  } catch (_) {}
+
+  const updatedTracking = updateOrderTracking(existingOrder?.tracking, status, existingOrder?.createdAt);
+
+  const existingHistory = Array.isArray(existingOrder?.statusHistory) ? existingOrder.statusHistory : [];
+  const updatedHistory = [
+    ...existingHistory,
+    {
+      status,
+      timestamp: now,
+      label: `Order ${status}`,
+      note: note || (status === 'Cancelled' ? 'Order cancelled by customer.' : `Order status marked as ${status}.`)
+    }
+  ];
+
+  const updateFields: Partial<Order> = {
+    status,
+    updatedAt: now,
+    tracking: updatedTracking,
+    statusHistory: updatedHistory
+  };
+
+  if (targetUid && targetUid !== 'guest') {
     try {
-      const existing = await fetchUserOrders(uid);
-      const updated = existing.map(o => o.id === orderId ? { ...o, status } : o);
-      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updated));
+      const existing = await fetchUserOrders(targetUid);
+      const updated = existing.map(o => o.id === orderId ? { ...o, ...updateFields } : o);
+      localStorage.setItem(`melody_orders_${targetUid}`, JSON.stringify(updated));
       localStorage.setItem('melody_orders', JSON.stringify(updated));
     } catch (_) {}
   }
+
   try {
     // 1. Update the top-level global order document
-    await withTimeout(setDoc(doc(db, 'orders', orderId), { 
-      status, 
-      updatedAt: Date.now() 
-    }, { merge: true }), 3000);
+    await withTimeout(setDoc(doc(db, 'orders', orderId), updateFields, { merge: true }), 3000);
 
-    // 2. Identify target user ID (from parameter or document itself)
-    let targetUid = uid;
-    if (!targetUid) {
-      try {
-        const orderSnap = await withTimeout(getDoc(doc(db, 'orders', orderId)), 2000);
-        if (orderSnap.exists()) {
-          targetUid = orderSnap.data()?.userId;
-        }
-      } catch (_) {}
-    }
-
-    // 3. Update the user-specific order subcollection & parent profile
+    // 2. Update the user-specific order subcollection & parent profile
     if (targetUid && targetUid !== 'guest') {
-      await withTimeout(setDoc(doc(db, 'users', targetUid, 'orders', orderId), { 
-        status, 
-        updatedAt: Date.now() 
-      }, { merge: true }), 3000);
+      await withTimeout(setDoc(doc(db, 'users', targetUid, 'orders', orderId), updateFields, { merge: true }), 3000);
 
       try {
         const userDocRef = doc(db, 'users', targetUid);
@@ -957,7 +1132,7 @@ export const updateOrderStatusInFirestore = async (uid: string | null, orderId: 
         if (userSnap.exists()) {
           const uData = userSnap.data();
           if (Array.isArray(uData.orders)) {
-            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, status } : o);
+            const updatedOrders = uData.orders.map((o: Order) => o.id === orderId ? { ...o, ...updateFields } : o);
             await setDoc(userDocRef, { 
               orders: updatedOrders, 
               updatedAt: new Date().toISOString() 
@@ -1038,6 +1213,7 @@ export {
   fetchAllOrdersAdmin,
   updateOrderStatusAdmin,
   subscribeToOrdersAdmin,
+  getOrderPricingBreakdown,
   checkIsAdmin,
   grantAdminRole,
   type HeroBannerConfig

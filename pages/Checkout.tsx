@@ -364,6 +364,52 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           activeAddress.pincode
         ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
 
+        const storeDeliveryAddr: StoreDeliveryAddress = {
+          recipientName: activeAddress.name || user?.name || 'Customer',
+          phone: activeAddress.phone || user?.phone || '',
+          street: activeAddress.houseNo,
+          apartment: activeAddress.area || undefined,
+          postalCode: activeAddress.pincode,
+          pin: activeAddress.pincode,
+          city: activeAddress.city,
+          state: activeAddress.state,
+          country: 'India',
+          isDefault: true,
+          updatedAt: new Date().toISOString()
+        };
+
+        const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+        const pricingBreakdown = {
+          mrp: originalTotal,
+          subtotal: baseTotal,
+          discount: Math.max(0, originalTotal - baseTotal),
+          savings: Math.max(0, originalTotal - baseTotal),
+          customizationFee: customizationFee,
+          deliveryFee: 0,
+          total: total
+        };
+
+        const initialTracking = {
+          currentStatus: 'Processing' as const,
+          updatedAt: Date.now(),
+          steps: [
+            { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
+            { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
+            { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
+            { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
+          ]
+        };
+
+        const initialStatusHistory = [
+          {
+            status: 'Processing' as const,
+            timestamp: Date.now(),
+            label: 'Order Placed & Processing',
+            note: 'Payment verified via Razorpay. Order registered in artisan fulfillment queue.'
+          }
+        ];
+
         const newOrder: Order = {
           id: orderId,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -372,6 +418,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
             customization: customizations[item.id] || null
           })),
           total: total,
+          mrp: originalTotal,
+          subtotal: baseTotal,
+          discount: pricingBreakdown.discount,
+          savings: pricingBreakdown.savings,
+          customizationFee: customizationFee,
+          deliveryFee: 0,
+          itemCount: totalItemsCount,
+          pricing: pricingBreakdown,
           status: 'Processing',
           paymentId: paymentId,
           paymentMethod: 'Online Payment (UPI/Cards)',
@@ -380,7 +434,11 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           customerPhone: activeAddress.phone || user?.phone || '',
           customerEmail: user?.email || '',
           customerAddress: customerDeliveryAddr,
-          createdAt: Date.now()
+          shippingAddress: storeDeliveryAddr,
+          tracking: initialTracking,
+          statusHistory: initialStatusHistory,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         };
 
         setIsOrderPlaced(true);
@@ -420,6 +478,52 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           activeAddress.pincode
         ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
 
+        const storeDeliveryAddr: StoreDeliveryAddress = {
+          recipientName: activeAddress.name || user?.name || 'Customer',
+          phone: activeAddress.phone || user?.phone || '',
+          street: activeAddress.houseNo,
+          apartment: activeAddress.area || undefined,
+          postalCode: activeAddress.pincode,
+          pin: activeAddress.pincode,
+          city: activeAddress.city,
+          state: activeAddress.state,
+          country: 'India',
+          isDefault: true,
+          updatedAt: new Date().toISOString()
+        };
+
+        const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+
+        const pricingBreakdown = {
+          mrp: originalTotal,
+          subtotal: baseTotal,
+          discount: Math.max(0, originalTotal - baseTotal),
+          savings: Math.max(0, originalTotal - baseTotal),
+          customizationFee: customizationFee,
+          deliveryFee: 0,
+          total: total
+        };
+
+        const initialTracking = {
+          currentStatus: 'Processing' as const,
+          updatedAt: Date.now(),
+          steps: [
+            { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
+            { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
+            { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
+            { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
+          ]
+        };
+
+        const initialStatusHistory = [
+          {
+            status: 'Processing' as const,
+            timestamp: Date.now(),
+            label: 'Order Placed & Processing',
+            note: 'Cash on Delivery order placed. Collect payment on doorstep arrival.'
+          }
+        ];
+
         const newOrder: Order = {
           id: orderId,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
@@ -428,6 +532,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
             customization: customizations[item.id] || null
           })),
           total: total,
+          mrp: originalTotal,
+          subtotal: baseTotal,
+          discount: pricingBreakdown.discount,
+          savings: pricingBreakdown.savings,
+          customizationFee: customizationFee,
+          deliveryFee: 0,
+          itemCount: totalItemsCount,
+          pricing: pricingBreakdown,
           status: 'Processing',
           paymentMethod: 'Cash on Delivery',
           paymentStatus: 'PENDING',
@@ -435,7 +547,11 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           customerPhone: activeAddress.phone || user?.phone || '',
           customerEmail: user?.email || '',
           customerAddress: customerDeliveryAddr,
-          createdAt: Date.now()
+          shippingAddress: storeDeliveryAddr,
+          tracking: initialTracking,
+          statusHistory: initialStatusHistory,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
         };
 
         setIsOrderPlaced(true);
