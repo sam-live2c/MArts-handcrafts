@@ -11,7 +11,7 @@ import {
   Search
 } from 'lucide-react';
 import { PRODUCTS } from '../constants';
-import { CartItem, Product, User } from '../types';
+import { CartItem, Product, User, CarouselBanner } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
 import { HomeScreenSkeleton } from '../components/Skeleton';
@@ -26,18 +26,11 @@ interface HomeProps {
   wishlist: string[];
   onToggleWishlist: (id: string) => void;
   cartCount?: number;
+  products?: Product[];
+  banners?: CarouselBanner[];
 }
 
-interface BannerSlide {
-  id: string;
-  image: string;
-  fallbackImage?: string;
-  title: string;
-  subtitle: string;
-  tag: string;
-  link: string;
-  ctaText: string;
-}
+type BannerSlide = CarouselBanner;
 
 const BANNER_SLIDES: BannerSlide[] = [
   {
@@ -48,7 +41,9 @@ const BANNER_SLIDES: BannerSlide[] = [
     subtitle: 'Wheel-thrown alluvial clay vessels fired in traditional biomass wood kilns',
     tag: 'Wheel-Thrown Masterpieces',
     link: '/product/1',
-    ctaText: 'Shop Collection'
+    productId: '1',
+    ctaText: 'Shop Collection',
+    active: true
   },
   {
     id: 'slide-2',
@@ -58,7 +53,9 @@ const BANNER_SLIDES: BannerSlide[] = [
     subtitle: 'Solid monolithic sandstone sculptures carved by generational master sculptors',
     tag: 'Sacred Sculptures',
     link: '/product/2',
-    ctaText: 'Explore Masterpieces'
+    productId: '2',
+    ctaText: 'Explore Masterpieces',
+    active: true
   },
   {
     id: 'slide-3',
@@ -68,7 +65,9 @@ const BANNER_SLIDES: BannerSlide[] = [
     subtitle: 'Watertight stoneware pottery dipped in tactile raw earth & oatmeal mineral glazes',
     tag: 'Artisan Ceramics',
     link: '/product/3',
-    ctaText: 'Discover New Arrivals'
+    productId: '3',
+    ctaText: 'Discover New Arrivals',
+    active: true
   },
   {
     id: 'slide-4',
@@ -78,7 +77,9 @@ const BANNER_SLIDES: BannerSlide[] = [
     subtitle: 'Heirloom bell-metal sculptures with hand-rubbed antique beeswax patina',
     tag: 'Heritage Metalwork',
     link: '/product/4',
-    ctaText: 'Shop Heritage Idols'
+    productId: '4',
+    ctaText: 'Shop Heritage Idols',
+    active: true
   }
 ];
 
@@ -90,13 +91,24 @@ export const Home: React.FC<HomeProps> = ({
   onAddToCart,
   wishlist,
   onToggleWishlist,
-  cartCount = 0
+  cartCount = 0,
+  products,
+  banners
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(() => !isHomeLoadedCache);
+
+  // Dynamic Carousel Banners from Firestore with fallback to defaults
+  const activeBanners = useMemo(() => {
+    if (banners && banners.length > 0) {
+      const filtered = banners.filter((b) => b.active !== false);
+      if (filtered.length > 0) return filtered;
+    }
+    return BANNER_SLIDES;
+  }, [banners]);
 
   // Initial mount transition to show full screen skeleton (cached on first visit)
   useEffect(() => {
@@ -123,19 +135,19 @@ export const Home: React.FC<HomeProps> = ({
 
   // Auto advance carousel every 5 seconds
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || activeBanners.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
+      setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
     }, 5000);
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, activeBanners.length]);
 
   const handlePrevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length);
+    setCurrentSlide((prev) => (prev - 1 + activeBanners.length) % activeBanners.length);
   };
 
   const handleNextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % BANNER_SLIDES.length);
+    setCurrentSlide((prev) => (prev + 1) % activeBanners.length);
   };
 
   // Touch scroll tracker for product cards
@@ -196,10 +208,14 @@ export const Home: React.FC<HomeProps> = ({
   };
 
   // Filter & Automatic Sorting by Search Query
+  const baseCatalog = useMemo(() => {
+    return products && products.length > 0 ? products : PRODUCTS;
+  }, [products]);
+
   const displayedProducts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    let list = [...PRODUCTS];
+    let list = [...baseCatalog];
 
     if (q) {
       // Filter products containing search terms
@@ -232,7 +248,7 @@ export const Home: React.FC<HomeProps> = ({
     }
 
     return list;
-  }, [searchQuery]);
+  }, [searchQuery, baseCatalog]);
 
   if (isLoading) {
     return <HomeScreenSkeleton />;
@@ -270,18 +286,19 @@ export const Home: React.FC<HomeProps> = ({
       >
         {/* Carousel Frame - Well-proportioned widescreen format for printed banner graphics */}
         <div className="w-full aspect-[16/9] sm:aspect-[16/8] md:aspect-[16/7] lg:aspect-[16/6.5] max-h-[520px] relative flex">
-          {BANNER_SLIDES.map((slide, idx) => {
+          {activeBanners.map((slide, idx) => {
             const isActive = idx === currentSlide;
+            const targetLink = slide.productId ? `/product/${slide.productId}` : (slide.link || '/');
             return (
               <div
-                key={slide.id}
+                key={slide.id || `banner-${idx}`}
                 className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-in-out ${
                   isActive ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
                 }`}
               >
                 {/* Banner with Embedded Artistic Typography & Direct Link */}
                 <Link
-                  to={slide.link}
+                  to={targetLink}
                   className="block w-full h-full cursor-pointer relative group"
                   aria-label={slide.title}
                 >
@@ -304,39 +321,45 @@ export const Home: React.FC<HomeProps> = ({
           })}
 
           {/* Carousel Previous / Next Navigation Arrows (Hidden on mobile and tablets, visible on desktop) */}
-          <button
-            type="button"
-            onClick={handlePrevSlide}
-            className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
-            aria-label="Previous Slide"
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <button
-            type="button"
-            onClick={handleNextSlide}
-            className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
-            aria-label="Next Slide"
-          >
-            <ChevronRight size={18} />
-          </button>
+          {activeBanners.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrevSlide}
+                className="hidden lg:flex absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
+                aria-label="Previous Slide"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={handleNextSlide}
+                className="hidden lg:flex absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-xs items-center justify-center transition-all cursor-pointer border border-white/20"
+                aria-label="Next Slide"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </>
+          )}
 
           {/* Carousel Pagination Dots */}
-          <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2">
-            {BANNER_SLIDES.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => setCurrentSlide(idx)}
-                className={`transition-all rounded-full cursor-pointer ${
-                  idx === currentSlide
-                    ? 'w-6 sm:w-8 h-1.5 sm:h-2 bg-[#C85A32]'
-                    : 'w-1.5 sm:w-2 h-1.5 sm:h-2 bg-white/50 hover:bg-white/80'
-                }`}
-                aria-label={`Go to slide ${idx + 1}`}
-              />
-            ))}
-          </div>
+          {activeBanners.length > 1 && (
+            <div className="absolute bottom-2.5 sm:bottom-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1.5 sm:gap-2">
+              {activeBanners.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentSlide(idx)}
+                  className={`transition-all rounded-full cursor-pointer ${
+                    idx === currentSlide
+                      ? 'w-6 sm:w-8 h-1.5 sm:h-2 bg-[#C85A32]'
+                      : 'w-1.5 sm:w-2 h-1.5 sm:h-2 bg-white/50 hover:bg-white/80'
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

@@ -403,15 +403,82 @@ export const subscribeToUserProfile = (
   });
 };
 
+// Helper to merge Firestore dynamic products with seed base products
+const mergeProductsWithSeed = (firestoreProducts: Product[]): Product[] => {
+  const map = new Map<string, Product>();
+  // 1. Seed defaults
+  for (const p of PRODUCTS) {
+    map.set(p.id, p);
+  }
+  // 2. Overwrite / append with live Firestore products
+  for (const p of firestoreProducts) {
+    if (p && p.id) {
+      map.set(p.id, { ...(map.get(p.id) || {}), ...p });
+    }
+  }
+  return Array.from(map.values());
+};
+
 // ================= PRODUCTS (DYNAMIC CATALOG & CACHE) =================
 export const fetchProductsFromFirestore = async (): Promise<Product[]> => {
   try {
-    localStorage.setItem('melody_products', JSON.stringify(PRODUCTS));
-    localStorage.setItem('marts_products', JSON.stringify(PRODUCTS));
-    return PRODUCTS;
+    const prodCol = collection(db, 'products');
+    const snap = await withTimeout(getDocs(prodCol), 3500);
+    const firestoreProducts: Product[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as Product;
+      if (data && data.id) {
+        firestoreProducts.push(data);
+      }
+    });
+
+    const merged = mergeProductsWithSeed(firestoreProducts);
+    try {
+      localStorage.setItem('marts_products', JSON.stringify(merged));
+      localStorage.setItem('melody_products', JSON.stringify(merged));
+    } catch (_) {}
+    return merged;
   } catch (err) {
+    console.warn('Firestore offline or products query timed out, using local cache:', err);
+    try {
+      const cached = localStorage.getItem('marts_products') || localStorage.getItem('melody_products');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
     return PRODUCTS;
   }
+};
+
+/**
+ * Real-time subscription to storefront products catalog
+ */
+export const subscribeToLiveProducts = (
+  onUpdate: (products: Product[]) => void
+): (() => void) => {
+  const prodCol = collection(db, 'products');
+  return onSnapshot(
+    prodCol,
+    (snap) => {
+      const firestoreProducts: Product[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as Product;
+        if (data && data.id) {
+          firestoreProducts.push(data);
+        }
+      });
+      const merged = mergeProductsWithSeed(firestoreProducts);
+      try {
+        localStorage.setItem('marts_products', JSON.stringify(merged));
+        localStorage.setItem('melody_products', JSON.stringify(merged));
+      } catch (_) {}
+      onUpdate(merged);
+    },
+    (err) => {
+      console.warn('Live products subscription notice (operating in local cache mode):', err);
+    }
+  );
 };
 
 // ================= CART ITEM LISTS =================
@@ -913,12 +980,17 @@ export const syncUserWishlistToFirestore = async (uid: string, wishlist: string[
 // ================= ADMIN PIPELINE & STORAGE RE-EXPORTS =================
 export {
   uploadHeroImage,
+  uploadBannerImage,
   uploadProductImage,
   addProductImageAndSave,
   uploadCustomizationMedia,
   saveHeroBanner,
   fetchHeroBanner,
   subscribeToHeroBanner,
+  saveCarouselBanner,
+  deleteCarouselBanner,
+  fetchCarouselBanners,
+  subscribeToCarouselBanners,
   saveProductToFirestore,
   deleteProductFromFirestore,
   fetchProductsAdmin,

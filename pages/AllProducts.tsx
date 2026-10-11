@@ -15,6 +15,7 @@ interface AllProductsProps {
   onAddToCart: (item: CartItem, silent?: boolean) => void;
   wishlist: string[];
   onToggleWishlist: (id: string) => void;
+  products?: Product[];
 }
 
 const AllProducts: React.FC<AllProductsProps> = ({
@@ -22,9 +23,11 @@ const AllProducts: React.FC<AllProductsProps> = ({
   cartCount,
   onAddToCart,
   wishlist,
-  onToggleWishlist
+  onToggleWishlist,
+  products
 }) => {
   const navigate = useNavigate();
+  const catalog = products && products.length > 0 ? products : PRODUCTS;
   const [isLoading, setIsLoading] = useState(() => !isAllProductsLoadedCache);
 
   // Track touch/scroll movement so scrolling doesn't trigger card navigation
@@ -117,7 +120,7 @@ const AllProducts: React.FC<AllProductsProps> = ({
 
           {/* 4-Card Hardware / Pottery Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {PRODUCTS.map((prod) => (
+            {catalog.map((prod) => (
               <div
                 key={prod.id}
                 onClick={() => handleCardClick(prod.id)}

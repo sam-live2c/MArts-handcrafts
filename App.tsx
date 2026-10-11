@@ -21,7 +21,7 @@ const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const MyOrders = lazy(() => import('./pages/MyOrders'));
 const About = lazy(() => import('./pages/About'));
 const Wishlist = lazy(() => import('./pages/Wishlist'));
-import { CartItem, User, Order, Product } from './types';
+import { CartItem, User, Order, Product, CarouselBanner } from './types';
 import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
 import { PRODUCTS } from './constants';
 import { auth, db } from './firebase';
@@ -35,6 +35,8 @@ import {
   syncUserWishlistToFirestore,
   fetchUserOrders,
   fetchProductsFromFirestore,
+  subscribeToLiveProducts,
+  subscribeToCarouselBanners,
   saveOrderToFirestore
 } from './services/dbService';
 
@@ -174,9 +176,40 @@ const App: React.FC = () => {
     item?: CartItem | Product | null;
   } | null>(null);
 
-  // Load products catalog on mount
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem('marts_products') || localStorage.getItem('melody_products');
+      return saved ? JSON.parse(saved) : PRODUCTS;
+    } catch {
+      return PRODUCTS;
+    }
+  });
+
+  const [banners, setBanners] = useState<CarouselBanner[]>([]);
+
+  // Load products catalog and carousel banners on mount with real-time sync
   useEffect(() => {
-    fetchProductsFromFirestore().catch(e => console.warn('Products fetch notice:', e));
+    // Initial fetch
+    fetchProductsFromFirestore()
+      .then((prods) => setProducts(prods))
+      .catch((e) => console.warn('Products initial fetch notice:', e));
+
+    // Real-time live listener for products
+    const unsubProducts = subscribeToLiveProducts((liveProds) => {
+      setProducts(liveProds);
+    });
+
+    // Real-time live listener for carousel banners
+    const unsubBanners = subscribeToCarouselBanners((liveBanners) => {
+      if (liveBanners && liveBanners.length > 0) {
+        setBanners(liveBanners);
+      }
+    });
+
+    return () => {
+      unsubProducts();
+      unsubBanners();
+    };
   }, []);
 
   // Sync Auth & Realtime Firestore User Data
@@ -395,7 +428,7 @@ const App: React.FC = () => {
     setWishlist(prev => {
       const isRemoving = prev.includes(productId);
       if (!isRemoving) {
-        const product = PRODUCTS.find(p => p.id === productId);
+        const product = products.find(p => p.id === productId) || PRODUCTS.find(p => p.id === productId);
         if (product) showToast(`${product.name} added to wishlist!`, 'wishlist', product);
       }
       return isRemoving ? prev.filter(id => id !== productId) : [...prev, productId];
@@ -415,7 +448,15 @@ const App: React.FC = () => {
               path="/" 
               element={
                 <Suspense fallback={<HomeScreenSkeleton />}>
-                  <Home user={user} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} cartCount={cartTotalQuantity} />
+                  <Home
+                    user={user}
+                    onAddToCart={addToCart}
+                    wishlist={wishlist}
+                    onToggleWishlist={toggleWishlist}
+                    cartCount={cartTotalQuantity}
+                    products={products}
+                    banners={banners}
+                  />
                 </Suspense>
               } 
             />
@@ -423,7 +464,14 @@ const App: React.FC = () => {
               path="/products" 
               element={
                 <Suspense fallback={<FullScreenCircleLoader />}>
-                  <AllProducts user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
+                  <AllProducts
+                    user={user}
+                    cartCount={cartTotalQuantity}
+                    onAddToCart={addToCart}
+                    wishlist={wishlist}
+                    onToggleWishlist={toggleWishlist}
+                    products={products}
+                  />
                 </Suspense>
               } 
             />
@@ -431,7 +479,14 @@ const App: React.FC = () => {
               path="/product/:id" 
               element={
                 <Suspense fallback={<FullScreenCircleLoader />}>
-                  <ProductDetail user={user} cartCount={cartTotalQuantity} onAddToCart={addToCart} wishlist={wishlist} onToggleWishlist={toggleWishlist} />
+                  <ProductDetail
+                    user={user}
+                    cartCount={cartTotalQuantity}
+                    onAddToCart={addToCart}
+                    wishlist={wishlist}
+                    onToggleWishlist={toggleWishlist}
+                    products={products}
+                  />
                 </Suspense>
               } 
             />

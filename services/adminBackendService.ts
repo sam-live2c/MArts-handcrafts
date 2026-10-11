@@ -17,7 +17,7 @@ import {
   uploadString, 
   getDownloadURL 
 } from 'firebase/storage';
-import { Product, Order, User } from '../types';
+import { Product, Order, User, CarouselBanner } from '../types';
 
 /**
  * Backend Data Interfaces for Admin Pipeline
@@ -117,6 +117,34 @@ export const uploadHeroImage = async (
   } catch (error: any) {
     console.error('Failed to upload hero image to Firebase Storage:', error);
     throw new Error(`Hero image upload failed: ${error.message || error}`);
+  }
+};
+
+/**
+ * Uploads a carousel banner slide image to Firebase Storage at banners/{bannerId}/{fileName}
+ */
+export const uploadBannerImage = async (
+  bannerId: string,
+  fileOrBlob: File | Blob | string,
+  customFileName?: string
+): Promise<string> => {
+  try {
+    const { data, contentType } = await prepareUploadPayload(fileOrBlob);
+    const fileName = customFileName
+      ? sanitizeFileName(customFileName)
+      : `banner_${bannerId}_${Date.now()}.${contentType.split('/')[1] || 'jpg'}`;
+
+    const storageRef = ref(storage, `banners/${bannerId}/${fileName}`);
+    await uploadBytes(storageRef, data as any, {
+      contentType,
+      cacheControl: 'public, max-age=31536000'
+    });
+
+    const downloadUrl = await getDownloadURL(storageRef);
+    return downloadUrl;
+  } catch (error: any) {
+    console.error(`Failed to upload carousel banner image for ${bannerId}:`, error);
+    throw new Error(`Banner image upload failed: ${error.message || error}`);
   }
 };
 
@@ -273,6 +301,74 @@ export const subscribeToHeroBanner = (
     },
     (err) => {
       console.warn('Hero banner subscription error:', err);
+    }
+  );
+};
+
+/**
+ * Saves or updates a carousel banner in Firestore /banners/{bannerId}
+ */
+export const saveCarouselBanner = async (banner: CarouselBanner): Promise<void> => {
+  try {
+    const bannerRef = doc(db, 'banners', banner.id);
+    await setDoc(bannerRef, {
+      ...banner,
+      active: banner.active !== undefined ? banner.active : true,
+      updatedAt: Date.now(),
+      updatedBy: auth.currentUser?.email || 'admin'
+    }, { merge: true });
+  } catch (error: any) {
+    console.error(`Failed to save carousel banner ${banner.id}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a carousel banner from Firestore /banners/{bannerId}
+ */
+export const deleteCarouselBanner = async (bannerId: string): Promise<void> => {
+  try {
+    const bannerRef = doc(db, 'banners', bannerId);
+    await deleteDoc(bannerRef);
+  } catch (error: any) {
+    console.error(`Failed to delete carousel banner ${bannerId}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches all carousel banners from Firestore
+ */
+export const fetchCarouselBanners = async (): Promise<CarouselBanner[]> => {
+  try {
+    const bannersCol = collection(db, 'banners');
+    const snap = await getDocs(bannersCol);
+    const list: CarouselBanner[] = [];
+    snap.forEach((d) => list.push(d.data() as CarouselBanner));
+    return list.sort((a, b) => (a.order || 0) - (b.order || 0));
+  } catch (error) {
+    console.warn('Carousel banners fetch notice:', error);
+    return [];
+  }
+};
+
+/**
+ * Real-time subscription to carousel banners in /banners
+ */
+export const subscribeToCarouselBanners = (
+  onUpdate: (banners: CarouselBanner[]) => void
+): (() => void) => {
+  const bannersCol = collection(db, 'banners');
+  return onSnapshot(
+    bannersCol,
+    (snap) => {
+      const list: CarouselBanner[] = [];
+      snap.forEach((d) => list.push(d.data() as CarouselBanner));
+      list.sort((a, b) => (a.order || 0) - (b.order || 0));
+      onUpdate(list);
+    },
+    (err) => {
+      console.warn('Carousel banners subscription notice:', err);
     }
   );
 };
@@ -441,7 +537,15 @@ export const checkIsAdmin = async (uid: string): Promise<boolean> => {
     if (userDoc.exists() && userDoc.data()?.role === 'admin') return true;
 
     // Bootstrap check for admin email
-    if (auth.currentUser?.email === 'xsophiya99@gmail.com') return true;
+    const currentEmail = auth.currentUser?.email;
+    if (
+      currentEmail === 'ventureforge.corp@gmail.com' ||
+      currentEmail === 'xsophiya99@gmail.com' ||
+      currentEmail === 'sahanurmolla3131@gmail.com' ||
+      currentEmail === 'sahanurmolla2886@gmail.com'
+    ) {
+      return true;
+    }
 
     return false;
   } catch (error) {

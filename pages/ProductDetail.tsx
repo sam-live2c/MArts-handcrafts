@@ -26,7 +26,9 @@ import {
   Filter,
   Heart
 } from "lucide-react";
-import { CartItem, User, Review, Order } from "../types";
+import { CartItem, User, Review, Order, Product } from "../types";
+import { db } from "../firebase";
+import { doc, getDoc } from "firebase/firestore";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
 import { FullScreenCircleLoader } from "../components/CircleLoader";
@@ -37,6 +39,7 @@ interface ProductDetailProps {
   onToggleWishlist: (id: string) => void;
   user?: User | null;
   cartCount?: number;
+  products?: Product[];
 }
 
 const INITIAL_REVIEWS: Review[] = [
@@ -81,11 +84,42 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
   onToggleWishlist,
   user,
   cartCount = 0,
+  products
 }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const product = PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
+
+  const [remoteProduct, setRemoteProduct] = useState<Product | null>(null);
+
+  const product = useMemo(() => {
+    if (remoteProduct && remoteProduct.id === id) return remoteProduct;
+    if (products && products.length > 0) {
+      const found = products.find((p) => p.id === id);
+      if (found) return found;
+    }
+    return PRODUCTS.find((p) => p.id === id) || PRODUCTS[0];
+  }, [remoteProduct, products, id]);
+
   const [isLoading, setIsLoading] = useState(() => (id ? !visitedProductsCache.has(id) : false));
+
+  // Asynchronously fetch product directly from Firestore if not found in local seed list
+  useEffect(() => {
+    if (!id) return;
+    const existsLocally =
+      (products && products.some((p) => p.id === id)) ||
+      PRODUCTS.some((p) => p.id === id);
+    if (!existsLocally) {
+      getDoc(doc(db, 'products', id))
+        .then((snap) => {
+          if (snap.exists()) {
+            setRemoteProduct(snap.data() as Product);
+          }
+        })
+        .catch((err) => {
+          console.warn('Direct product fetch notice:', err);
+        });
+    }
+  }, [id, products]);
 
   useEffect(() => {
     if (id && !visitedProductsCache.has(id)) {

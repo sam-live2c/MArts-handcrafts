@@ -41,6 +41,23 @@ export interface Product {
   returnPolicy: string;
 }
 
+export interface CarouselBanner {
+  id: string;
+  image: string;
+  fallbackImage?: string;
+  title: string;
+  subtitle: string;
+  tag: string;
+  link?: string;
+  productId?: string;
+  ctaText: string;
+  order?: number;
+  active?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+
 export interface CustomizationFile {
   id: string;
   name: string;

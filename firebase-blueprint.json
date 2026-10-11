@@ -173,9 +173,33 @@
           "type": "string",
           "description": "Hardware manufacturer / brand name"
         },
+        "highlights": {
+          "type": "array",
+          "description": "Key craftsmanship bullet points and product highlights"
+        },
+        "specGroups": {
+          "type": "array",
+          "description": "Grouped technical specifications (Dimensions, Materials, Weight, Care)"
+        },
+        "isAssured": {
+          "type": "boolean",
+          "description": "Guild authenticity seal and assurance badge"
+        },
         "stock": {
           "type": "number",
           "description": "Available stock count"
+        },
+        "sellerName": {
+          "type": "string",
+          "description": "Artisan guild or seller trade name"
+        },
+        "sellerRating": {
+          "type": "number",
+          "description": "Artisan guild rating score"
+        },
+        "returnPolicy": {
+          "type": "string",
+          "description": "Return and replacement policy statement"
         },
         "updatedAt": {
           "type": "number",
@@ -276,6 +300,66 @@
         }
       },
       "required": ["id", "userId", "total", "status"]
+    },
+    "CarouselBanner": {
+      "title": "CarouselBanner",
+      "description": "Storefront carousel slide banner with direct product link support",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Banner identifier"
+        },
+        "title": {
+          "type": "string",
+          "description": "Main banner headline text",
+          "maxLength": 200
+        },
+        "subtitle": {
+          "type": "string",
+          "description": "Artisanal storytelling subtitle text",
+          "maxLength": 400
+        },
+        "tag": {
+          "type": "string",
+          "description": "Category badge or craft collection pill label",
+          "maxLength": 100
+        },
+        "image": {
+          "type": "string",
+          "description": "High resolution widescreen carousel image URL"
+        },
+        "fallbackImage": {
+          "type": "string",
+          "description": "Local media asset fallback URL"
+        },
+        "link": {
+          "type": "string",
+          "description": "Storefront navigation path (e.g. /product/1 or /products)"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Target product ID for direct deep linking"
+        },
+        "ctaText": {
+          "type": "string",
+          "description": "Call to action button text",
+          "maxLength": 60
+        },
+        "order": {
+          "type": "number",
+          "description": "Display order index in the carousel"
+        },
+        "active": {
+          "type": "boolean",
+          "description": "Whether this banner is visible on the live storefront"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["id", "title", "image", "ctaText", "active"]
     }
   },
   "firestore": {
@@ -290,6 +374,10 @@
     "/products/{productId}": {
       "schema": "Product",
       "description": "Storefront equipment products managed via admin panel"
+    },
+    "/banners/{bannerId}": {
+      "schema": "CarouselBanner",
+      "description": "Storefront interactive carousel banner slides"
     },
     "/settings/{settingId}": {
       "schema": "HeroBanner",
