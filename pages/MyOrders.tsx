@@ -7,7 +7,8 @@ import {
   ChevronRight, Truck, XCircle
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { updateOrderStatusInFirestore } from '../services/dbService';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
@@ -33,6 +34,65 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     title: string;
     message?: string;
   } | null>(null);
+
+  // Live real-time subscription for orders
+  useEffect(() => {
+    let unsubSnapshot: (() => void) | null = null;
+
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+      if (unsubSnapshot) {
+        unsubSnapshot();
+        unsubSnapshot = null;
+      }
+
+      if (!currentUser) {
+        setIsLoading(false);
+        return;
+      }
+
+      const uid = currentUser.uid;
+
+      // Check localStorage for orders immediately to prevent blank or stale render
+      try {
+        const cachedStr = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+        if (cachedStr) {
+          const cachedOrders = JSON.parse(cachedStr);
+          if (Array.isArray(cachedOrders) && cachedOrders.length > (user?.orders?.length || 0)) {
+            onUpdateOrders(cachedOrders);
+          }
+        }
+      } catch (_) {}
+
+      // Listen to real-time live updates from user's orders collection
+      const userOrdersRef = collection(db, 'users', uid, 'orders');
+      unsubSnapshot = onSnapshot(userOrdersRef, (snapshot) => {
+        const liveOrders: Order[] = [];
+        snapshot.forEach(docSnap => {
+          liveOrders.push(docSnap.data() as Order);
+        });
+
+        liveOrders.sort((a, b) => {
+          const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+          const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+          return (b.id || '').localeCompare(a.id || '');
+        });
+
+        if (liveOrders.length > 0) {
+          onUpdateOrders(liveOrders);
+        }
+        setIsLoading(false);
+      }, (err) => {
+        console.warn('Orders live sync notice:', err);
+        setIsLoading(false);
+      });
+    });
+
+    return () => {
+      if (unsubSnapshot) unsubSnapshot();
+      unsubscribeAuth();
+    };
+  }, []);
 
   useEffect(() => {
     const state = location.state as {
@@ -65,7 +125,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
     }
   }, [location.state]);
 
-  const currentOrders: Order[] = user?.orders || [];
+  const currentOrders: Order[] = React.useMemo(() => {
+    const list = user?.orders ? [...user.orders] : [];
+    return list.sort((a, b) => {
+      const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+      const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      return (b.id || '').localeCompare(a.id || '');
+    });
+  }, [user?.orders]);
 
   const showToast = (title: string, message?: string, type: 'success' | 'failed' | 'info' = 'success', duration = 4000) => {
     setToast({ title, message, type });
@@ -442,10 +510,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders }) => {
                 <button
                   key={filter.id}
                   onClick={() => setActiveFilter(filter.id as any)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+                  className={`h-8 px-4 inline-flex items-center justify-center rounded-full text-xs font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer border ${
                     isActive
-                      ? 'bg-[#C85A32] text-white shadow-xs'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? 'bg-[#C85A32] text-white border-[#C85A32] shadow-xs'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-transparent'
                   }`}
                 >
                   {filter.label}

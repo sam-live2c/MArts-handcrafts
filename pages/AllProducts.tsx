@@ -195,68 +195,32 @@ const AllProducts: React.FC<AllProductsProps> = ({
         </div>
 
         {/* Filter Pills Below Search Bar: Positioned to the LEFT same as Homepage */}
-        <div className="flex items-center justify-between gap-2 sm:gap-3 mt-3.5 sm:mt-4 w-full">
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {[
-              { id: 'all', label: 'All' },
-              { id: 'latest', label: 'Latest' },
-              { id: 'popular', label: 'Popular' }
-            ].map((tab) => {
-              const isActive = activeFilter === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveFilter(tab.id as 'all' | 'latest' | 'popular')}
-                  className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-[#C85A32] text-white shadow-xs'
-                      : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border border-[#E5D7CA]'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-2.5 py-1 rounded-full cursor-pointer border border-[#EADBCC] shrink-0 ml-auto"
-            >
-              <X size={12} />
-              <span>Clear</span>
-            </button>
-          )}
+        <div className="flex items-center gap-1.5 sm:gap-2 mt-3.5 sm:mt-4 w-full">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'latest', label: 'Latest' },
+            { id: 'popular', label: 'Popular' }
+          ].map((tab) => {
+            const isActive = activeFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveFilter(tab.id as 'all' | 'latest' | 'popular')}
+                className={`h-8 sm:h-9 px-4 sm:px-5 inline-flex items-center justify-center rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer border ${
+                  isActive
+                    ? 'bg-[#C85A32] text-white border-[#C85A32] shadow-xs'
+                    : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border-[#E5D7CA]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </section>
       
       <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-5 sm:py-8">
-          {/* Header Context / Search Status banner */}
-          {searchQuery && (
-            <div className="mb-5 flex items-center justify-between gap-3 bg-[#FAF0E6]/70 p-3 sm:p-3.5 rounded-2xl border border-[#EADBCC]">
-              <div className="min-w-0">
-                <span className="text-[11px] font-bold text-[#C85A32] uppercase tracking-wider block mb-0.5">
-                  Live Search Results
-                </span>
-                <p className="text-xs sm:text-sm font-serif font-bold text-[#2B221B] truncate">
-                  Showing {displayedProducts.length} {displayedProducts.length === 1 ? 'creation' : 'creations'} for &ldquo;{searchQuery}&rdquo;
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-white px-3 py-1.5 rounded-full cursor-pointer border border-[#EADBCC] shrink-0 transition-colors shadow-2xs"
-                title="Clear filter"
-              >
-                <X size={14} />
-                <span>Clear Filter</span>
-              </button>
-            </div>
-          )}
-
           {/* Empty Catalog or Empty Search Results */}
           {catalog.length === 0 ? (
             <div className="py-20 text-center space-y-3">

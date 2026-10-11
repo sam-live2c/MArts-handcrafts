@@ -391,18 +391,16 @@ export const Home: React.FC<HomeProps> = ({
 
       {/* Product Catalog Section */}
       <section className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 pt-6 sm:pt-8 pb-8 sm:pb-10 w-full">
-        {/* Section Header & Search Status — Positioned above the search bar, with no separation line */}
+        {/* Section Header */}
         <div className="mb-3 sm:mb-4">
           <div className="text-xs font-bold text-[#B85D36] uppercase tracking-wider mb-0.5 sm:mb-1">
-            {searchQuery ? 'Live Search Results' : 'Curated Catalog'}
+            Curated Catalog
           </div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
-            {searchQuery ? `Searching "${searchQuery}"` : 'Artisan Pottery & Statues'}
+            Artisan Pottery & Statues
           </h2>
           <p className="text-xs sm:text-sm text-[#735A4C] mt-1 sm:mt-1.5">
-            {searchQuery
-              ? `Showing ${displayedProducts.length} creations sorted automatically by relevance`
-              : 'Hand-thrown terracotta pots, glazed ceramic urns, stone sculptures & brass idols'}
+            Hand-thrown terracotta pots, glazed ceramic urns, stone sculptures & brass idols
           </p>
         </div>
 
@@ -450,10 +448,10 @@ export const Home: React.FC<HomeProps> = ({
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveFilter(tab.id as 'all' | 'latest' | 'popular')}
-                    className={`px-3.5 sm:px-5 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    className={`h-8 sm:h-9 px-4 sm:px-5 inline-flex items-center justify-center rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap select-none shrink-0 transition-all cursor-pointer border ${
                       isActive
-                        ? 'bg-[#C85A32] text-white shadow-xs'
-                        : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border border-[#E5D7CA]'
+                        ? 'bg-[#C85A32] text-white border-[#C85A32] shadow-xs'
+                        : 'bg-white hover:bg-[#F2EAE2] text-[#4E392D] border-[#E5D7CA]'
                     }`}
                   >
                     {tab.label}
@@ -462,24 +460,13 @@ export const Home: React.FC<HomeProps> = ({
               })}
             </div>
 
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-bold text-[#C85A32] hover:text-[#8C3F1E] bg-[#FAF0E6] px-2.5 py-1 rounded-full cursor-pointer border border-[#EADBCC] shrink-0"
-              >
-                <X size={12} />
-                <span>Clear</span>
-              </button>
-            ) : (
-              <Link
-                to="/products"
-                className="inline-flex items-center gap-0.5 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap shrink-0"
-              >
-                <span>View all</span>
-                <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            )}
+            <Link
+              to="/products"
+              className="inline-flex items-center gap-0.5 text-xs sm:text-sm font-semibold text-[#B85D36] hover:text-[#8C3F1E] group whitespace-nowrap shrink-0 ml-auto"
+            >
+              <span>View all</span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:translate-x-0.5" />
+            </Link>
           </div>
         </div>
 

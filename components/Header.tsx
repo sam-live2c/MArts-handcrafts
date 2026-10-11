@@ -44,57 +44,15 @@ const Header: React.FC<HeaderProps> = ({
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [internalQuery, setInternalQuery] = useState(searchQuery);
-  const [suggestions, setSuggestions] = useState<Product[]>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
   
   const headerRef = useRef<HTMLElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const desktopSearchInputRef = useRef<HTMLInputElement>(null);
-
-  const liveCatalog = useMemo(() => {
-    if (products && products.length > 0) return products;
-    try {
-      const cached = localStorage.getItem('marts_products');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [];
-  }, [products]);
 
   // Sync external query prop
   useEffect(() => {
     setInternalQuery(searchQuery);
   }, [searchQuery]);
-
-  // Compute live search suggestions
-  useEffect(() => {
-    const q = internalQuery.trim().toLowerCase();
-    if (!q) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      return;
-    }
-
-    const filtered = liveCatalog.filter((p) => {
-      const name = (p.name || '').toLowerCase();
-      const cat = (p.category || '').toLowerCase();
-      const sub = (p.subCategory || '').toLowerCase();
-      const desc = (p.description || '').toLowerCase();
-      return name.includes(q) || cat.includes(q) || sub.includes(q) || desc.includes(q);
-    }).sort((a, b) => {
-      const aStarts = (a.name || '').toLowerCase().startsWith(q);
-      const bStarts = (b.name || '').toLowerCase().startsWith(q);
-      if (aStarts && !bStarts) return -1;
-      if (!aStarts && bStarts) return 1;
-      return 0;
-    });
-
-    setSuggestions(filtered.slice(0, 5));
-    setShowDropdown(filtered.length > 0);
-  }, [internalQuery, liveCatalog]);
 
   // Auto-focus mobile search input when opened
   useEffect(() => {
@@ -106,40 +64,10 @@ const Header: React.FC<HeaderProps> = ({
     }
   }, [isSearchOpen]);
 
-  // Close search and dropdown on route change
+  // Close search on route change
   useEffect(() => {
-    setShowDropdown(false);
     setIsSearchOpen(false);
   }, [location.pathname]);
-
-  // Click outside closes the suggestions dropdown, but search remains active
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      const clickedInput =
-        mobileSearchInputRef.current?.contains(target) ||
-        desktopSearchInputRef.current?.contains(target);
-      const clickedDropdown = dropdownRef.current?.contains(target);
-
-      if (!clickedInput && !clickedDropdown) {
-        setShowDropdown((prev) => (prev ? false : prev));
-        // Note: Search remains active, isSearchOpen is not closed
-      }
-    };
-
-    const handleKeyDownGlobal = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setShowDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("keydown", handleKeyDownGlobal);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("keydown", handleKeyDownGlobal);
-    };
-  }, []);
 
   const handleBack = () => {
     handleGoBack(navigate, '/');
@@ -158,7 +86,6 @@ const Header: React.FC<HeaderProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      setShowDropdown(false);
       (e.target as HTMLInputElement).blur();
       const val = internalQuery.trim();
       if (!onSearchChange && location.pathname !== '/' && location.pathname !== '/products' && val.length > 0) {
@@ -169,7 +96,6 @@ const Header: React.FC<HeaderProps> = ({
 
   const handleCloseSearch = () => {
     setIsSearchOpen(false);
-    setShowDropdown(false);
     setInternalQuery("");
     if (onSearchChange) {
       onSearchChange("");
@@ -181,15 +107,8 @@ const Header: React.FC<HeaderProps> = ({
     if (onSearchChange) {
       onSearchChange("");
     }
-    setShowDropdown(false);
     mobileSearchInputRef.current?.focus();
     desktopSearchInputRef.current?.focus();
-  };
-
-  const handleSelectProduct = (productId: string) => {
-    setShowDropdown(false);
-    setIsSearchOpen(false);
-    navigate(`/product/${productId}`);
   };
 
   return (
@@ -224,12 +143,6 @@ const Header: React.FC<HeaderProps> = ({
                 value={internalQuery}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                onClick={() => {
-                  if (suggestions.length > 0) setShowDropdown(true);
-                }}
-                onFocus={() => {
-                  if (suggestions.length > 0) setShowDropdown(true);
-                }}
                 placeholder="Search handcrafted pottery, statues, brass..."
                 className="w-full bg-transparent border-0 outline-none ring-0 focus:ring-0 focus:outline-none p-0 text-[#2B221B] placeholder-[#8C6D58]/70 text-sm sm:text-base font-medium shadow-none selection:bg-[#EBDCCB]"
               />
@@ -303,12 +216,6 @@ const Header: React.FC<HeaderProps> = ({
                   value={internalQuery}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  onClick={() => {
-                    if (suggestions.length > 0) setShowDropdown(true);
-                  }}
-                  onFocus={() => {
-                    if (suggestions.length > 0) setShowDropdown(true);
-                  }}
                   placeholder="Search handcrafted pottery, statues..."
                   className="w-full pl-9 pr-9 py-2 bg-white/90 hover:bg-white focus:bg-white rounded-full text-xs sm:text-sm text-[#2B221B] placeholder-[#8C6D58] border border-[#E5D7CA] focus:border-[#C85A32] focus:ring-1 focus:ring-[#C85A32]/30 outline-none transition-all shadow-2xs"
                 />
@@ -396,46 +303,6 @@ const Header: React.FC<HeaderProps> = ({
             </Link>
           </div>
         </div>
-
-        {/* Live Search Suggestions Dropdown Menu (No header label, no separation lines between suggestions) */}
-        {showDropdown && suggestions.length > 0 && (
-          <div
-            ref={dropdownRef}
-            className="absolute top-full left-3 right-3 sm:left-6 sm:right-6 lg:left-1/2 lg:-translate-x-1/2 lg:w-full lg:max-w-md mt-1.5 bg-white rounded-2xl border border-[#EADBCC] shadow-xl p-1.5 overflow-hidden z-[100] animate-in fade-in duration-150"
-          >
-            <div className="max-h-[340px] overflow-y-auto space-y-0.5">
-              {suggestions.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleSelectProduct(item.id)}
-                  className="p-2.5 sm:p-3 hover:bg-[#FAF7F2] rounded-xl transition-colors cursor-pointer flex items-center gap-3 group"
-                >
-                  <div className="w-11 h-11 rounded-lg bg-[#FAF6F0] overflow-hidden shrink-0 border border-[#E5D7CA]">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-semibold text-[#2B221B] truncate group-hover:text-[#C85A32] transition-colors">
-                      {item.name}
-                    </p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] font-medium text-[#8C6D58] bg-[#F2E8E1] px-1.5 py-0.2 rounded">
-                        {item.subCategory}
-                      </span>
-                      <span className="text-xs font-bold text-[#2B221B]">
-                        ₹{item.price.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight size={16} className="text-[#A89283] group-hover:text-[#C85A32] group-hover:translate-x-0.5 transition-all shrink-0" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </header>
   );

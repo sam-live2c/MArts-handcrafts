@@ -213,6 +213,10 @@ const App: React.FC = () => {
               }
 
               setUser(prev => {
+                const currentOrders = prev?.orders && prev.orders.length > 0 ? prev.orders : [];
+                const incomingOrders = Array.isArray(data.orders) ? data.orders : [];
+                const bestOrders = incomingOrders.length > currentOrders.length ? incomingOrders : (currentOrders.length > 0 ? currentOrders : incomingOrders);
+
                 const updated: User = {
                   name: data.displayName || data.name || prev?.name || firebaseUser.displayName || 'User',
                   displayName: data.displayName || data.name || prev?.displayName || firebaseUser.displayName || 'User',
@@ -222,7 +226,7 @@ const App: React.FC = () => {
                   address: addressStr !== undefined && addressStr !== '' ? addressStr : (prev?.address || ''),
                   deliveryAddress: deliveryAddr,
                   shippingAddress: data.shippingAddress || deliveryAddr,
-                  orders: data.orders || prev?.orders || []
+                  orders: bestOrders
                 };
                 localStorage.setItem('melody_user_profile', JSON.stringify(updated));
                 if (updated.address) {
@@ -246,7 +250,22 @@ const App: React.FC = () => {
           if (dbCart.length > 0) setCart(dbCart);
           if (dbWishlist.length > 0) setWishlist(dbWishlist);
           if (dbOrders.length > 0) {
-            setUser(prev => prev ? { ...prev, orders: dbOrders } : null);
+            setUser(prev => {
+              if (!prev) return null;
+              const merged = [...dbOrders];
+              (prev.orders || []).forEach(o => {
+                if (!merged.some(m => m.id === o.id)) {
+                  merged.push(o);
+                }
+              });
+              merged.sort((a, b) => {
+                const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+                const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+                if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+                return (b.id || '').localeCompare(a.id || '');
+              });
+              return { ...prev, orders: merged };
+            });
           }
         } catch (e) {
           console.warn('Notice: Firestore data sync operated in offline cache mode:', e);
@@ -349,10 +368,24 @@ const App: React.FC = () => {
     const currentFirebaseUser = auth.currentUser;
     const uid = currentFirebaseUser ? currentFirebaseUser.uid : null;
 
-    if (user) {
-      const updatedOrders = [order, ...(user.orders || [])];
-      setUser({ ...user, orders: updatedOrders });
+    const currentOrders = user?.orders || [];
+    const updatedOrders = [order, ...currentOrders.filter(o => o.id !== order.id)];
+
+    const updatedUser = user ? { ...user, orders: updatedOrders } : null;
+    if (updatedUser) {
+      setUser(updatedUser);
+      try {
+        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
+        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
+      } catch (_) {}
     }
+
+    try {
+      localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
+      if (uid) {
+        localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
+      }
+    } catch (_) {}
 
     await saveOrderToFirestore(uid, order, {
       name: order.customerName || user?.name || '',
@@ -360,6 +393,16 @@ const App: React.FC = () => {
       email: order.customerEmail || user?.email || '',
       address: order.customerAddress || user?.address || ''
     });
+
+    if (uid) {
+      try {
+        await updateDoc(doc(db, 'users', uid), {
+          orders: updatedOrders
+        });
+      } catch (e) {
+        console.warn('Notice: user doc orders update offline:', e);
+      }
+    }
   };
 
   const handleUpdateOrders = async (updatedOrders: Order[]) => {

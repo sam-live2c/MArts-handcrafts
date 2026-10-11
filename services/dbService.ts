@@ -277,6 +277,17 @@ export const fetchUserProfile = async (uid: string): Promise<User | null> => {
         }
       }
 
+      let initialOrders: Order[] = Array.isArray(data.orders) ? data.orders : [];
+      try {
+        const cachedOrdersStr = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+        if (cachedOrdersStr) {
+          const cachedParsed = JSON.parse(cachedOrdersStr);
+          if (Array.isArray(cachedParsed) && cachedParsed.length > initialOrders.length) {
+            initialOrders = cachedParsed;
+          }
+        }
+      } catch (_) {}
+
       const profile: User = {
         name: data.displayName || data.name || '',
         displayName: data.displayName || data.name || '',
@@ -286,7 +297,7 @@ export const fetchUserProfile = async (uid: string): Promise<User | null> => {
         address: addressStr,
         deliveryAddress: deliveryAddr,
         shippingAddress: (data.shippingAddress || deliveryAddr) as StoreDeliveryAddress | undefined,
-        orders: data.orders || []
+        orders: initialOrders
       };
       localStorage.setItem('melody_user_profile', JSON.stringify(profile));
       if (addressStr) {
@@ -859,9 +870,19 @@ export const saveOrderToFirestore = async (uid: string | null, order: Order, cus
 
   if (uid) {
     const existing = await fetchUserOrders(uid);
-    const updated = [orderData, ...existing];
+    const updated = [orderData, ...existing.filter(o => o.id !== orderData.id)];
     localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updated));
     localStorage.setItem('melody_orders', JSON.stringify(updated));
+
+    try {
+      const cachedProf = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+      if (cachedProf) {
+        const parsed = JSON.parse(cachedProf);
+        parsed.orders = updated;
+        localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
+        localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
+      }
+    } catch (_) {}
 
     await createNotificationInFirestore(uid, {
       type: 'order',
@@ -879,6 +900,14 @@ export const saveOrderToFirestore = async (uid: string | null, order: Order, cus
     if (uid) {
       const userOrderRef = doc(db, 'users', uid, 'orders', order.id);
       await withTimeout(setDoc(userOrderRef, orderData), 2000);
+
+      // Also sync orders array to the parent users document
+      const existing = await fetchUserOrders(uid);
+      const updated = [orderData, ...existing.filter(o => o.id !== orderData.id)];
+      await withTimeout(setDoc(doc(db, 'users', uid), {
+        orders: updated,
+        updatedAt: new Date().toISOString()
+      }, { merge: true }), 2000).catch(() => {});
     }
   } catch (err) {
     console.warn('Firestore offline when saving order, stored locally.');
