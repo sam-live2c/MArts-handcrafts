@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
-  Star
+  Star,
+  Trash2
 } from 'lucide-react';
 import { Product, User } from '../types';
 import Header from '../components/Header';
@@ -184,6 +185,21 @@ const Wishlist: React.FC<WishlistProps> = ({
                           </span>
                         )}
                       </div>
+
+                      {/* Remove from Wishlist Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveFromWishlist(prod.id);
+                        }}
+                        className="w-full mt-2.5 bg-[#FAF5EE] hover:bg-rose-50 text-[#8C3F1E] hover:text-rose-700 text-[11px] sm:text-xs font-semibold py-1.5 sm:py-2 px-2.5 rounded-lg border border-[#E5D7CA] hover:border-rose-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-2xs group/btn"
+                        title="Remove from Wishlist"
+                        aria-label="Remove from Wishlist"
+                      >
+                        <Trash2 size={13} className="shrink-0 text-[#C85A32] group-hover/btn:text-rose-600 transition-colors" />
+                        <span className="truncate">Remove from Wishlist</span>
+                      </button>
                     </div>
                   </div>
                 );
