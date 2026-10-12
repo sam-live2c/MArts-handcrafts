@@ -38,32 +38,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     });
   };
 
-  // Orders initialized with existing data to avoid any delay or skeleton flicker
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      if (Array.isArray(user?.orders) && user.orders.length > 0) {
-        return sortOrdersSafe(user.orders);
-      }
-      const cached = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return sortOrdersSafe(parsed);
-      }
-    } catch (_) {}
-    return [];
-  });
+  // Orders initialized strictly empty to prevent any splash of stale/placeholder orders
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    if (Array.isArray(user?.orders) && user.orders.length > 0) return false;
+  // Clear any legacy un-scoped demo/placeholder order storage
+  useEffect(() => {
     try {
-      const cached = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return false;
-      }
+      localStorage.removeItem('melody_orders');
+      localStorage.removeItem('marts_orders');
     } catch (_) {}
-    return true;
-  });
+  }, []);
 
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -118,8 +103,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         const liveOrders = sortOrdersSafe(Array.from(mergedMap.values()));
         setOrders(liveOrders);
         try {
+          localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(liveOrders));
           localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
-          localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
         } catch (_) {}
         clearTimeout(fallbackTimer);
         setIsLoading(false);
@@ -199,16 +184,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       if (effectiveUid) {
         setupListeners(effectiveUid);
       } else {
-        // Fallback to local storage if unauthenticated
-        try {
-          const cachedStr = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
-          if (cachedStr) {
-            const cachedOrders = JSON.parse(cachedStr);
-            if (Array.isArray(cachedOrders)) {
-              setOrders(sortOrdersSafe(cachedOrders));
-            }
-          }
-        } catch (_) {}
+        // Not authenticated: no placeholder orders, finish loading clean
+        setOrders([]);
         clearTimeout(fallbackTimer);
         setIsLoading(false);
       }
@@ -693,17 +670,21 @@ I have downloaded my order receipt. Please verify and process the cancellation m
               <Package size={52} className="text-[#C85A32]/40 mx-auto mb-3" />
               <h3 className="text-base font-bold text-[#2B221B]">No orders found</h3>
               <p className="text-xs text-[#735A4C] mt-1 max-w-xs mx-auto">
-                {searchQuery ? `No orders matching "${searchQuery}"` : 'You have not placed any orders in this category yet.'}
+                {searchQuery 
+                  ? `No orders matching "${searchQuery}"` 
+                  : (!auth.currentUser && !user) 
+                    ? 'Please sign in to view your order history and live shipment tracking.' 
+                    : 'You have not placed any orders in this category yet.'}
               </p>
               <button
-                onClick={() => navigate('/products')}
+                onClick={() => navigate((!auth.currentUser && !user) ? '/login' : '/products')}
                 className="mt-5 bg-[#C85A32] text-white text-xs font-bold px-6 py-2.5 rounded-full hover:bg-[#A04724] active:bg-[#8C3F1E] transition-colors cursor-pointer shadow-xs"
               >
-                Start Shopping
+                {(!auth.currentUser && !user) ? 'Sign In to View Orders' : 'Start Shopping'}
               </button>
             </div>
           ) : (
-            <div className="flex flex-col">
+            <div className="space-y-5 sm:space-y-6">
               {filteredOrders.map((order, orderIdx) => {
                 const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
@@ -746,17 +727,10 @@ I have downloaded my order receipt. Please verify and process the cancellation m
                   : 'Delivery by 3-5 Business Days (Insured Timber Crate)';
 
                 return (
-                  <div key={`${order.id}-${orderIdx}`} className="w-full">
-                    {orderIdx > 0 && (
-                      <div 
-                        className="w-full my-10 sm:my-14 border-t border-[#D5C2B2]" 
-                        role="separator"
-                        aria-orientation="horizontal"
-                      />
-                    )}
-                    <div 
-                      className="bg-transparent border-0 space-y-4 sm:space-y-5"
-                    >
+                  <div 
+                    key={`${order.id}-${orderIdx}`} 
+                    className="w-full bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-7 border-0 shadow-2xs space-y-4 sm:space-y-5"
+                  >
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#EADBCC]/80">
                       <div className="flex-1 min-w-0">
@@ -955,9 +929,8 @@ I have downloaded my order receipt. Please verify and process the cancellation m
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
             </div>
           )}
         </div>

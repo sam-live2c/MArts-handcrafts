@@ -960,23 +960,25 @@ export const fetchUserOrders = async (uid: string): Promise<Order[]> => {
     });
 
     if (sorted.length > 0) {
-      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(sorted));
-      localStorage.setItem('melody_orders', JSON.stringify(sorted));
+      try {
+        localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(sorted));
+        localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(sorted));
+      } catch (_) {}
       return sorted;
     }
 
-    // Check cached fallback if firestore returned empty
-    const cached = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+    // Check user-scoped cached fallback only if firestore returned empty
+    const cached = localStorage.getItem(`marts_orders_${uid}`) || localStorage.getItem(`melody_orders_${uid}`);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {}
     }
-    return sorted;
+    return [];
   } catch (err) {
-    console.warn('Firestore offline when fetching orders, using local storage.');
-    const cached = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+    console.warn('Firestore offline when fetching orders, using user-scoped local storage.');
+    const cached = localStorage.getItem(`marts_orders_${uid}`) || localStorage.getItem(`melody_orders_${uid}`);
     if (cached) {
       try { return JSON.parse(cached); } catch (e) {}
     }

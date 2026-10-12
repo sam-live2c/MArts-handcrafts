@@ -410,8 +410,8 @@ const App: React.FC = () => {
       try {
         localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
         localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-        localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
         if (uid) {
+          localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(updatedOrders));
           localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
         }
       } catch (_) {}
@@ -451,12 +451,12 @@ const App: React.FC = () => {
       try {
         localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
         localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-        localStorage.setItem('melody_orders', JSON.stringify(updatedOrders));
       } catch (_) {}
 
       const currentFirebaseUser = auth.currentUser;
       if (currentFirebaseUser) {
         try {
+          localStorage.setItem(`marts_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
           localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
           await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
             orders: updatedOrders,

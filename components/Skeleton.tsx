@@ -301,15 +301,12 @@ export const WishlistSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) =>
  */
 export const OrderHistorySkeleton: React.FC<{ count?: number }> = ({ count = 3 }) => {
   return (
-    <div className="w-full flex flex-col animate-pulse select-none">
+    <div className="w-full space-y-5 sm:space-y-6 animate-pulse select-none">
       {Array.from({ length: count }).map((_, idx) => (
-        <div key={idx} className="w-full">
-          {idx > 0 && (
-            <div className="w-full my-10 sm:my-14 border-t border-[#D5C2B2]" />
-          )}
-          <div 
-            className="bg-transparent border-0 pb-2 space-y-4 sm:space-y-5"
-          >
+        <div 
+          key={idx} 
+          className="w-full bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-7 border-0 shadow-2xs space-y-4 sm:space-y-5"
+        >
           {/* Top Bar: Order ID, Date & Status Chip Placeholder */}
           <div className="flex items-center justify-between pb-4 border-b border-[#EADBCC]/80">
             <div className="space-y-1.5 flex-1 min-w-0">
@@ -358,8 +355,7 @@ export const OrderHistorySkeleton: React.FC<{ count?: number }> = ({ count = 3 }
             </div>
           </div>
         </div>
-      </div>
-    ))}
+      ))}
     </div>
   );
 };
