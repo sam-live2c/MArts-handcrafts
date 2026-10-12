@@ -5,19 +5,28 @@ import {
   linkWithCredential, 
   linkWithPopup, 
   unlink, 
-  signInWithEmailAndPassword, 
-  signInWithPopup, 
   updatePassword, 
   User as FirebaseUser 
 } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { hashPassword } from '../utils/auth';
 
 export interface LinkedProvidersStatus {
   email: string | null;
   hasPassword: boolean;
   hasGoogle: boolean;
   providers: string[];
+}
+
+let memoryPendingCredential: AuthCredential | null = null;
+
+export function setPendingGoogleCredential(cred: AuthCredential | null) {
+  memoryPendingCredential = cred;
+}
+
+export function getPendingGoogleCredential(): AuthCredential | null {
+  return memoryPendingCredential;
 }
 
 /**
@@ -56,11 +65,22 @@ export async function linkGoogleToCurrentUser(): Promise<{ success: boolean; err
     provider.setCustomParameters({ prompt: 'select_account' });
     await linkWithPopup(currentUser, provider);
     
+    const providerIds = (currentUser.providerData || []).map(p => p.providerId);
+    const cleanEmail = (currentUser.email || '').trim().toLowerCase();
+    const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
     // Update canonical profile record
-    await setDoc(doc(db, 'users', currentUser.uid), {
-      linkedProviders: (currentUser.providerData || []).map(p => p.providerId),
+    const updates: Record<string, any> = {
+      linkedProviders: providerIds,
+      emailVerified: currentUser.emailVerified,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    };
+    if (currentUser.photoURL) updates.avatar = currentUser.photoURL;
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+    if (emailDocId !== currentUser.uid) {
+      await setDoc(doc(db, 'users', emailDocId), updates, { merge: true }).catch(() => {});
+    }
 
     return { success: true };
   } catch (err: any) {
@@ -82,7 +102,8 @@ export async function linkGoogleToCurrentUser(): Promise<{ success: boolean; err
 
 /**
  * Set or link an email/password credential to the currently authenticated user
- * (e.g. user created account with Google and now wants to enable email/password sign-in)
+ * (e.g. user created account with Google and now wants to enable email/password sign-in,
+ * or change their password)
  */
 export async function linkPasswordToCurrentUser(password: string): Promise<{ success: boolean; error?: string }> {
   const currentUser = auth.currentUser;
@@ -95,7 +116,8 @@ export async function linkPasswordToCurrentUser(password: string): Promise<{ suc
   }
 
   try {
-    const credential = EmailAuthProvider.credential(currentUser.email, password);
+    const cleanEmail = currentUser.email.trim().toLowerCase();
+    const credential = EmailAuthProvider.credential(cleanEmail, password);
     try {
       await linkWithCredential(currentUser, credential);
     } catch (linkErr: any) {
@@ -107,11 +129,22 @@ export async function linkPasswordToCurrentUser(password: string): Promise<{ suc
       }
     }
 
-    // Keep Firestore profile linkedProviders in sync
-    await setDoc(doc(db, 'users', currentUser.uid), {
-      linkedProviders: (currentUser.providerData || []).map(p => p.providerId),
+    // Keep Firestore profile linkedProviders and passwordHash in sync
+    const pwdHash = await hashPassword(password);
+    const providerIds = (currentUser.providerData || []).map(p => p.providerId);
+    if (!providerIds.includes('password')) providerIds.push('password');
+
+    const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    const updatePayload = {
+      passwordHash: pwdHash,
+      linkedProviders: providerIds,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    };
+
+    await setDoc(doc(db, 'users', currentUser.uid), updatePayload, { merge: true });
+    if (emailDocId !== currentUser.uid) {
+      await setDoc(doc(db, 'users', emailDocId), updatePayload, { merge: true }).catch(() => {});
+    }
 
     return { success: true };
   } catch (err: any) {
@@ -126,6 +159,47 @@ export async function linkPasswordToCurrentUser(password: string): Promise<{ suc
 }
 
 /**
+ * Unlink a provider from current user account (preserving at least 1 sign-in method)
+ */
+export async function unlinkProviderFromCurrentUser(providerId: 'google.com' | 'password'): Promise<{ success: boolean; error?: string }> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return { success: false, error: 'Not signed in.' };
+
+  const providerIds = (currentUser.providerData || []).map(p => p.providerId);
+  if (providerIds.length <= 1) {
+    return { 
+      success: false, 
+      error: 'Cannot disconnect your only sign-in method. Please set a password or connect another method first.' 
+    };
+  }
+
+  try {
+    await unlink(currentUser, providerId);
+    const remainingProviders = (currentUser.providerData || []).map(p => p.providerId).filter(p => p !== providerId);
+
+    const cleanEmail = (currentUser.email || '').trim().toLowerCase();
+    const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const updates: Record<string, any> = {
+      linkedProviders: remainingProviders,
+      updatedAt: new Date().toISOString()
+    };
+    if (providerId === 'password') {
+      updates.passwordHash = null;
+    }
+
+    await setDoc(doc(db, 'users', currentUser.uid), updates, { merge: true });
+    if (emailDocId !== currentUser.uid) {
+      await setDoc(doc(db, 'users', emailDocId), updates, { merge: true }).catch(() => {});
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to unlink provider.' };
+  }
+}
+
+/**
  * Completes linking a pending credential (from an account-exists-with-different-credential error)
  * after the user successfully reauthenticates with their existing password.
  */
@@ -136,10 +210,21 @@ export async function linkPendingCredential(
   try {
     await linkWithCredential(authenticatedUser, pendingCredential);
     
-    await setDoc(doc(db, 'users', authenticatedUser.uid), {
-      linkedProviders: (authenticatedUser.providerData || []).map(p => p.providerId),
+    const providerIds = (authenticatedUser.providerData || []).map(p => p.providerId);
+    const cleanEmail = (authenticatedUser.email || '').trim().toLowerCase();
+    const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const updates: Record<string, any> = {
+      linkedProviders: providerIds,
+      emailVerified: authenticatedUser.emailVerified,
       updatedAt: new Date().toISOString()
-    }, { merge: true });
+    };
+    if (authenticatedUser.photoURL) updates.avatar = authenticatedUser.photoURL;
+
+    await setDoc(doc(db, 'users', authenticatedUser.uid), updates, { merge: true });
+    if (emailDocId !== authenticatedUser.uid) {
+      await setDoc(doc(db, 'users', emailDocId), updates, { merge: true }).catch(() => {});
+    }
 
     return { success: true };
   } catch (err: any) {

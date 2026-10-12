@@ -341,26 +341,39 @@ export const findUserAccountByEmail = async (email: string): Promise<{
   const cleanEmail = email.trim().toLowerCase();
   const docId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
 
-  // Check local storage cached profile first for instant response
   try {
-    const cachedStr = safeStorage.getItem('marts_user_profile');
-    if (cachedStr) {
-      const parsed = JSON.parse(cachedStr);
-      if (parsed && parsed.email?.toLowerCase() === cleanEmail) {
-        return {
-          exists: true,
-          docId,
-          data: parsed,
-          user: parsed
-        };
-      }
-    }
-  } catch (_) {}
+    // 1. Fetch deterministic email document and any user document registered with this email in parallel
+    const [snapDoc, querySnap] = await withTimeout(Promise.all([
+      getDoc(doc(db, 'users', docId)).catch(() => null),
+      getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail))).catch(() => null)
+    ]), 2500);
 
-  try {
-    const snap = await withTimeout(getDoc(doc(db, 'users', docId)), 1500);
-    if (snap.exists()) {
-      const data = snap.data();
+    let foundData: any = null;
+    let foundDocId: string = docId;
+
+    if (snapDoc && snapDoc.exists()) {
+      foundData = snapDoc.data();
+      foundDocId = snapDoc.id;
+    }
+
+    if (querySnap && !querySnap.empty) {
+      // Pick document that has more details (like passwordHash or linkedProviders)
+      querySnap.forEach((d) => {
+        const qData = d.data();
+        if (!foundData) {
+          foundData = qData;
+          foundDocId = d.id;
+        } else if (qData.passwordHash && !foundData.passwordHash) {
+          foundData = { ...foundData, ...qData, passwordHash: qData.passwordHash };
+          foundDocId = d.id;
+        } else {
+          foundData = { ...foundData, ...qData };
+        }
+      });
+    }
+
+    if (foundData) {
+      const data = foundData;
       const deliveryAddr = (data.deliveryAddress || data.shippingAddress) as StoreDeliveryAddress | undefined;
       let addressStr = data.address || '';
       if (!addressStr && deliveryAddr) {
@@ -395,14 +408,30 @@ export const findUserAccountByEmail = async (email: string): Promise<{
 
       return {
         exists: true,
-        docId,
+        docId: foundDocId,
         data,
         user: userProfile
       };
     }
   } catch (err) {
-    console.warn('findUserAccountByEmail notice:', err);
+    console.warn('findUserAccountByEmail Firestore query notice:', err);
   }
+
+  // Fallback to local cache only if Firestore was completely offline/unreachable
+  try {
+    const cachedStr = safeStorage.getItem('marts_user_profile');
+    if (cachedStr) {
+      const parsed = JSON.parse(cachedStr);
+      if (parsed && parsed.email?.toLowerCase() === cleanEmail) {
+        return {
+          exists: true,
+          docId,
+          data: parsed,
+          user: parsed
+        };
+      }
+    }
+  } catch (_) {}
 
   return {
     exists: false,
@@ -727,6 +756,9 @@ export const restoreUserAccountByEmail = async (
       }
 
       await Promise.allSettled(syncWrites);
+      if (firebaseUid && firebaseUid !== docId) {
+        await reconcileCanonicalUserData(firebaseUid, cleanEmail).catch(() => {});
+      }
     } catch (_) {}
   })();
 
@@ -850,6 +882,8 @@ export const reconcileCanonicalUserData = async (
         deliveryAddress: existingCanonical?.deliveryAddress || legacyData?.deliveryAddress || null,
         shippingAddress: existingCanonical?.shippingAddress || legacyData?.shippingAddress || null,
         address: existingCanonical?.address || legacyData?.address || '',
+        passwordHash: existingCanonical?.passwordHash || legacyData?.passwordHash || null,
+        linkedProviders: Array.from(new Set([...(existingCanonical?.linkedProviders || []), ...(legacyData?.linkedProviders || [])])),
         reconciledFrom: legacyDocId,
         reconciledAt: Date.now(),
         updatedAt: new Date().toISOString()

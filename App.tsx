@@ -39,7 +39,8 @@ import {
   fetchProductsFromFirestore,
   subscribeToLiveProducts,
   subscribeToCarouselBanners,
-  saveOrderToFirestore
+  saveOrderToFirestore,
+  reconcileCanonicalUserData
 } from './services/dbService';
 import { sanitizeProductRatings } from './utils/productRating';
 import { safeStorage, sanitizeUserForCache } from './utils/storage';
@@ -221,6 +222,9 @@ const App: React.FC = () => {
         } catch (_) {}
 
         try {
+          if (cleanEmail) {
+            reconcileCanonicalUserData(firebaseUser.uid, cleanEmail).catch(() => {});
+          }
           fetchUserProfile(firebaseUser.uid, cleanEmail).then((profile) => {
             if (profile) {
               setUser(profile);

@@ -22,8 +22,10 @@ import {
   fetchUserAddresses, 
   fetchUserOrders, 
   findUserAccountByEmail, 
-  restoreUserAccountByEmail 
+  restoreUserAccountByEmail,
+  reconcileCanonicalUserData
 } from '../services/dbService';
+import { getPendingGoogleCredential, setPendingGoogleCredential } from '../services/authLinkingService';
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
 import { checkLoginAttemptAllowed, reportLoginAttempt } from '../utils/authSecurity';
@@ -111,7 +113,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Pending Google Credential when linking accounts with same email
-  const [pendingGoogleCred, setPendingGoogleCred] = useState<AuthCredential | null>(null);
+  const [pendingGoogleCred, setPendingGoogleCred] = useState<AuthCredential | null>(() => {
+    return getPendingGoogleCredential();
+  });
+  const [isGoogleSuggested, setIsGoogleSuggested] = useState<boolean>(false);
 
   // Loading States
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -232,11 +237,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         await reportLoginAttempt(cleanEmail, true);
 
         // Link pending Google credential if user had attempted Google sign in first
-        if (pendingGoogleCred) {
+        const activePendingGoogle = pendingGoogleCred || getPendingGoogleCredential();
+        if (activePendingGoogle) {
           try {
-            await linkWithCredential(firebaseUser, pendingGoogleCred);
+            await linkWithCredential(firebaseUser, activePendingGoogle);
             showToast('Google account successfully linked to your profile!');
             setPendingGoogleCred(null);
+            setPendingGoogleCredential(null);
           } catch (linkErr) {
             console.warn('Account linking notice:', linkErr);
           }
@@ -311,7 +318,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             return;
           }
         } else {
-          setErrorMessage('No password has been set for this account yet. Please sign in with email verification code below or reset your password.');
+          const providers = accountCheck.data.linkedProviders || [];
+          const isGoogleAccount = providers.includes('google.com') || Boolean(accountCheck.data.avatar?.includes('googleusercontent.com'));
+          if (isGoogleAccount) {
+            setIsGoogleSuggested(true);
+            setErrorMessage('This account was registered using Google Sign-In and does not have a password set yet. Please click "Sign in with Google" below or verify your email to create a password.');
+          } else {
+            setErrorMessage('No password has been set for this account yet. Please sign in with email verification code below or reset your password.');
+          }
           return;
         }
       }
@@ -604,7 +618,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       onLogin(immediateUser);
 
-      // Restore and unify account records in parallel from Cloud Firebase
+      // Clear any pending Google credential on successful login
+      setPendingGoogleCred(null);
+      setPendingGoogleCredential(null);
+
+      // Reconcile and unify account records in parallel from Cloud Firebase
+      reconcileCanonicalUserData(fbUser.uid, cleanEmail).catch(() => {});
       restoreUserAccountByEmail(
         cleanEmail,
         undefined,
@@ -641,8 +660,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (conflictEmail) {
           setEmail(conflictEmail);
         }
-        setPendingGoogleCred(pendingCred);
-        const msg = 'An account with this email already exists. Please enter your password or sign in with an email code to link Google.';
+        if (pendingCred) {
+          setPendingGoogleCred(pendingCred);
+          setPendingGoogleCredential(pendingCred);
+        }
+        const msg = 'An account with this email already exists with a password. Please enter your password to link your Google account.';
         setErrorMessage(msg);
         showToast(msg, 'error');
         switchView('password');

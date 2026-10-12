@@ -10,7 +10,8 @@ import {
 import Logo from '../components/Logo';
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
-import { findUserAccountByEmail, restoreUserAccountByEmail } from '../services/dbService';
+import { findUserAccountByEmail, restoreUserAccountByEmail, reconcileCanonicalUserData } from '../services/dbService';
+import { setPendingGoogleCredential } from '../services/authLinkingService';
 import { safeStorage, sanitizeUserForCache } from '../utils/storage';
 
 interface SignupProps {
@@ -379,6 +380,9 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
 
       onSignup(immediateUser);
 
+      // Atomic data reconciliation
+      reconcileCanonicalUserData(fbUser.uid, cleanEmail).catch(() => {});
+
       // Seamlessly restore and unify existing account in parallel background
       restoreUserAccountByEmail(
         cleanEmail, 
@@ -411,6 +415,10 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       }
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {
+        const pendingCred = GoogleAuthProvider.credentialFromError(err);
+        if (pendingCred) {
+          setPendingGoogleCredential(pendingCred);
+        }
         const conflictEmail = (err.customData?.email || err.email || '').trim().toLowerCase();
         try {
           if (conflictEmail) sessionStorage.setItem('marts_conflict_email', conflictEmail);

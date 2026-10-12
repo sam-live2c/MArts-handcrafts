@@ -9,19 +9,26 @@
 
 import { User, CartItem, ItemCustomization } from '../types';
 
+const inMemoryStore = new Map<string, string>();
+
 export const safeStorage = {
   getItem(key: string): string | null {
     try {
-      if (typeof window === 'undefined' || !window.localStorage) return null;
+      if (typeof window === 'undefined' || !window.localStorage) {
+        return inMemoryStore.get(key) ?? null;
+      }
       return window.localStorage.getItem(key);
     } catch {
-      return null;
+      return inMemoryStore.get(key) ?? null;
     }
   },
 
   setItem(key: string, value: string): boolean {
     try {
-      if (typeof window === 'undefined' || !window.localStorage) return false;
+      if (typeof window === 'undefined' || !window.localStorage) {
+        inMemoryStore.set(key, value);
+        return true;
+      }
       window.localStorage.setItem(key, value);
       return true;
     } catch {
@@ -31,14 +38,15 @@ export const safeStorage = {
         window.localStorage.setItem(key, value);
         return true;
       } catch {
-        // Gracefully fail silently so Cloud Firebase operations are not blocked
-        return false;
+        inMemoryStore.set(key, value);
+        return true;
       }
     }
   },
 
   removeItem(key: string): void {
     try {
+      inMemoryStore.delete(key);
       if (typeof window === 'undefined' || !window.localStorage) return;
       window.localStorage.removeItem(key);
     } catch {}
@@ -46,6 +54,7 @@ export const safeStorage = {
 
   clear(): void {
     try {
+      inMemoryStore.clear();
       if (typeof window === 'undefined' || !window.localStorage) return;
       window.localStorage.clear();
     } catch {}
