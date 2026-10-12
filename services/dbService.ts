@@ -159,6 +159,8 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
     type: 'HOME',
     isDefault: true
   };
+  localStorage.setItem('marts_default_address', JSON.stringify(localDefaultAddr));
+  localStorage.setItem('marts_user_address', formattedStr);
   localStorage.setItem('melody_default_address', JSON.stringify(localDefaultAddr));
   localStorage.setItem('melody_user_address', formattedStr);
   localStorage.setItem('agronic_default_address', JSON.stringify(localDefaultAddr));
@@ -657,6 +659,8 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   // Format full address string
   const formattedStr = `${addressWithId.houseNo}, ${addressWithId.area ? addressWithId.area + ', ' : ''}${addressWithId.city}, ${addressWithId.state} ${addressWithId.pincode}`.trim();
   if (isDefaultAddress) {
+    localStorage.setItem('marts_default_address', JSON.stringify(updatedAddressItem));
+    localStorage.setItem('marts_user_address', formattedStr);
     localStorage.setItem('melody_default_address', JSON.stringify(updatedAddressItem));
     localStorage.setItem('melody_user_address', formattedStr);
     localStorage.setItem('agronic_default_address', JSON.stringify(updatedAddressItem));

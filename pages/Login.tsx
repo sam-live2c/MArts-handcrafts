@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { User } from '../types';
 import { auth, db } from '../firebase';
@@ -11,11 +11,11 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, ArrowLeft, Mail, AlertCircle, 
-  CheckCircle2, RefreshCw, KeyRound, Check, Lock, Eye, EyeOff, Sparkles
+  CheckCircle2, RefreshCw, KeyRound, Lock, Eye, EyeOff, X
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { fetchUserAddresses } from '../services/dbService';
-import { resendService, SendOtpResult } from '../services/resendService';
+import { resendService } from '../services/resendService';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -24,7 +24,7 @@ interface LoginProps {
 type AuthView = 'password' | 'otp_request' | 'otp_verify' | 'forgot_email' | 'forgot_reset';
 
 const GoogleIcon = () => (
-  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
     <path
       fill="#4285F4"
       d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z"
@@ -45,10 +45,31 @@ const GoogleIcon = () => (
 );
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [view, setView] = useState<AuthView>('password');
+  const [searchParams] = useSearchParams();
+  const redirectTarget = searchParams.get('redirect');
+  const navigate = useNavigate();
+
+  // Restore preserved pending state (when switching to Gmail app and returning)
+  const [view, setView] = useState<AuthView>(() => {
+    try {
+      const mode = searchParams.get('mode') || searchParams.get('view');
+      if (mode === 'otp') return 'otp_request';
+      const saved = sessionStorage.getItem('marts_pending_login_view');
+      if (saved === 'otp_verify' || saved === 'forgot_reset') {
+        return saved as AuthView;
+      }
+    } catch (_) {}
+    return 'password';
+  });
 
   // Form Fields
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try {
+      return sessionStorage.getItem('marts_pending_login_email') || '';
+    } catch (_) {
+      return '';
+    }
+  });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   
@@ -57,34 +78,44 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  // OTP Fields
-  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
-  const [generatedOtp, setGeneratedOtp] = useState<string>('');
+  // Single OTP Input Code
+  const [otpCode, setOtpCode] = useState('');
   const [resendCountdown, setResendCountdown] = useState<number>(30);
-  const [otpSentStatus, setOtpSentStatus] = useState<SendOtpResult | null>(null);
 
-  // Inline Feedback Status (No Toast Notifications)
+  // Inline Feedback (Stable Fixed-Height Container)
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Toast status notification
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Loading States
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
 
-  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const redirectTarget = searchParams.get('redirect');
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
+  const clearPendingStorage = () => {
+    try {
+      sessionStorage.removeItem('marts_pending_login_view');
+      sessionStorage.removeItem('marts_pending_login_email');
+    } catch (_) {}
+  };
 
   // Redirection Handler (Instant Navigation)
   const handlePostAuthRedirect = (uid: string, loggedInUser: User) => {
+    clearPendingStorage();
     onLogin(loggedInUser);
 
     const hasAddress =
       (loggedInUser.address && loggedInUser.address.trim().length > 0) ||
-      !!localStorage.getItem('melody_user_address') ||
       !!localStorage.getItem('marts_user_address') ||
-      !!localStorage.getItem('melody_default_address');
+      !!localStorage.getItem('marts_default_address') ||
+      !!localStorage.getItem('melody_user_address');
 
     if (redirectTarget) {
       if (!hasAddress && redirectTarget === 'checkout') {
@@ -100,21 +131,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     fetchUserAddresses(uid).catch(() => {});
   };
 
-  // Support direct navigation to OTP view via ?mode=otp or ?view=otp
-  useEffect(() => {
-    const mode = searchParams.get('mode') || searchParams.get('view');
-    if (mode === 'otp') {
-      setView('otp_request');
-    }
-  }, [searchParams]);
-
-  // Generate 6-digit OTP code
-  const generateNewOtp = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(code);
-    return code;
-  };
-
   // Timer countdown for resending codes
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
@@ -128,20 +144,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     };
   }, [view, resendCountdown]);
 
-  // Auto focus first OTP input when arriving at verification screens
-  useEffect(() => {
-    if (view === 'otp_verify' || view === 'forgot_reset') {
-      setTimeout(() => {
-        otpInputRefs.current[0]?.focus();
-      }, 150);
-    }
-  }, [view]);
-
-  // Clear messages on view changes
   const switchView = (newView: AuthView) => {
     setView(newView);
     setErrorMessage(null);
-    setSuccessMessage(null);
+    setOtpCode('');
+    if (newView === 'password' || newView === 'otp_request' || newView === 'forgot_email') {
+      clearPendingStorage();
+    }
   };
 
   // ================= 1. PASSWORD SIGN IN =================
@@ -183,7 +192,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       } else {
         loggedInUser = {
           name: userCredential.user.displayName || cleanEmail.split('@')[0],
-          displayName: userCredential.user.displayName || cleanEmail.split('@')[0],
+          displayName: cleanEmail.split('@')[0],
           email: cleanEmail,
           phone: '',
           address: '',
@@ -199,7 +208,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     } catch (err: any) {
       let msg = 'Invalid email or password. Please try again.';
       if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Incorrect email or password. Please check your credentials or reset your password.';
+        msg = 'Incorrect email or password. Please check your credentials or reset password.';
       } else if (err.code === 'auth/invalid-email') {
         msg = 'Please enter a valid email address.';
       } else if (err.code === 'auth/too-many-requests') {
@@ -217,7 +226,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleRequestOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setSuccessMessage(null);
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
@@ -225,7 +233,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setErrorMessage('Please enter a valid email address (e.g. collector@marts.com)');
+      setErrorMessage('Please enter a valid email address');
       return;
     }
 
@@ -233,35 +241,32 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     try {
       const res = await resendService.sendOtp(cleanEmail, 'login');
-      setOtpSentStatus(res);
 
       if (res.success) {
-        if (res.otp) {
-          setGeneratedOtp(res.otp);
-        }
-        setOtpDigits(['', '', '', '', '', '']);
+        setOtpCode('');
         setResendCountdown(30);
-
-        if (res.delivered) {
-          setSuccessMessage(`Verification code sent to ${cleanEmail} via Resend. Please check your inbox!`);
-        } else if (res.domainRestricted) {
-          setSuccessMessage(`Verification code dispatched via Resend.`);
-        }
         setView('otp_verify');
+
+        try {
+          sessionStorage.setItem('marts_pending_login_view', 'otp_verify');
+          sessionStorage.setItem('marts_pending_login_email', cleanEmail);
+        } catch (_) {}
+
+        showToast(`Verification code sent to ${cleanEmail}`);
       } else {
         setErrorMessage(res.error || 'Failed to send verification email. Please try again.');
       }
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error communicating with Resend verification server.');
+      setErrorMessage(err.message || 'Error communicating with verification service.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleVerifyOtp = async (codeToVerify?: string) => {
-    const code = (codeToVerify || otpDigits.join('')).trim();
+    const code = (codeToVerify || otpCode).trim();
     if (code.length < 6) {
-      setErrorMessage('Please enter all 6 digits of the verification code');
+      setErrorMessage('Please enter the full 6-digit verification code');
       return;
     }
 
@@ -270,12 +275,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     const cleanEmail = email.trim().toLowerCase();
 
     try {
-      // Verify with backend Resend OTP store
       const verifyRes = await resendService.verifyOtp(cleanEmail, code);
 
-      // Verify either against server or local fallback
-      if (!verifyRes.success && code !== generatedOtp) {
-        setErrorMessage(verifyRes.error || 'Invalid verification code. Please check and try again.');
+      if (!verifyRes.success) {
+        setErrorMessage(verifyRes.error || 'Invalid or expired code. Please check and try again.');
         setIsLoading(false);
         return;
       }
@@ -321,7 +324,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const handleRequestPasswordResetOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    setSuccessMessage(null);
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
@@ -335,28 +337,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     setIsLoading(true);
 
-    // Also trigger Firebase password reset email link non-blockingly
+    // Send Firebase reset link in parallel
     sendPasswordResetEmail(auth, cleanEmail).catch(() => {});
 
     try {
       const res = await resendService.sendOtp(cleanEmail, 'reset');
-      setOtpSentStatus(res);
 
       if (res.success) {
-        if (res.otp) {
-          setGeneratedOtp(res.otp);
-        }
-        setOtpDigits(['', '', '', '', '', '']);
+        setOtpCode('');
         setNewPassword('');
         setConfirmNewPassword('');
         setResendCountdown(30);
-
-        if (res.delivered) {
-          setSuccessMessage(`Reset code sent to ${cleanEmail} via Resend. Please check your inbox!`);
-        } else if (res.domainRestricted) {
-          setSuccessMessage(`Reset code generated via Resend.`);
-        }
         setView('forgot_reset');
+
+        try {
+          sessionStorage.setItem('marts_pending_login_view', 'forgot_reset');
+          sessionStorage.setItem('marts_pending_login_email', cleanEmail);
+        } catch (_) {}
+
+        showToast(`Reset code and instructions sent to ${cleanEmail}`);
       } else {
         setErrorMessage(res.error || 'Failed to send password reset code. Please try again.');
       }
@@ -371,7 +370,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setErrorMessage(null);
 
-    const enteredOtp = otpDigits.join('').trim();
+    const enteredOtp = otpCode.trim();
     if (enteredOtp.length < 6) {
       setErrorMessage('Please enter the 6-digit verification code');
       return;
@@ -380,8 +379,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     const cleanEmail = email.trim().toLowerCase();
     const verifyRes = await resendService.verifyOtp(cleanEmail, enteredOtp);
 
-    if (!verifyRes.success && enteredOtp !== generatedOtp) {
-      setErrorMessage(verifyRes.error || 'Invalid verification code. Please check and try again.');
+    if (!verifyRes.success) {
+      setErrorMessage(verifyRes.error || 'Invalid or expired code. Please check and try again.');
       return;
     }
 
@@ -414,12 +413,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         email: cleanEmail,
         phone: '',
         address: '',
-        orders: []
+        orders: [],
+        role: 'customer'
       };
       localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
       localStorage.setItem('marts_user_profile', JSON.stringify(updatedProfile));
 
-      // Sign user in automatically with their newly reset password
+      showToast('Password reset successfully!');
       await handlePostAuthRedirect(uid, updatedProfile);
     } catch {
       setErrorMessage('Failed to update password. Please try again.');
@@ -428,124 +428,50 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-
-  // OTP inputs handling
-  const handleOtpBoxChange = (index: number, val: string) => {
-    const num = val.replace(/[^0-9]/g, '');
-    const updated = [...otpDigits];
-
-    if (num.length > 1) {
-      const chars = num.slice(0, 6).split('');
-      for (let i = 0; i < 6; i++) {
-        updated[i] = chars[i] || '';
-      }
-      setOtpDigits(updated);
-      otpInputRefs.current[Math.min(chars.length, 5)]?.focus();
-      if (chars.length === 6 && view === 'otp_verify') {
-        handleVerifyOtp(updated.join(''));
-      }
-      return;
-    }
-
-    updated[index] = num.slice(-1);
-    setOtpDigits(updated);
-    setErrorMessage(null);
-
-    if (num && index < 5) {
-      otpInputRefs.current[index + 1]?.focus();
-    }
-    if (updated.every((d) => d !== '') && view === 'otp_verify') {
-      handleVerifyOtp(updated.join(''));
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
-      otpInputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleAutoFill = () => {
-    if (!generatedOtp) return;
-    const chars = generatedOtp.split('');
-    setOtpDigits(chars);
-    setErrorMessage(null);
-    if (view === 'otp_verify') {
-      setTimeout(() => handleVerifyOtp(generatedOtp), 150);
-    }
-  };
-
-  // ================= 4. GOOGLE SIGN IN =================
+  // Google Sign In
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
+
     try {
       const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
-      const gUser = result.user;
-      const fbUid = gUser.uid;
+      const fbUser = result.user;
+      const userDocRef = doc(db, 'users', fbUser.uid);
+      const userDocSnap = await getDoc(userDocRef);
 
-      // Construct immediate user profile from Google credentials for zero latency
-      const immediateUser: User = {
-        name: gUser.displayName || 'Artisan Collector',
-        displayName: gUser.displayName || 'Artisan Collector',
-        email: gUser.email || '',
-        phone: gUser.phoneNumber || '',
-        avatar: gUser.photoURL || undefined,
-        address: '',
-        orders: [],
-        role: 'customer'
-      };
+      let userProfile: User;
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        userProfile = {
+          name: data.name || fbUser.displayName || 'Customer',
+          displayName: data.displayName || fbUser.displayName || 'Customer',
+          phone: data.phone || data.phoneNumber || '',
+          email: fbUser.email || '',
+          address: data.address || '',
+          orders: data.orders || [],
+          role: data.role || 'customer'
+        };
+      } else {
+        userProfile = {
+          name: fbUser.displayName || 'Customer',
+          displayName: fbUser.displayName || 'Customer',
+          email: fbUser.email || '',
+          phone: fbUser.phoneNumber || '',
+          address: '',
+          orders: [],
+          role: 'customer'
+        };
+        await setDoc(userDocRef, userProfile, { merge: true }).catch(() => {});
+      }
 
-      // Check cached profile if already present to preserve existing address/orders
-      try {
-        const cachedStr = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
-        if (cachedStr) {
-          const cached = JSON.parse(cachedStr);
-          if (cached.email === gUser.email) {
-            if (cached.address) immediateUser.address = cached.address;
-            if (Array.isArray(cached.orders)) immediateUser.orders = cached.orders;
-            if (cached.role) immediateUser.role = cached.role;
-            if (cached.phone) immediateUser.phone = cached.phone;
-          }
-        }
-      } catch (_) {}
-
-      // Save to localStorage and redirect immediately (zero wait)
-      localStorage.setItem('melody_user_profile', JSON.stringify(immediateUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
-      handlePostAuthRedirect(fbUid, immediateUser);
-
-      // Asynchronously sync with Firestore in background without blocking the UI
-      (async () => {
-        try {
-          const userDocRef = doc(db, 'users', fbUid);
-          const userDocSnap = await getDoc(userDocRef);
-          if (userDocSnap.exists()) {
-            const data = userDocSnap.data();
-            const syncedUser: User = {
-              ...immediateUser,
-              name: data.name || immediateUser.name,
-              displayName: data.displayName || immediateUser.displayName,
-              businessName: data.businessName || '',
-              phone: data.phone || data.phoneNumber || immediateUser.phone,
-              address: data.address || immediateUser.address,
-              orders: Array.isArray(data.orders) && data.orders.length > 0 ? data.orders : immediateUser.orders,
-              role: data.role || immediateUser.role
-            };
-            localStorage.setItem('melody_user_profile', JSON.stringify(syncedUser));
-            localStorage.setItem('marts_user_profile', JSON.stringify(syncedUser));
-            onLogin(syncedUser);
-          } else {
-            await setDoc(userDocRef, immediateUser, { merge: true }).catch(() => {});
-          }
-        } catch (e) {
-          console.warn('Background Google profile sync notice:', e);
-        }
-      })();
+      localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
+      localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
+      await handlePostAuthRedirect(fbUser.uid, userProfile);
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        setErrorMessage(err.message || 'Google Sign-In failed. Please try again.');
+        showToast(err.message || 'Google sign-in failed. Please try again.', 'error');
       }
     } finally {
       setIsGoogleLoading(false);
@@ -553,85 +479,79 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF7F2] flex flex-col justify-center items-center px-4 py-8 relative">
-      {/* Background Ambience */}
-      <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#C85A32_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none"></div>
-
-      <div className="w-full max-w-md bg-white rounded-3xl border border-[#EADBCC] shadow-xl p-6 sm:p-8 relative z-10">
-        {/* Header Branding */}
-        <div className="text-center flex flex-col items-center mb-5">
-          <Link to="/" className="mb-3 hover:opacity-95 transition-opacity">
-            <Logo variant="dark" size="md" showStoreTag={false} />
+    <div className="min-h-screen bg-[#FAF7F2] flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 selection:bg-[#F2E4D8] selection:text-[#2B221B] relative">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="flex justify-center mb-4">
+          <Link to="/" className="inline-block hover:opacity-90 transition-opacity">
+            <Logo size="lg" />
           </Link>
-          <h1 className="text-2xl font-serif font-black text-[#2B221B]">
-            {view === 'password' && 'Welcome Back'}
-            {view === 'otp_request' && 'Sign In with OTP'}
-            {view === 'otp_verify' && 'Verify Email OTP'}
-            {view === 'forgot_email' && 'Forgot Password'}
-            {view === 'forgot_reset' && 'Create New Password'}
-          </h1>
-          <p className="text-xs sm:text-sm text-[#735A4C] mt-1 max-w-xs">
-            {view === 'password' && 'Sign in to access your collector wishlist, orders & artisan pieces.'}
-            {view === 'otp_request' && 'Enter your email to receive a 6-digit one-time login verification code.'}
-            {view === 'otp_verify' && `We sent a 6-digit verification code to ${email}`}
-            {view === 'forgot_email' && 'Enter your email to receive a verification code and create a new password.'}
-            {view === 'forgot_reset' && 'Enter the verification code and set your new account password.'}
-          </p>
         </div>
 
-        {/* Global Inline Error (Strictly NO toast used) */}
-        {errorMessage && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-medium rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-            <AlertCircle size={16} className="shrink-0 text-red-600" />
-            <span className="flex-1 leading-snug">{errorMessage}</span>
-          </div>
-        )}
+        <h1 className="text-center text-2xl sm:text-3xl font-serif font-bold text-[#2B221B] tracking-tight">
+          {view === 'password' && 'Welcome Back'}
+          {view === 'otp_request' && 'Sign In with OTP'}
+          {view === 'otp_verify' && 'Verify Your Email'}
+          {view === 'forgot_email' && 'Reset Your Password'}
+          {view === 'forgot_reset' && 'Create New Password'}
+        </h1>
+        <p className="mt-2 text-center text-xs sm:text-sm text-[#735A4C]">
+          {view === 'password' && (
+            <>
+              Don&apos;t have an account?{' '}
+              <Link
+                to={redirectTarget ? `/signup?redirect=${redirectTarget}` : '/signup'}
+                className="font-bold text-[#C85A32] hover:underline"
+              >
+                Sign up
+              </Link>
+            </>
+          )}
+          {view === 'otp_request' && 'Receive a one-time code on your registered email address.'}
+          {view === 'otp_verify' && 'Enter the 6-digit code sent to your email.'}
+          {view === 'forgot_email' && 'Enter your email to receive password reset instructions.'}
+          {view === 'forgot_reset' && 'Enter the code from your email and your new password.'}
+        </p>
+      </div>
 
-        {/* Global Inline Success */}
-        {successMessage && (
-          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium rounded-xl flex items-center gap-2 animate-in fade-in duration-200">
-            <CheckCircle2 size={16} className="shrink-0 text-emerald-600" />
-            <span className="flex-1 leading-snug">{successMessage}</span>
-          </div>
-        )}
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-5 sm:px-8 shadow-sm border border-[#EADBCC] rounded-3xl">
 
-        {/* ================= VIEW 1: EMAIL WITH PASSWORD (FIRST PRIORITY) ================= */}
-        {view === 'password' && (
-          <div>
+          {/* VIEW 1: PASSWORD LOGIN */}
+          {view === 'password' && (
             <form onSubmit={handlePasswordSignIn} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  Email Address
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
+                  Email Address *
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
-                    <Mail size={16} />
-                  </div>
-                  <input
-                    type="email"
-                    autoFocus
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. collector@marts.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
-                  />
-                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. collector@marts.crafts"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] uppercase tracking-wide mb-1.5">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-[#4E392D] uppercase tracking-wide">
+                    Password *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => switchView('forgot_email')}
+                    className="text-xs text-[#C85A32] hover:underline font-semibold cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
-                    <Lock size={16} />
-                  </div>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
                   />
                   <button
                     type="button"
@@ -642,102 +562,100 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <div className="flex justify-end mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => switchView('forgot_email')}
-                    className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
               </div>
 
-              {/* Sign In Primary Action */}
+              {/* Stable inline error container */}
+              <div className="min-h-[22px] flex items-center">
+                {errorMessage && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errorMessage}</span>
+                  </p>
+                )}
+              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer text-sm mt-1 disabled:opacity-75"
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
               >
                 {isLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Signing In...</span>
+                    <span>Signing in...</span>
                   </>
                 ) : (
                   <>
-                    <span>Sign In to MArts</span>
+                    <span>Sign In</span>
                     <ArrowRight size={16} />
                   </>
                 )}
               </button>
 
-              {/* Switch to OTP Login Option */}
-              <div className="text-center pt-1">
+              <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => switchView('otp_request')}
-                  className="text-xs font-semibold text-[#8C6D58] hover:text-[#C85A32] transition-colors cursor-pointer inline-flex items-center gap-1"
+                  className="text-xs font-semibold text-[#8C3F1E] hover:text-[#C85A32] transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  <KeyRound size={13} />
-                  <span>Or sign in with One-Time Password (OTP)</span>
+                  <Mail size={13} />
+                  <span>Or sign in with email verification code</span>
                 </button>
               </div>
+
+              <div className="flex items-center my-4 w-full">
+                <div className="flex-1 border-t border-[#EADBCC]"></div>
+                <span className="px-3 text-xs text-[#8C6D58] font-medium uppercase tracking-wider whitespace-nowrap shrink-0">
+                  Or continue with Google
+                </span>
+                <div className="flex-1 border-t border-[#EADBCC]"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isGoogleLoading}
+                className="w-full bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-[#EADBCC] text-[#2B221B] font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
+              >
+                {isGoogleLoading ? (
+                  <Loader2 size={16} className="animate-spin text-[#C85A32]" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                <span>Sign in with Google</span>
+              </button>
             </form>
+          )}
 
-            {/* Divider: Single Line (Strictly NO line break) */}
-            <div className="flex items-center my-5 w-full">
-              <div className="flex-1 border-t border-[#EADBCC]"></div>
-              <span className="px-3 text-xs text-[#8C6D58] font-medium uppercase tracking-wider whitespace-nowrap shrink-0">
-                Or continue with Google
-              </span>
-              <div className="flex-1 border-t border-[#EADBCC]"></div>
-            </div>
-
-            {/* Google Sign In (Below Email Login) */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              className="w-full py-2.5 px-4 rounded-xl border border-[#E5D7CA] bg-white hover:bg-[#FAF6F0] text-[#4E392D] text-sm font-semibold flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-2xs disabled:opacity-75"
-            >
-              {isGoogleLoading ? (
-                <Loader2 size={16} className="animate-spin text-[#C85A32]" />
-              ) : (
-                <GoogleIcon />
-              )}
-              <span>Continue with Google</span>
-            </button>
-          </div>
-        )}
-
-        {/* ================= VIEW 2: OTP REQUEST ================= */}
-        {view === 'otp_request' && (
-          <div>
+          {/* VIEW 2: OTP REQUEST */}
+          {view === 'otp_request' && (
             <form onSubmit={handleRequestOtp} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  Email Address
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
+                  Email Address *
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
-                    <Mail size={16} />
-                  </div>
-                  <input
-                    type="email"
-                    autoFocus
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. collector@marts.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
-                  />
-                </div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your registered email"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
+                />
+              </div>
+
+              <div className="min-h-[22px] flex items-center">
+                {errorMessage && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errorMessage}</span>
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
               >
                 {isLoading ? (
                   <>
@@ -752,236 +670,148 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 )}
               </button>
 
-              <div className="text-center pt-1">
+              <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => switchView('password')}
-                  className="text-xs font-semibold text-[#8C6D58] hover:text-[#C85A32] transition-colors cursor-pointer inline-flex items-center gap-1"
+                  className="text-xs font-semibold text-[#735A4C] hover:text-[#2B221B] cursor-pointer inline-flex items-center gap-1"
                 >
-                  <Lock size={13} />
-                  <span>Sign in with Password instead</span>
+                  <ArrowLeft size={13} />
+                  <span>Back to password login</span>
                 </button>
               </div>
             </form>
+          )}
 
-            {/* Divider: Single Line (Strictly NO line break) */}
-            <div className="flex items-center my-5 w-full">
-              <div className="flex-1 border-t border-[#EADBCC]"></div>
-              <span className="px-3 text-xs text-[#8C6D58] font-medium uppercase tracking-wider whitespace-nowrap shrink-0">
-                Or continue with Google
-              </span>
-              <div className="flex-1 border-t border-[#EADBCC]"></div>
-            </div>
-
-            {/* Google Sign In (Below) */}
-            <button
-              type="button"
-              onClick={handleGoogleSignIn}
-              disabled={isGoogleLoading}
-              className="w-full py-2.5 px-4 rounded-xl border border-[#E5D7CA] bg-white hover:bg-[#FAF6F0] text-[#4E392D] text-sm font-semibold flex items-center justify-center gap-2.5 transition-all cursor-pointer shadow-2xs disabled:opacity-75"
-            >
-              {isGoogleLoading ? (
-                <Loader2 size={16} className="animate-spin text-[#C85A32]" />
-              ) : (
-                <GoogleIcon />
-              )}
-              <span>Continue with Google</span>
-            </button>
-          </div>
-        )}
-
-        {/* ================= VIEW 3: OTP VERIFY ================= */}
-        {view === 'otp_verify' && (
-          <div className="space-y-5 animate-in fade-in duration-200">
-            {/* Email Chip with Change Action */}
-            <div className="flex items-center justify-between p-3 bg-[#FAF3EA] rounded-xl border border-[#EADBCC]">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-8 h-8 rounded-lg bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center shrink-0">
-                  <Mail size={16} />
-                </div>
-                <div className="truncate">
-                  <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Code Sent To</p>
-                  <p className="text-xs sm:text-sm font-bold text-[#2B221B] truncate">{email}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => switchView('otp_request')}
-                className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer shrink-0 ml-2"
-              >
-                Change
-              </button>
-            </div>
-
-            {/* Resend Delivery Status Card */}
-            {otpSentStatus?.delivered ? (
-              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs space-y-1.5 animate-in fade-in duration-200">
-                <div className="flex items-center gap-1.5 text-emerald-800 font-bold">
-                  <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                  <span>Email Dispatched via Resend</span>
-                </div>
-                <p className="text-[11px] text-emerald-700 leading-relaxed">
-                  We sent a 6-digit verification code to <strong className="text-emerald-900">{email}</strong>. Please check your inbox (or spam folder).
-                </p>
-              </div>
-            ) : otpSentStatus?.domainRestricted ? (
-              <div className="p-3 bg-[#FFF9F2] rounded-xl border border-[#F2DECE] text-xs space-y-2 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#8C3F1E] flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-[#C85A32]" />
-                    <span>Resend.com Active</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAutoFill}
-                    className="text-[11px] font-bold bg-[#FAF0E6] hover:bg-[#F2DECE] text-[#C85A32] px-2 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    Auto-Fill Code
-                  </button>
-                </div>
-                <p className="text-[11px] text-[#7A5B49] leading-relaxed">
-                  Resend is connected! Test emails to <strong className="text-[#2B221B]">{otpSentStatus.registeredOwnerEmail || 'sahinurmolla190@gmail.com'}</strong> arrive live in inbox.
-                </p>
-                <div className="flex items-center justify-between pt-0.5 border-t border-[#F5E6DA]">
-                  <span className="text-[10px] text-[#9C8272]">Verification Code:</span>
-                  <span className="font-mono font-black text-sm tracking-widest text-[#2B221B] bg-white px-2.5 py-0.5 rounded border border-[#EADBCC]">
-                    {generatedOtp}
-                  </span>
-                </div>
-              </div>
-            ) : generatedOtp ? (
-              <div className="p-3 bg-[#FFF9F2] rounded-xl border border-[#F2DECE] text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#8C3F1E] flex items-center gap-1.5">
-                    <KeyRound size={13} className="text-[#C85A32]" />
-                    <span>Verification Code</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAutoFill}
-                    className="text-[11px] font-bold bg-[#FAF0E6] hover:bg-[#F2DECE] text-[#C85A32] px-2 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    Auto-Fill
-                  </button>
-                </div>
-                <div className="flex items-center justify-between pt-0.5">
-                  <span className="text-[10px] text-[#A89283]">For testing:</span>
-                  <span className="font-mono font-black text-sm tracking-widest text-[#2B221B] bg-white px-2 py-0.5 rounded border border-[#EADBCC]">
-                    {generatedOtp}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-
-            {/* 6-Digit OTP Boxes */}
-            <div>
-              <label className="block text-xs font-bold text-[#4E392D] mb-2 uppercase tracking-wide text-center">
-                Enter 6-Digit Code
-              </label>
-              <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-                {otpDigits.map((digit, idx) => (
-                  <input
-                    key={idx}
-                    ref={(el) => {
-                      otpInputRefs.current[idx] = el;
-                    }}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpBoxChange(idx, e.target.value)}
-                    onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                    className={`w-11 sm:w-12 h-13 text-center text-xl font-bold font-mono rounded-xl border bg-[#FAF8F5] focus:bg-white outline-none transition-all ${
-                      errorMessage
-                        ? 'border-red-400 ring-1 ring-red-400 text-red-700'
-                        : digit
-                        ? 'border-[#C85A32] bg-[#FAF3EA] text-[#2B221B]'
-                        : 'border-[#E5D7CA] focus:border-[#C85A32]'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Verify Button */}
-            <button
-              type="button"
-              disabled={isLoading || otpDigits.some((d) => d === '')}
-              onClick={() => handleVerifyOtp()}
-              className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin text-white" />
-                  <span>Verifying Code...</span>
-                </>
-              ) : (
-                <>
-                  <span>Verify &amp; Sign In</span>
-                  <Check size={16} />
-                </>
-              )}
-            </button>
-
-            {/* Resend Section */}
-            <div className="text-center pt-1 text-xs text-[#735A4C]">
-              <span>Didn't receive the code? </span>
-              {resendCountdown > 0 ? (
-                <span className="font-semibold text-[#8C6D58]">
-                  Resend in {resendCountdown}s
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={(e) => handleRequestOtp(e)}
-                  className="font-bold text-[#C85A32] hover:underline cursor-pointer inline-flex items-center gap-1"
-                >
-                  <RefreshCw size={12} />
-                  <span>Resend Code</span>
-                </button>
-              )}
-            </div>
-
-            <div className="pt-1 text-center">
-              <button
-                type="button"
-                onClick={() => switchView('password')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D58] hover:text-[#2B221B] transition-colors cursor-pointer"
-              >
-                <ArrowLeft size={13} />
-                <span>Return to Password Login</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ================= VIEW 4: FORGOT PASSWORD (EMAIL ENTRY) ================= */}
-        {view === 'forgot_email' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            <form onSubmit={handleRequestPasswordResetOtp} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  Account Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
+          {/* VIEW 3: OTP VERIFICATION (SINGLE INPUT FIELD) */}
+          {view === 'otp_verify' && (
+            <div className="space-y-5 animate-in fade-in duration-200">
+              <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center shrink-0">
                     <Mail size={16} />
                   </div>
-                  <input
-                    type="email"
-                    autoFocus
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your registered email"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
-                  />
+                  <div className="truncate">
+                    <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Code Sent To</p>
+                    <p className="text-xs sm:text-sm font-bold text-[#2B221B] truncate">{email}</p>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => switchView('otp_request')}
+                  className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer shrink-0 ml-2"
+                >
+                  Change
+                </button>
+              </div>
+
+              {/* Single Clean OTP Input */}
+              <div>
+                <label className="block text-xs font-bold text-[#4E392D] mb-2 uppercase tracking-wide text-center">
+                  Enter 6-Digit Code
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  pattern="[0-9]*"
+                  value={otpCode}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setOtpCode(digits);
+                    setErrorMessage(null);
+                    if (digits.length === 6) {
+                      handleVerifyOtp(digits);
+                    }
+                  }}
+                  placeholder="••••••"
+                  className={`w-full h-14 text-center text-2xl tracking-[0.45em] font-mono font-bold text-[#2B221B] bg-[#FAF8F5] focus:bg-white rounded-2xl outline-none transition-all placeholder:text-[#9C8272]/30 placeholder:tracking-[0.3em] ${
+                    errorMessage
+                      ? 'border-2 border-red-400 focus:border-red-500'
+                      : 'border border-[#E5D7CA] focus:border-[#C85A32]'
+                  }`}
+                  autoFocus
+                />
+
+                <div className="min-h-[22px] flex items-center justify-center mt-1.5">
+                  {errorMessage && (
+                    <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                      <AlertCircle size={13} className="shrink-0 text-red-500" />
+                      <span>{errorMessage}</span>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={isLoading || otpCode.length < 6}
+                onClick={() => handleVerifyOtp()}
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-white" />
+                    <span>Verifying Code...</span>
+                  </>
+                ) : (
+                  <span>Verify Code &amp; Sign In</span>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between pt-2 text-xs text-[#735A4C]">
+                <button
+                  type="button"
+                  onClick={() => switchView('password')}
+                  className="hover:text-[#2B221B] cursor-pointer"
+                >
+                  Password Login
+                </button>
+                <button
+                  type="button"
+                  disabled={resendCountdown > 0 || isLoading}
+                  onClick={handleRequestOtp}
+                  className="font-bold text-[#C85A32] hover:underline disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
+                >
+                  <RefreshCw size={13} />
+                  <span>
+                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 4: FORGOT PASSWORD EMAIL */}
+          {view === 'forgot_email' && (
+            <form onSubmit={handleRequestPasswordResetOtp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
+                  Registered Email Address *
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your registered email"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
+                />
+              </div>
+
+              <div className="min-h-[22px] flex items-center">
+                {errorMessage && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errorMessage}</span>
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
               >
                 {isLoading ? (
                   <>
@@ -1000,87 +830,72 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 <button
                   type="button"
                   onClick={() => switchView('password')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D58] hover:text-[#2B221B] transition-colors cursor-pointer"
+                  className="text-xs font-semibold text-[#735A4C] hover:text-[#2B221B] cursor-pointer inline-flex items-center gap-1"
                 >
                   <ArrowLeft size={13} />
-                  <span>Back to Sign In</span>
+                  <span>Back to sign in</span>
                 </button>
               </div>
             </form>
-          </div>
-        )}
+          )}
 
-        {/* ================= VIEW 5: FORGOT PASSWORD (VERIFY & CREATE NEW PASSWORD) ================= */}
-        {view === 'forgot_reset' && (
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Demo Code Helper */}
-            {generatedOtp && (
-              <div className="p-3 bg-[#FFF9F2] rounded-xl border border-[#F2DECE] text-xs space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-[#8C3F1E] flex items-center gap-1.5">
-                    <KeyRound size={13} className="text-[#C85A32]" />
-                    <span>Reset Verification Code</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAutoFill}
-                    className="text-[11px] font-bold bg-[#FAF0E6] hover:bg-[#F2DECE] text-[#C85A32] px-2 py-0.5 rounded cursor-pointer transition-colors"
-                  >
-                    Auto-Fill
-                  </button>
-                </div>
-                <div className="flex items-center justify-between pt-0.5">
-                  <span className="text-[10px] text-[#A89283]">For testing in AI Studio:</span>
-                  <span className="font-mono font-black text-sm tracking-widest text-[#2B221B] bg-white px-2 py-0.5 rounded border border-[#EADBCC]">
-                    {generatedOtp}
-                  </span>
-                </div>
-              </div>
-            )}
-
+          {/* VIEW 5: FORGOT PASSWORD RESET */}
+          {view === 'forgot_reset' && (
             <form onSubmit={handleCompletePasswordReset} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  6-Digit Verification Code
-                </label>
-                <div className="flex items-center justify-between gap-1.5 sm:gap-2">
-                  {otpDigits.map((digit, idx) => (
-                    <input
-                      key={idx}
-                      ref={(el) => {
-                        otpInputRefs.current[idx] = el;
-                      }}
-                      type="text"
-                      inputMode="numeric"
-                      maxLength={1}
-                      value={digit}
-                      onChange={(e) => handleOtpBoxChange(idx, e.target.value)}
-                      onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      className="w-11 sm:w-12 h-12 text-center text-lg font-bold font-mono rounded-xl border border-[#E5D7CA] focus:border-[#C85A32] bg-[#FAF8F5] focus:bg-white outline-none transition-all"
-                    />
-                  ))}
+              <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
+                <div className="truncate">
+                  <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Reset Code Sent To</p>
+                  <p className="text-xs sm:text-sm font-bold text-[#2B221B] truncate">{email}</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => switchView('forgot_email')}
+                  className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer shrink-0 ml-2"
+                >
+                  Change
+                </button>
+              </div>
+
+              {/* Single OTP Input */}
+              <div>
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide text-center">
+                  6-Digit Verification Code *
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  pattern="[0-9]*"
+                  value={otpCode}
+                  onChange={(e) => {
+                    const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setOtpCode(digits);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="••••••"
+                  className="w-full h-12 text-center text-xl tracking-[0.4em] font-mono font-bold text-[#2B221B] bg-[#FAF8F5] focus:bg-white border border-[#E5D7CA] focus:border-[#C85A32] rounded-xl outline-none transition-all placeholder:text-[#9C8272]/30"
+                  autoFocus
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  New Password
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
+                  New Password *
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
-                    <Lock size={16} />
-                  </div>
                   <input
                     type={showNewPassword ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="At least 6 characters"
-                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
+                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
                   >
                     {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -1088,85 +903,94 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide">
-                  Confirm New Password
+                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
+                  Confirm New Password *
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-[#8C6D58]">
-                    <Lock size={16} />
-                  </div>
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
-                    placeholder="Re-enter your new password"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 placeholder:transition-none transition-[border-color,background-color] duration-150 outline-none"
-                  />
-                </div>
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
+                />
+              </div>
+
+              <div className="min-h-[22px] flex items-center">
+                {errorMessage && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errorMessage}</span>
+                  </p>
+                )}
               </div>
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75 mt-1"
+                disabled={isLoading || otpCode.length < 6}
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50"
               >
                 {isLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Resetting Password...</span>
+                    <span>Updating Password...</span>
                   </>
                 ) : (
-                  <>
-                    <span>Save Password &amp; Sign In</span>
-                    <Check size={16} />
-                  </>
+                  <span>Reset Password &amp; Sign In</span>
                 )}
               </button>
 
-              {/* Resend Reset Code Section */}
-              <div className="text-center pt-1 text-xs text-[#735A4C]">
-                <span>Didn't receive the reset code? </span>
-                {resendCountdown > 0 ? (
-                  <span className="font-semibold text-[#8C6D58]">
-                    Resend in {resendCountdown}s
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => handleRequestPasswordResetOtp(e)}
-                    className="font-bold text-[#C85A32] hover:underline cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <RefreshCw size={12} />
-                    <span>Resend Code</span>
-                  </button>
-                )}
-              </div>
-
-              <div className="pt-1 text-center">
+              <div className="flex items-center justify-between pt-2 text-xs text-[#735A4C]">
                 <button
                   type="button"
                   onClick={() => switchView('password')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C6D58] hover:text-[#2B221B] transition-colors cursor-pointer"
+                  className="hover:text-[#2B221B] cursor-pointer"
                 >
-                  <ArrowLeft size={13} />
-                  <span>Cancel and Return to Sign In</span>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={resendCountdown > 0 || isLoading}
+                  onClick={handleRequestPasswordResetOtp}
+                  className="font-bold text-[#C85A32] hover:underline disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
+                >
+                  <RefreshCw size={13} />
+                  <span>
+                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
+                  </span>
                 </button>
               </div>
             </form>
-          </div>
-        )}
+          )}
 
-        {/* Footer Navigation */}
-        <div className="mt-6 pt-5 border-t border-[#F0E6DC] text-center text-xs text-[#735A4C]">
-          <span>New to MArts Handcrafted Store? </span>
-          <Link
-            to={redirectTarget ? `/signup?redirect=${redirectTarget}` : '/signup'}
-            className="font-bold text-[#C85A32] hover:underline"
-          >
-            Create an Account
-          </Link>
         </div>
       </div>
+
+      {/* Existing Style Floating Toast Notification */}
+      {toast && (
+        <div 
+          id="ai-studio-toast"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[250] w-auto max-w-[94vw] sm:max-w-md pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-200 select-none"
+        >
+          <div className="bg-white text-gray-900 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-200/90 flex items-center gap-2.5 sm:gap-3">
+            {toast.type === 'success' ? (
+              <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle size={18} className="text-red-500 shrink-0" />
+            )}
+            <div className="text-xs sm:text-sm font-semibold text-gray-800 truncate max-w-[240px] sm:max-w-xs flex-1 min-w-0">
+              {toast.message}
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer shrink-0 -mr-1"
+              aria-label="Dismiss"
+            >
+              <X size={15} strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -13,6 +13,7 @@ import {
   StoreDeliveryAddress
 } from '../services/dbService';
 import { openRazorpayCheckout } from '../utils/razorpay';
+import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
 
 const upiLogoIcon = 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg';
 
@@ -218,13 +219,13 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   };
 
   const [activeAddress, setActiveAddress] = useState(() => {
-    const localSaved = localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
+    const localSaved = localStorage.getItem('marts_default_address') || localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
     if (localSaved) {
       try {
         const parsed = JSON.parse(localSaved);
         return {
-          name: parsed.name || user?.name || '',
-          phone: parsed.phone || user?.phone || '',
+          name: parsed.name || user?.name || user?.displayName || '',
+          phone: parsed.phone || user?.phone || user?.phoneNumber || '',
           houseNo: parsed.houseNo || user?.address || '',
           area: parsed.area || '',
           city: parsed.city || '',
@@ -236,9 +237,22 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
         console.error(e);
       }
     }
+    const userDelivery = user?.deliveryAddress || user?.shippingAddress;
+    if (userDelivery) {
+      return {
+        name: userDelivery.recipientName || user?.name || user?.displayName || '',
+        phone: userDelivery.phone || user?.phone || user?.phoneNumber || '',
+        houseNo: userDelivery.street || user?.address || '',
+        area: [userDelivery.apartment, userDelivery.landmark].filter(Boolean).join(', ') || '',
+        city: userDelivery.city || '',
+        state: userDelivery.state || '',
+        pincode: userDelivery.postalCode || userDelivery.pin || '',
+        type: 'HOME'
+      };
+    }
     return {
-      name: user?.name || '',
-      phone: user?.phone || '',
+      name: user?.name || user?.displayName || '',
+      phone: user?.phone || user?.phoneNumber || '',
       houseNo: user?.address || '',
       area: '',
       city: '',
@@ -257,7 +271,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       }
 
       if (addresses.length === 0) {
-        const localSaved = localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
+        const localSaved = localStorage.getItem('marts_default_address') || localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
         if (localSaved) {
           try {
             addresses = [JSON.parse(localSaved)];
@@ -273,17 +287,31 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           name: active.name,
           phone: active.phone,
           houseNo: active.houseNo,
-          area: active.area,
-          city: active.city,
-          state: active.state,
-          pincode: active.pincode,
-          type: active.type
+          area: active.area || '',
+          city: active.city || '',
+          state: active.state || '',
+          pincode: active.pincode || '',
+          type: active.type || 'HOME'
         });
+      } else if (user?.deliveryAddress || user?.shippingAddress) {
+        const dAddr = user.deliveryAddress || user.shippingAddress;
+        if (dAddr) {
+          setActiveAddress(prev => ({
+            ...prev,
+            name: dAddr.recipientName || prev.name,
+            phone: dAddr.phone || prev.phone,
+            houseNo: dAddr.street || prev.houseNo,
+            area: [dAddr.apartment, dAddr.landmark].filter(Boolean).join(', ') || prev.area,
+            city: dAddr.city || prev.city,
+            state: dAddr.state || prev.state,
+            pincode: dAddr.postalCode || dAddr.pin || prev.pincode
+          }));
+        }
       } else if (user?.address) {
         setActiveAddress(prev => ({
           ...prev,
-          name: user.name || prev.name,
-          phone: user.phone || prev.phone,
+          name: user.name || user.displayName || prev.name,
+          phone: user.phone || user.phoneNumber || prev.phone,
           houseNo: user.address
         }));
       }
@@ -307,7 +335,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       }, 500);
       return () => clearTimeout(timer);
     }
-    const savedAddr = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address;
+    const savedAddr = localStorage.getItem('marts_user_address') || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address || user?.deliveryAddress?.street;
     if ((!savedAddr || savedAddr.trim() === '') && (!activeAddress.houseNo || activeAddress.houseNo.trim() === '')) {
       setStep(1);
     }
@@ -324,36 +352,38 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     const currentUser = auth.currentUser;
     const uid = currentUser ? currentUser.uid : 'guest';
 
-    // Production delivery address validation
+    // Production delivery address validation with robust Indian phone normalization
     const customerName = (activeAddress.name || user?.name || user?.displayName || '').trim();
-    const customerPhone = (activeAddress.phone || user?.phone || user?.phoneNumber || '').replace(/\D/g, '');
-    const customerHouse = (activeAddress.houseNo || user?.address || '').trim();
-    const customerPincode = (activeAddress.pincode || '').replace(/\D/g, '');
+    const customerPhone = normalizeIndianPhone(activeAddress.phone || user?.phone || user?.phoneNumber || '');
+    const customerHouse = (activeAddress.houseNo || user?.address || user?.deliveryAddress?.street || '').trim();
+    let customerPincode = (activeAddress.pincode || user?.deliveryAddress?.postalCode || user?.deliveryAddress?.pin || '').replace(/\D/g, '');
+
+    // Auto-extract pincode if contained in full address string
+    if (!customerPincode && customerHouse) {
+      const pinMatch = customerHouse.match(/\b\d{6}\b/);
+      if (pinMatch) customerPincode = pinMatch[0];
+    }
 
     if (!customerName || customerName.length < 2) {
-      setPaymentError('Please enter the recipient full name in your delivery address.');
-      setStep(1);
+      setPaymentError('Please enter recipient name in your delivery address.');
       setIsProcessing(false);
       return;
     }
 
     if (!customerPhone || customerPhone.length !== 10) {
       setPaymentError('Please enter a valid 10-digit mobile phone number for delivery.');
-      setStep(1);
       setIsProcessing(false);
       return;
     }
 
     if (!customerHouse || customerHouse.length < 3) {
-      setPaymentError('Please enter house / building / street delivery address.');
-      setStep(1);
+      setPaymentError('Please enter complete street or building delivery address.');
       setIsProcessing(false);
       return;
     }
 
     if (!customerPincode || customerPincode.length !== 6) {
-      setPaymentError('Please enter a valid 6-digit delivery pincode.');
-      setStep(1);
+      setPaymentError('Please enter a valid 6-digit delivery PIN code.');
       setIsProcessing(false);
       return;
     }
@@ -1124,6 +1154,23 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                           Change Address
                        </button>
                     </div>
+
+                    {/* Inline error display for non-shifting layout */}
+                    {paymentError && (
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
+                        <div className="flex items-center gap-2">
+                          <AlertCircle size={16} className="text-red-500 shrink-0" />
+                          <span>{paymentError}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setStep(1)}
+                          className="text-xs font-bold text-[#C85A32] hover:underline underline-offset-2 shrink-0 cursor-pointer"
+                        >
+                          Update Address
+                        </button>
+                      </div>
+                    )}
 
                     {/* Official partner & security */}
                     <div className="py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">

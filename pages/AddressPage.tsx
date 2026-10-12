@@ -181,6 +181,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const selected = updated.find(a => a.id === id);
     if (selected) {
       const formattedStr = `${selected.houseNo}, ${selected.area ? selected.area + ', ' : ''}${selected.city}, ${selected.state} ${selected.pincode}`;
+      localStorage.setItem('marts_default_address', JSON.stringify(selected));
+      localStorage.setItem('marts_user_address', formattedStr);
       localStorage.setItem('melody_default_address', JSON.stringify(selected));
       localStorage.setItem('melody_user_address', formattedStr);
       localStorage.setItem('agronic_default_address', JSON.stringify(selected));
@@ -293,6 +295,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const formattedStr = `${addrToSave.houseNo}, ${addrToSave.area ? addrToSave.area + ', ' : ''}${addrToSave.city}, ${addrToSave.state} ${addrToSave.pincode}`;
 
     if (addrToSave.isDefault || addresses.length === 0) {
+      localStorage.setItem('marts_default_address', JSON.stringify(addrToSave));
+      localStorage.setItem('marts_user_address', formattedStr);
       localStorage.setItem('melody_default_address', JSON.stringify(addrToSave));
       localStorage.setItem('melody_user_address', formattedStr);
       localStorage.setItem('agronic_default_address', JSON.stringify(addrToSave));
@@ -367,6 +371,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const activeAddress = addresses.find(a => a.id === selectedId) || addresses[0];
     if (activeAddress) {
       const formattedStr = `${activeAddress.houseNo}, ${activeAddress.area ? activeAddress.area + ', ' : ''}${activeAddress.city}, ${activeAddress.state} ${activeAddress.pincode}`;
+      localStorage.setItem('marts_default_address', JSON.stringify(activeAddress));
+      localStorage.setItem('marts_user_address', formattedStr);
       localStorage.setItem('melody_default_address', JSON.stringify(activeAddress));
       localStorage.setItem('melody_user_address', formattedStr);
       localStorage.setItem('agronic_default_address', JSON.stringify(activeAddress));

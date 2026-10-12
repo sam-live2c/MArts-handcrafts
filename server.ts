@@ -36,7 +36,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || 're_5CqJrQpS_C8u5pQs5NHCWZynddoyubg4Y';
-const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'MArts India <onboarding@resend.dev>';
+const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'MArts <auth@martsindia.in>';
 
 /**
  * Generate MArts branded HTML email for OTP verification
@@ -185,6 +185,14 @@ app.post('/api/send-otp', async (req: Request, res: Response): Promise<void> => 
       : `${otp} is your MArts email verification code`;
     const emailHtml = buildOtpEmailHtml(otp, type);
 
+    if (!RESEND_API_KEY) {
+      res.status(500).json({
+        success: false,
+        error: 'Email verification service is temporarily unconfigured. Please contact support.'
+      });
+      return;
+    }
+
     // Call Resend REST API
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -215,34 +223,10 @@ app.post('/api/send-otp', async (req: Request, res: Response): Promise<void> => 
 
     console.warn('[Resend] Response from API:', resendResponse.status, resendData);
 
-    // Handle Resend free tier unverified domain restriction gracefully
-    // (Resend free account allows sending only to owner's registered email when from onboarding@resend.dev)
-    if (
-      resendResponse.status === 403 ||
-      resendResponse.status === 422 ||
-      (resendData.message && (
-        resendData.message.includes('verify a domain') ||
-        resendData.message.includes('testing email') ||
-        resendData.message.includes('only send testing emails') ||
-        resendData.name === 'validation_error'
-      ))
-    ) {
-      console.info(`[Resend Notice] Recipient ${cleanEmail} outside verified domain. Providing test OTP fallback.`);
-      res.json({
-        success: true,
-        delivered: false,
-        domainRestricted: true,
-        otp, // Return OTP so developer/user in test environment is never blocked
-        registeredOwnerEmail: 'sahinurmolla190@gmail.com',
-        message: 'Verification code generated. (Emails to your Resend account sahinurmolla190@gmail.com are delivered directly; to send to other recipients, verify a custom domain at resend.com/domains).'
-      });
-      return;
-    }
-
     // Generic Resend error
     res.status(resendResponse.status || 500).json({
       success: false,
-      error: resendData.message || 'Failed to send email via Resend'
+      error: resendData.message || 'Failed to send verification code via email'
     });
   } catch (error: any) {
     console.error('[Resend Error]', error);
@@ -335,7 +319,7 @@ async function startServer() {
     // Production static serving
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (_req: Request, res: Response) => {
+    app.use((_req: Request, res: Response) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   }
