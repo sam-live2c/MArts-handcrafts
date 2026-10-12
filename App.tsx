@@ -256,8 +256,7 @@ const App: React.FC = () => {
             }
           }).catch(() => {});
 
-          // Real-time listener for universal profile updates across websites/tabs
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          // Real-time listener for universal profile updates & admin block status
           const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null;
           const unsubs: (() => void)[] = [];
 
@@ -305,10 +304,10 @@ const App: React.FC = () => {
                 });
 
                 const isBlocked = Boolean(
-                  data.isBlocked || 
-                  data.blocked || 
+                  data.isBlocked === true || 
+                  data.blocked === true || 
                   data.status === 'blocked' || 
-                  data.disabled || 
+                  data.disabled === true || 
                   data.isActive === false ||
                   data.role === 'blocked' ||
                   data.userStatus === 'blocked'
@@ -333,10 +332,11 @@ const App: React.FC = () => {
                   hasPassword: Boolean(data.passwordHash),
                   linkedProviders: data.linkedProviders || []
                 };
-                if (isBlocked && !prev?.isBlocked) {
+                if (isBlocked && (!prev?.isBlocked || prev?.status !== 'blocked')) {
+                  const blockMsg = data.blockReason || 'Your account has been blocked by the admin. You cannot place orders.';
                   setNotification({
                     show: true,
-                    message: data.blockReason || 'Your account has been blocked by the admin. You cannot place orders.',
+                    message: blockMsg,
                     type: 'blocked'
                   });
                 }
@@ -351,7 +351,7 @@ const App: React.FC = () => {
             }
           };
 
-          unsubs.push(onSnapshot(userDocRef, handleUserDataSnapshot, (err) => console.warn('User UID snapshot notice:', err)));
+          unsubs.push(onSnapshot(doc(db, 'users', firebaseUser.uid), handleUserDataSnapshot, (err) => console.warn('User UID snapshot notice:', err)));
           if (emailDocId && emailDocId !== firebaseUser.uid) {
             unsubs.push(onSnapshot(doc(db, 'users', emailDocId), handleUserDataSnapshot, (err) => console.warn('User email doc snapshot notice:', err)));
           }
@@ -410,6 +410,62 @@ const App: React.FC = () => {
               const cachedUid = cachedUser.uid || (cleanCachedEmail ? 'marts_user_' + cleanCachedEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
 
               if (cachedUid) {
+                // Attach real-time snapshot listener on Firestore document for cached session
+                const emailDocId = cleanCachedEmail ? 'marts_user_' + cleanCachedEmail.replace(/[^a-zA-Z0-9]/g, '_') : null;
+                const unsubs: (() => void)[] = [];
+
+                const handleCachedUserSnapshot = (snap: any) => {
+                  if (snap.exists()) {
+                    const data = snap.data();
+                    const isBlocked = Boolean(
+                      data.isBlocked === true || 
+                      data.blocked === true || 
+                      data.status === 'blocked' || 
+                      data.disabled === true || 
+                      data.isActive === false ||
+                      data.role === 'blocked' ||
+                      data.userStatus === 'blocked'
+                    );
+                    setUser(prev => {
+                      if (!prev) return prev;
+                      const updated: User = {
+                        ...prev,
+                        isBlocked,
+                        blocked: isBlocked,
+                        status: data.status || (isBlocked ? 'blocked' : 'active'),
+                        disabled: isBlocked,
+                        blockReason: data.blockReason || data.reason || prev.blockReason,
+                        hasPassword: Boolean(data.passwordHash || prev.hasPassword)
+                      };
+                      if (isBlocked && (!prev.isBlocked || prev.status !== 'blocked')) {
+                        const blockMsg = data.blockReason || 'Your account has been blocked by the admin. You cannot place orders.';
+                        setNotification({
+                          show: true,
+                          message: blockMsg,
+                          type: 'blocked'
+                        });
+                      }
+                      try {
+                        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updated)));
+                      } catch (_) {}
+                      return updated;
+                    });
+                  }
+                };
+
+                if (cachedUid && cachedUid !== 'guest') {
+                  unsubs.push(onSnapshot(doc(db, 'users', cachedUid), handleCachedUserSnapshot, (err) => console.warn('Cached user UID snapshot notice:', err)));
+                }
+                if (emailDocId && emailDocId !== cachedUid) {
+                  unsubs.push(onSnapshot(doc(db, 'users', emailDocId), handleCachedUserSnapshot, (err) => console.warn('Cached user email snapshot notice:', err)));
+                }
+
+                unsubSnapshot = () => {
+                  unsubs.forEach(u => {
+                    try { u(); } catch (_) {}
+                  });
+                };
+
                 // Fetch cart, wishlist, orders for this authenticated user in background
                 Promise.all([
                   fetchUserCart(cachedUid, cleanCachedEmail),

@@ -3,7 +3,8 @@ import { CartItem, User, Order } from '../types';
 import { Lock, ArrowLeft, Check, ChevronDown, ChevronUp, Star, CreditCard, Banknote, Calendar, Building, Gift, HelpCircle, ArrowDown, Plus, Minus, ShieldCheck, CheckCircle2, AlertCircle, Smartphone, X, Upload, FileText, Copy, Truck, Package, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 import {
   saveRazorpayPaymentToFirestore,
   fetchUserAddresses,
@@ -78,28 +79,71 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     fetchTodayQuota();
   }, [user]);
 
-  const isUserBlocked = Boolean(user?.isBlocked || user?.blocked || user?.status === 'blocked' || user?.disabled);
+  const isUserBlocked = Boolean(user?.isBlocked || user?.blocked || user?.status === 'blocked' || user?.disabled || user?.isActive === false || user?.role === 'blocked');
   const [dbBlocked, setDbBlocked] = useState<boolean>(isUserBlocked);
   const [blockReason, setBlockReason] = useState<string>(user?.blockReason || '');
 
   useEffect(() => {
-    const checkBlock = async () => {
-      const uid = auth.currentUser?.uid || user?.uid;
-      const res = await checkUserBlockedStatus(uid, user?.email);
+    const uid = auth.currentUser?.uid || user?.uid;
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null;
+
+    // 1. Initial live check
+    checkUserBlockedStatus(uid, cleanEmail).then((res) => {
       if (res.isBlocked) {
         setDbBlocked(true);
-        if (res.reason) setBlockReason(res.reason);
-        const msg = res.reason || 'Your account has been blocked by the admin. You cannot place orders.';
-        setPaymentError(msg);
+        const reason = res.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+        setBlockReason(reason);
+        setPaymentError(reason);
         window.dispatchEvent(new CustomEvent('marts_show_toast', {
-          detail: { message: msg, type: 'blocked' }
+          detail: { message: reason, type: 'blocked' }
         }));
       } else {
         setDbBlocked(isUserBlocked);
       }
+    }).catch(() => {});
+
+    // 2. Real-time snapshot listener on Firestore user document
+    const unsubs: (() => void)[] = [];
+    const handleSnap = (snap: any) => {
+      if (snap.exists()) {
+        const d = snap.data();
+        const blocked = Boolean(
+          d.isBlocked === true || 
+          d.blocked === true || 
+          d.status === 'blocked' || 
+          d.disabled === true || 
+          d.isActive === false ||
+          d.role === 'blocked' ||
+          d.userStatus === 'blocked'
+        );
+        if (blocked) {
+          setDbBlocked(true);
+          const reason = d.blockReason || d.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+          setBlockReason(reason);
+          setPaymentError(reason);
+          window.dispatchEvent(new CustomEvent('marts_show_toast', {
+            detail: { message: reason, type: 'blocked' }
+          }));
+        } else {
+          setDbBlocked(false);
+        }
+      }
     };
-    checkBlock();
-  }, [user?.email, user?.isBlocked, isUserBlocked]);
+
+    if (uid && uid !== 'guest') {
+      try { unsubs.push(onSnapshot(doc(db, 'users', uid), handleSnap, () => {})); } catch (_) {}
+    }
+    if (emailDocId && emailDocId !== uid) {
+      try { unsubs.push(onSnapshot(doc(db, 'users', emailDocId), handleSnap, () => {})); } catch (_) {}
+    }
+
+    return () => {
+      unsubs.forEach(u => {
+        try { u(); } catch (_) {}
+      });
+    };
+  }, [user?.email, user?.uid, isUserBlocked]);
 
   useEffect(() => {
     if (paymentError) {

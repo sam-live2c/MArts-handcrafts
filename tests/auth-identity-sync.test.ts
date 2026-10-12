@@ -334,6 +334,34 @@ async function runTests() {
     assert(migratedUser.orders.length === 1, 'Orders preserved during migration');
   });
 
+  // Scenario 15: Google account with no password prompts user to set password via Sign Up or Forgot Password
+  await test('Scenario 15: Google account with no password shows prompt to set password via Sign Up or Forgot Password', () => {
+    const googleOnlyAccount = {
+      uid: 'google_user_101',
+      email: 'patron_google@example.com',
+      passwordHash: null,
+      hasPassword: false,
+      linkedProviders: ['google.com']
+    };
+
+    // Evaluate login attempt with password
+    const evaluatePasswordLogin = (account: any) => {
+      if (!account.passwordHash) {
+        return {
+          allowed: false,
+          needsPasswordSetup: true,
+          message: 'No password has been set for this account. To set a password, please use Sign Up or Forgot Password with this email to enable email and password login.'
+        };
+      }
+      return { allowed: true, needsPasswordSetup: false };
+    };
+
+    const result = evaluatePasswordLogin(googleOnlyAccount);
+    assert(result.needsPasswordSetup === true, 'Must identify password setup is required');
+    assert(result.message.includes('Forgot Password'), 'Message must suggest Forgot Password');
+    assert(result.message.includes('Sign Up'), 'Message must suggest Sign Up');
+  });
+
   // Summary
   console.log('\n====================================================');
   const passedCount = results.filter(r => r.passed).length;

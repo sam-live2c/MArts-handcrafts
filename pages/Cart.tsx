@@ -108,6 +108,15 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
     loadAddress();
   }, [user]);
 
+  useEffect(() => {
+    if (user?.isBlocked || user?.blocked || user?.status === 'blocked' || user?.disabled) {
+      const msg = user.blockReason || 'Your account has been blocked by the admin. You cannot place orders.';
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: msg, type: 'blocked' }
+      }));
+    }
+  }, [user?.isBlocked, user?.blocked, user?.status]);
+
   const handlePlaceOrder = async () => {
     if (!user) {
       navigate('/login?redirect=checkout');
