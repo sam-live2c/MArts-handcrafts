@@ -286,46 +286,54 @@ export function clearFailedLogins(email: string, ip: string): void {
 }
 
 // =========================================================================
-// 5. ORDER FREQUENCY & BOT FLOOD RATE CONTROLS
+// 5. ORDER FREQUENCY & DAILY ORDER LIMIT CONTROLS (MAX 3 ORDERS IN A DAY)
 // =========================================================================
 
-const MAX_ORDERS_PER_WINDOW = 3; // Maximum 3 orders
-const ORDER_WINDOW_MS = 10 * 60 * 1000; // in 10 minutes
-const MIN_ORDER_INTERVAL_MS = 20 * 1000; // Minimum 20 seconds between consecutive orders
+export const MAX_ORDERS_PER_DAY = 3; // Maximum 3 orders in a day
+const ORDER_WINDOW_MS = 24 * 60 * 60 * 1000; // 24-hour rolling day window
+const MIN_ORDER_INTERVAL_MS = 10 * 1000; // 10 seconds between consecutive submissions to prevent accidental double-click
 
 export function checkAndRecordOrderRate(userId: string, email: string, ip: string): {
   allowed: boolean;
   error?: string;
   cooldownSeconds?: number;
+  remainingToday?: number;
 } {
   const now = Date.now();
-  const targetKey = userId && userId !== 'guest' ? `user:${userId}` : email ? `email:${email.toLowerCase()}` : `ip:${ip}`;
+  const cleanEmail = email ? email.trim().toLowerCase() : '';
+  const targetKey = userId && userId !== 'guest' 
+    ? `user:${userId}` 
+    : cleanEmail 
+      ? `email:${cleanEmail}` 
+      : `ip:${ip}`;
 
   const record = orderRateStore.get(targetKey) || { orderCount: 0, windowStart: now, lastOrderTime: 0 };
 
-  // 1. Anti-Spam double click cooldown (20 seconds)
+  // 1. Anti-Spam double click cooldown (10 seconds)
   if (record.lastOrderTime > 0 && now - record.lastOrderTime < MIN_ORDER_INTERVAL_MS) {
     const waitSeconds = Math.ceil((MIN_ORDER_INTERVAL_MS - (now - record.lastOrderTime)) / 1000);
     return {
       allowed: false,
       error: `Please wait ${waitSeconds} seconds before placing another order.`,
-      cooldownSeconds: waitSeconds
+      cooldownSeconds: waitSeconds,
+      remainingToday: Math.max(0, MAX_ORDERS_PER_DAY - record.orderCount)
     };
   }
 
-  // 2. Window reset
+  // 2. Day window reset (after 24 hours)
   if (now - record.windowStart > ORDER_WINDOW_MS) {
     record.orderCount = 0;
     record.windowStart = now;
   }
 
-  // 3. Max orders in window check (e.g. 3 per 10 minutes)
-  if (record.orderCount >= MAX_ORDERS_PER_WINDOW) {
-    const remainingWindowMin = Math.ceil((ORDER_WINDOW_MS - (now - record.windowStart)) / (60 * 1000));
+  // 3. Max orders in a day check (Max 3 orders per day)
+  if (record.orderCount >= MAX_ORDERS_PER_DAY) {
+    const hoursLeft = Math.ceil((ORDER_WINDOW_MS - (now - record.windowStart)) / (60 * 60 * 1000));
     return {
       allowed: false,
-      error: `Order limit reached. For security, you can place up to ${MAX_ORDERS_PER_WINDOW} orders per 10 minutes. Please wait ${remainingWindowMin} minute(s) before placing another order.`,
-      cooldownSeconds: remainingWindowMin * 60
+      error: `Daily order limit reached. You can only place up to 3 orders per day. Please try again in ${hoursLeft} hour(s).`,
+      cooldownSeconds: Math.ceil((ORDER_WINDOW_MS - (now - record.windowStart)) / 1000),
+      remainingToday: 0
     };
   }
 
@@ -334,5 +342,7 @@ export function checkAndRecordOrderRate(userId: string, email: string, ip: strin
   record.lastOrderTime = now;
   orderRateStore.set(targetKey, record);
 
-  return { allowed: true };
+  const remainingToday = Math.max(0, MAX_ORDERS_PER_DAY - record.orderCount);
+  return { allowed: true, remainingToday };
 }
+

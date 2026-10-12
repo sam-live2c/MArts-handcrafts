@@ -10,7 +10,8 @@ import {
   AddressItem,
   uploadCustomizationMedia,
   saveCustomerDeliveryAddress,
-  StoreDeliveryAddress
+  StoreDeliveryAddress,
+  checkDailyOrderLimit
 } from '../services/dbService';
 import { openRazorpayCheckout } from '../utils/razorpay';
 import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
@@ -56,13 +57,25 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       return item;
     }));
   };
-  // 1: Address, 2: Summary, 3: Payment
   const [step, setStep] = useState(2);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOrderPlacedLoading, setIsOrderPlacedLoading] = useState(false);
   const [paymentOption, setPaymentOption] = useState<'razorpay' | 'cod'>('razorpay');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [customizationToast, setCustomizationToast] = useState<string | null>(null);
+  const [ordersTodayCount, setOrdersTodayCount] = useState<number>(0);
+
+  // Check today's order count on mount / user change
+  useEffect(() => {
+    const fetchTodayQuota = async () => {
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        const check = await checkDailyOrderLimit(currentUser.uid, user?.email || currentUser.email || undefined);
+        setOrdersTodayCount(check.countToday);
+      }
+    };
+    fetchTodayQuota();
+  }, [user]);
 
   useEffect(() => {
     if (paymentError) {
@@ -395,21 +408,27 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       total: total
     };
 
-    // Rate Limit & Security Inspection: Limit orders per window & sanitize payload
+
+    // Strict Daily Order Limit Verification: Maximum 3 orders per day
+    const dailyLimitCheck = await checkDailyOrderLimit(uid, user?.email || undefined);
+    if (!dailyLimitCheck.allowed) {
+      setPaymentError(dailyLimitCheck.error || 'Daily order limit reached. You can only place up to 3 orders in a day.');
+      setIsProcessing(false);
+      return;
+    }
+
+    // Server-side daily order verification & payload sanity check
     const rateCheck = await validateOrderRateLimit({
       userId: uid,
       customerEmail: user?.email || undefined,
       customerPhone,
       customerName,
-      items: cart || [],
+      items: cart,
       total
     });
 
     if (!rateCheck.allowed) {
-      const rateErrMsg = rateCheck.error || 'Too many orders placed. Please wait a few moments before trying again.';
-      setPaymentError(rateErrMsg);
-      setCustomizationToast(rateErrMsg);
-      setTimeout(() => setCustomizationToast(null), 5000);
+      setPaymentError(rateCheck.error || 'Daily order limit reached. Maximum 3 orders allowed per day.');
       setIsProcessing(false);
       return;
     }
@@ -913,7 +932,13 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                     <div className="mb-[11px] pb-[11px] flex items-center justify-between border-b border-gray-100">
                        <div>
                          <h2 className="text-base font-bold text-gray-900">Total Amount Payable</h2>
-                         <p className="text-xs text-gray-500 mt-0.5">Includes free delivery</p>
+                         <div className="flex items-center gap-2 mt-0.5">
+                           <p className="text-xs text-gray-500">Includes free delivery</p>
+                           <span className="text-gray-300">•</span>
+                           <span className={`text-[11px] font-semibold ${ordersTodayCount >= 3 ? 'text-red-600' : 'text-[#C85A32]'}`}>
+                             Daily Limit: {ordersTodayCount}/3 orders placed today
+                           </span>
+                         </div>
                        </div>
                        <span className="text-2xl font-extrabold text-[#C85A32]">₹{total.toLocaleString()}</span>
                     </div>

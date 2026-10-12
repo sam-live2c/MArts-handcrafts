@@ -1653,6 +1653,59 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
   }
 };
 
+/**
+ * Helper to count orders placed by the user within the current day (last 24 hours / today)
+ * Enforces the strict rule: "Order in a day is only 3"
+ */
+export const countOrdersToday = (orders: Order[]): number => {
+  if (!Array.isArray(orders) || orders.length === 0) return 0;
+  const now = new Date();
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+  // Consider whichever is more restrictive (calendar day or 24-hour window)
+  const cutoff = Math.min(startOfDay, twentyFourHoursAgo);
+
+  return orders.filter(o => {
+    if (!o) return false;
+    // Exclude cancelled or failed attempts
+    if (o.status === 'Cancelled') return false;
+    const orderTime = o.createdAt || (o.date ? new Date(o.date).getTime() : 0);
+    return orderTime >= cutoff;
+  }).length;
+};
+
+/**
+ * Checks if the current customer has exceeded the limit of 3 orders in a day
+ */
+export const checkDailyOrderLimit = async (
+  uid: string | null,
+  email?: string
+): Promise<{ allowed: boolean; countToday: number; remaining: number; error?: string }> => {
+  const MAX_PER_DAY = 3;
+  try {
+    const orders = uid && uid !== 'guest' ? await fetchUserOrders(uid, email) : [];
+    const count = countOrdersToday(orders);
+    const remaining = Math.max(0, MAX_PER_DAY - count);
+
+    if (count >= MAX_PER_DAY) {
+      return {
+        allowed: false,
+        countToday: count,
+        remaining: 0,
+        error: `Daily order limit reached. You can only place up to ${MAX_PER_DAY} orders per day. Please try again tomorrow.`
+      };
+    }
+
+    return {
+      allowed: true,
+      countToday: count,
+      remaining
+    };
+  } catch {
+    return { allowed: true, countToday: 0, remaining: MAX_PER_DAY };
+  }
+};
+
 export const saveOrderToFirestore = async (
   uid: string | null, 
   order: Order, 
@@ -1665,16 +1718,6 @@ export const saveOrderToFirestore = async (
   }
 
   const effectiveUserId = uid || order.userId || 'guest';
-  try {
-    const lastOrderPlacedKey = `marts_last_order_ts_${effectiveUserId}`;
-    const lastPlaced = Number(safeStorage.getItem(lastOrderPlacedKey) || 0);
-    const now = Date.now();
-    if (now - lastPlaced < 5000) {
-      console.warn('Order duplicate submission blocked within 5 seconds cooldown');
-      return;
-    }
-    safeStorage.setItem(lastOrderPlacedKey, String(now));
-  } catch (_) {}
 
   const finalAddress = customerInfo?.address || order.customerAddress || '';
 

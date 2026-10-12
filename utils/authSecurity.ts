@@ -19,6 +19,7 @@ export interface OrderSecurityCheck {
   allowed: boolean;
   error?: string;
   cooldownSeconds?: number;
+  remainingToday?: number;
 }
 
 /**
@@ -86,12 +87,16 @@ export async function validateOrderRateLimit(orderPayload: {
     if (!res.ok || data.success === false) {
       return {
         allowed: false,
-        error: data.error || 'Too many orders placed. Please wait before placing another order.',
-        cooldownSeconds: data.cooldownSeconds
+        error: data.error || 'Daily order limit reached. You can only place up to 3 orders per day.',
+        cooldownSeconds: data.cooldownSeconds,
+        remainingToday: data.remainingToday !== undefined ? data.remainingToday : 0
       };
     }
 
-    return { allowed: true };
+    return { 
+      allowed: true,
+      remainingToday: data.remainingToday 
+    };
   } catch {
     return { allowed: true };
   }

@@ -77,7 +77,7 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 3. Rate Limit Enforcement (Max 3 orders per 10 minutes, 20s cooldown)
+    // 3. Daily Order Limit Enforcement (Max 3 orders in a day)
     const rateCheck = checkAndRecordOrderRate(
       userId || 'guest',
       customerEmail || '',
@@ -87,14 +87,16 @@ export default async function handler(req: any, res: any) {
     if (!rateCheck.allowed) {
       return sendJson(res, 429, {
         success: false,
-        error: rateCheck.error || 'Too many orders placed. Please wait before ordering again.',
-        cooldownSeconds: rateCheck.cooldownSeconds
+        error: rateCheck.error || 'Daily order limit reached. You can only place up to 3 orders per day.',
+        cooldownSeconds: rateCheck.cooldownSeconds,
+        remainingToday: rateCheck.remainingToday
       });
     }
 
     return sendJson(res, 200, {
       success: true,
-      message: 'Order rate check passed.'
+      message: 'Order rate check passed.',
+      remainingToday: rateCheck.remainingToday
     });
   } catch (err: any) {
     return sendJson(res, 500, {
