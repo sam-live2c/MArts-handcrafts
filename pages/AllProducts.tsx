@@ -4,6 +4,7 @@ import Header from '../components/Header';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Star, ShoppingCart, ShoppingBag, X, Search, Heart } from 'lucide-react';
 import { getProductRatingInfo } from '../utils/productRating';
+import { ProductCardSkeleton } from '../components/Skeleton';
 
 interface AllProductsProps {
   user: User | null;
@@ -12,7 +13,32 @@ interface AllProductsProps {
   wishlist: string[];
   onToggleWishlist: (id: string) => void;
   products?: Product[];
+  isProductsLoading?: boolean;
 }
+
+const LazyProductCardImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  return (
+    <div className="relative w-full h-full flex items-center justify-center">
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-[#FAF6F0] animate-pulse flex items-center justify-center">
+          <div className="w-12 h-12 rounded-full bg-[#EADBCC]/50" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        className={`w-full h-full object-contain p-2 transition-opacity duration-300 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
+};
 
 const AllProducts: React.FC<AllProductsProps> = ({
   user,
@@ -20,7 +46,8 @@ const AllProducts: React.FC<AllProductsProps> = ({
   onAddToCart,
   wishlist,
   onToggleWishlist,
-  products
+  products,
+  isProductsLoading = false
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -238,8 +265,14 @@ const AllProducts: React.FC<AllProductsProps> = ({
       </section>
       
       <div className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-12 py-5 sm:py-8">
-          {/* Empty Catalog or Empty Search Results */}
-          {catalog.length === 0 ? (
+          {/* Skeleton loading grid while products are being fetched */}
+          {(isProductsLoading && (!displayedProducts || displayedProducts.length === 0)) ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <ProductCardSkeleton key={`all-skel-${idx}`} />
+              ))}
+            </div>
+          ) : catalog.length === 0 ? (
             <div className="py-20 text-center space-y-3">
               <div className="w-14 h-14 rounded-full bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center mx-auto">
                 <ShoppingBag size={26} />
@@ -287,14 +320,7 @@ const AllProducts: React.FC<AllProductsProps> = ({
                   <div>
                     {/* Image Container with Wishlist Heart */}
                     <div className="relative bg-[#FAF6F0] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3 flex items-center justify-center">
-                      <img
-                        src={prod.image}
-                        alt={prod.name}
-                        loading="lazy"
-                        decoding="async"
-                        className="w-full h-full object-contain p-2"
-                        referrerPolicy="no-referrer"
-                      />
+                      <LazyProductCardImage src={prod.image} alt={prod.name} />
 
                       {/* Wishlist toggle icon */}
                       <button

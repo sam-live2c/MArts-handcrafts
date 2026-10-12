@@ -19,6 +19,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
   onToggleWishlist,
 }) => {
   const isOutOfStock = product.stock <= 0;
+  const [imageLoaded, setImageLoaded] = React.useState(false);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const isScrollingRef = useRef(false);
 
@@ -64,12 +65,21 @@ const ProductCard: React.FC<ProductCardProps> = ({
       aria-label={`View details for ${product.name}, price ₹${product.price.toLocaleString()}`}
     >
       <div className="relative bg-[#FAF6F0] flex items-center justify-center overflow-hidden aspect-square rounded-xl sm:rounded-2xl">
+        {!imageLoaded && (
+          <div className="absolute inset-0 bg-[#FAF6F0] animate-pulse flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-[#EADBCC]/50" />
+          </div>
+        )}
         <img
           src={product.image}
-          alt=""
-          role="presentation"
+          alt={product.name}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setImageLoaded(true)}
           referrerPolicy="no-referrer"
-          className="object-contain w-full h-full p-2"
+          className={`object-contain w-full h-full p-2 transition-opacity duration-300 ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
         />
 
         {isOutOfStock && (

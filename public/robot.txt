@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /account
+Disallow: /checkout
+Disallow: /cart
+
+Sitemap: https://ais-dev-6dls55r5bwh7a6roy6zess-717070166553.asia-east1.run.app/sitemap.xml
+Sitemap: https://ais-dev-6dls55r5bwh7a6roy6zess-717070166553.asia-east1.run.app/sitemap.txt

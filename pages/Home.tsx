@@ -14,6 +14,7 @@ import { CartItem, Product, User, CarouselBanner } from '../types';
 import Header from '../components/Header';
 import WhatsAppButton from '../components/WhatsAppButton';
 import { getProductRatingInfo } from '../utils/productRating';
+import { ProductCardSkeleton } from '../components/Skeleton';
 import terracottaBanner from '../src/assets/images/marts_terracotta_banner_1791637410497.jpg';
 import stoneStatuesBanner from '../src/assets/images/marts_stone_statues_banner_1791637432558.jpg';
 import ceramicVasesBanner from '../src/assets/images/marts_ceramic_vases_banner_1791637442354.jpg';
@@ -27,6 +28,7 @@ interface HomeProps {
   cartCount?: number;
   products?: Product[];
   banners?: CarouselBanner[];
+  isProductsLoading?: boolean;
 }
 
 type BannerSlide = CarouselBanner;
@@ -78,6 +80,30 @@ const BANNER_SLIDES: BannerSlide[] = [
   }
 ];
 
+const LazyProductCardImage: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  return (
+    <div className="relative w-full h-full flex items-center justify-center">
+      {!isLoaded && (
+        <div className="absolute inset-0 bg-[#FAF6F0] animate-pulse flex items-center justify-center">
+          <div className="w-10 h-10 rounded-full bg-[#EADBCC]/50" />
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onLoad={() => setIsLoaded(true)}
+        className={`w-full h-full object-contain p-2 transition-opacity duration-300 ${
+          isLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+        referrerPolicy="no-referrer"
+      />
+    </div>
+  );
+};
+
 export const Home: React.FC<HomeProps> = ({
   user,
   onAddToCart,
@@ -85,7 +111,8 @@ export const Home: React.FC<HomeProps> = ({
   onToggleWishlist,
   cartCount = 0,
   products,
-  banners
+  banners,
+  isProductsLoading = false
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -489,7 +516,13 @@ export const Home: React.FC<HomeProps> = ({
         </div>
 
         {/* Products Grid: Exactly 2 in a row on mobile, 4 in a row on tablets, 4 in a row on desktop */}
-        {displayedProducts.length === 0 ? (
+        {(isProductsLoading && (!displayedProducts || displayedProducts.length === 0)) ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <ProductCardSkeleton key={`home-skeleton-${idx}`} />
+            ))}
+          </div>
+        ) : displayedProducts.length === 0 ? (
           <div className="py-16 text-center space-y-3">
             <div className="w-14 h-14 rounded-full bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center mx-auto">
               <Search size={26} />
@@ -524,14 +557,7 @@ export const Home: React.FC<HomeProps> = ({
               >
                 <div>
                   <div className="relative bg-[#FAF6F0] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3 flex items-center justify-center">
-                    <img
-                      src={prod.image}
-                      alt={prod.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="w-full h-full object-contain p-2"
-                      referrerPolicy="no-referrer"
-                    />
+                    <LazyProductCardImage src={prod.image} alt={prod.name} />
 
                     {/* Wishlist toggle icon */}
                     <button

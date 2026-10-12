@@ -137,18 +137,35 @@ const App: React.FC = () => {
     }
   });
 
+  const [isProductsLoading, setIsProductsLoading] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('marts_products');
+      const parsed = saved ? JSON.parse(saved) : [];
+      return !Array.isArray(parsed) || parsed.length === 0;
+    } catch {
+      return true;
+    }
+  });
+
   const [banners, setBanners] = useState<CarouselBanner[]>([]);
 
   // Load products catalog and carousel banners on mount with real-time sync
   useEffect(() => {
     // Initial fetch
     fetchProductsFromFirestore()
-      .then((prods) => setProducts(prods))
-      .catch((e) => console.warn('Products initial fetch notice:', e));
+      .then((prods) => {
+        setProducts(prods);
+        setIsProductsLoading(false);
+      })
+      .catch((e) => {
+        console.warn('Products initial fetch notice:', e);
+        setIsProductsLoading(false);
+      });
 
     // Real-time live listener for products
     const unsubProducts = subscribeToLiveProducts((liveProds) => {
       setProducts(liveProds);
+      setIsProductsLoading(false);
     });
 
     // Real-time live listener for carousel banners
@@ -541,6 +558,7 @@ const App: React.FC = () => {
                   cartCount={cartTotalQuantity}
                   products={products}
                   banners={banners}
+                  isProductsLoading={isProductsLoading}
                 />
               } 
             />
@@ -554,6 +572,7 @@ const App: React.FC = () => {
                   wishlist={wishlist}
                   onToggleWishlist={toggleWishlist}
                   products={products}
+                  isProductsLoading={isProductsLoading}
                 />
               } 
             />

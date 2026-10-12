@@ -35,6 +35,20 @@ app.use(express.urlencoded({ extended: true, limit: '64kb' }));
 // Injection & Attack Payload Guard
 app.use(injectionGuardMiddleware);
 
+// ================= SEO & CRAWLER ROUTES =================
+app.get(['/robots.txt', '/robot.txt'], (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(__dirname, 'public/robots.txt'));
+});
+app.get('/sitemap.txt', (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(__dirname, 'public/sitemap.txt'));
+});
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml');
+  res.sendFile(path.resolve(__dirname, 'public/sitemap.xml'));
+});
+
 // ================= API ROUTES =================
 app.all('/api/send-otp', (req, res) => sendOtpHandler(req, res));
 app.all('/api/verify-otp', (req, res) => verifyOtpHandler(req, res));

@@ -1,0 +1,22 @@
+{
+  "short_name": "MArts",
+  "name": "MArts | Handcrafted Pottery & Statues",
+  "description": "Exquisite artisanal terracotta pots, ceramic vases, hand-carved stone and brass sculptures, and heritage home decor.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#fff8f6",
+  "theme_color": "#964328",
+  "display": "standalone",
+  "orientation": "portrait"
+}
