@@ -70,7 +70,40 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
           setStateName(defaultAddr.state || '');
           setPincode(defaultAddr.pincode || '');
         } else if (user.address) {
-          setHouseNo(user.address);
+          const s = user.address.trim();
+          let pin = '';
+          let remainder = s;
+          const pinMatch = s.match(/(?:\s+|-|,\s*)(\d{6})$/);
+          if (pinMatch) {
+            pin = pinMatch[1];
+            remainder = s.slice(0, pinMatch.index).trim().replace(/[,\s-]+$/, '');
+          }
+          const parts = remainder.split(',').map(p => p.trim()).filter(Boolean);
+          if (parts.length >= 4) {
+            setHouseNo(parts[0]);
+            setArea(parts.slice(1, -2).join(', '));
+            setCity(parts[parts.length - 2]);
+            setStateName(parts[parts.length - 1]);
+            setPincode(pin);
+          } else if (parts.length === 3) {
+            setHouseNo(parts[0]);
+            setArea('');
+            setCity(parts[1]);
+            setStateName(parts[2]);
+            setPincode(pin);
+          } else if (parts.length === 2) {
+            setHouseNo(parts[0]);
+            setArea('');
+            setCity(parts[1]);
+            setStateName('');
+            setPincode(pin);
+          } else {
+            setHouseNo(parts[0] || remainder);
+            setArea('');
+            setCity('');
+            setStateName('');
+            setPincode(pin);
+          }
           setUserAddresses([]);
         }
       };

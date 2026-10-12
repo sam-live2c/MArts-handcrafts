@@ -1024,13 +1024,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                     <div className="mb-[11px] pb-[11px] flex items-center justify-between border-b border-gray-100">
                        <div>
                          <h2 className="text-base font-bold text-gray-900">Total Amount Payable</h2>
-                         <div className="flex items-center gap-2 mt-0.5">
-                           <p className="text-xs text-gray-500">Includes free delivery</p>
-                           <span className="text-gray-300">•</span>
-                           <span className={`text-[11px] font-semibold ${ordersTodayCount >= 3 ? 'text-red-600' : 'text-[#C85A32]'}`}>
-                             Daily Limit: {ordersTodayCount}/3 orders placed today
-                           </span>
-                         </div>
+                         <p className="text-xs text-gray-500 mt-0.5">Includes free delivery</p>
                        </div>
                        <span className="text-2xl font-extrabold text-[#C85A32]">₹{total.toLocaleString()}</span>
                     </div>

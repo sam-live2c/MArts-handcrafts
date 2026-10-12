@@ -58,6 +58,55 @@ const parsePhone = (rawPhone?: string) => {
   return { countryCode: '+91', phone: trimmed.replace(/\D/g, '') };
 };
 
+// Helper to parse a single concatenated address string into separated input fields
+const parseAddressString = (fullStr?: string) => {
+  if (!fullStr || !fullStr.trim()) {
+    return { houseNo: '', area: '', city: '', state: '', pincode: '' };
+  }
+  const s = fullStr.trim();
+  let pin = '';
+  let remainder = s;
+  const pinMatch = s.match(/(?:\s+|-|,\s*)(\d{6})$/);
+  if (pinMatch) {
+    pin = pinMatch[1];
+    remainder = s.slice(0, pinMatch.index).trim().replace(/[,\s-]+$/, '');
+  }
+
+  const parts = remainder.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 4) {
+    return {
+      houseNo: parts[0],
+      area: parts.slice(1, -2).join(', '),
+      city: parts[parts.length - 2],
+      state: parts[parts.length - 1],
+      pincode: pin
+    };
+  } else if (parts.length === 3) {
+    return {
+      houseNo: parts[0],
+      area: '',
+      city: parts[1],
+      state: parts[2],
+      pincode: pin
+    };
+  } else if (parts.length === 2) {
+    return {
+      houseNo: parts[0],
+      area: '',
+      city: parts[1],
+      state: '',
+      pincode: pin
+    };
+  }
+  return {
+    houseNo: parts[0] || remainder,
+    area: '',
+    city: '',
+    state: '',
+    pincode: pin
+  };
+};
+
 const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddress, onUpdateUser }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -93,16 +142,17 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
   const [formData, setFormData] = useState(() => {
     const parsed = parsePhone(user?.phone);
     const emailVal = user?.email || auth.currentUser?.email || '';
+    const parsedAddr = parseAddressString(user?.address);
     return {
       name: user?.name || '',
       countryCode: parsed.countryCode,
       phone: parsed.phone,
       email: emailVal,
-      pincode: '',
-      houseNo: user?.address || '',
-      area: '',
-      city: '',
-      state: '',
+      pincode: parsedAddr.pincode,
+      houseNo: parsedAddr.houseNo,
+      area: parsedAddr.area,
+      city: parsedAddr.city,
+      state: parsedAddr.state,
       type: 'HOME' as 'HOME' | 'WORK' | 'OTHER',
       isDefault: true
     };
@@ -113,13 +163,18 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     if (user && !editingId) {
       const parsed = parsePhone(user.phone);
       const emailVal = user.email || auth.currentUser?.email || '';
+      const parsedAddr = parseAddressString(user.address);
       setFormData(prev => ({
         ...prev,
         name: prev.name || user.name || '',
         countryCode: prev.countryCode || parsed.countryCode,
         phone: prev.phone || parsed.phone,
         email: emailVal || prev.email,
-        houseNo: prev.houseNo || user.address || ''
+        pincode: prev.pincode || parsedAddr.pincode,
+        houseNo: prev.houseNo || parsedAddr.houseNo,
+        area: prev.area || parsedAddr.area,
+        city: prev.city || parsedAddr.city,
+        state: prev.state || parsedAddr.state
       }));
     }
   }, [user, editingId]);
@@ -226,16 +281,19 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     e.stopPropagation();
     setEditingId(addr.id);
     const parsed = parsePhone(addr.phone);
+    const parsedAddr = parseAddressString(addr.houseNo);
+    const hasExistingSplit = Boolean(addr.city || addr.state || addr.pincode);
+
     setFormData({
       name: addr.name,
       countryCode: parsed.countryCode,
       phone: parsed.phone,
       email: addr.email || loggedInEmail,
-      pincode: addr.pincode,
-      houseNo: addr.houseNo,
-      area: addr.area,
-      city: addr.city,
-      state: addr.state,
+      pincode: addr.pincode || (hasExistingSplit ? '' : parsedAddr.pincode),
+      houseNo: hasExistingSplit ? addr.houseNo : (parsedAddr.houseNo || addr.houseNo),
+      area: addr.area || (hasExistingSplit ? '' : parsedAddr.area),
+      city: addr.city || (hasExistingSplit ? '' : parsedAddr.city),
+      state: addr.state || (hasExistingSplit ? '' : parsedAddr.state),
       type: addr.type,
       isDefault: !!addr.isDefault
     });

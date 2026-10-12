@@ -76,10 +76,20 @@ export async function validateOrderRateLimit(orderPayload: {
   total: number;
 }): Promise<OrderSecurityCheck> {
   try {
+    const lightweightItems = (orderPayload.items || []).map(item => ({
+      id: item?.id,
+      title: item?.title || item?.name,
+      quantity: Number(item?.quantity) || 1,
+      price: Number(item?.price) || 0
+    }));
+
     const res = await fetch('/api/order-security', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderPayload)
+      body: JSON.stringify({
+        ...orderPayload,
+        items: lightweightItems
+      })
     });
 
     const data = await res.json().catch(() => ({}));
