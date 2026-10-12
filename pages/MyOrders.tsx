@@ -4,13 +4,13 @@ import { handleGoBack } from '../utils/navigation';
 import { 
   ArrowLeft, Search, MoreVertical, X, Package, 
   AlertCircle, Headphones, CheckCircle2, Download, HelpCircle, Check,
-  ChevronRight, Truck, XCircle
+  ChevronRight, Truck, XCircle, MessageCircle, Phone
 } from 'lucide-react';
 import { User, Order, CartItem } from '../types';
 import Header from '../components/Header';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { updateOrderStatusInFirestore, fetchUserOrders } from '../services/dbService';
+import { fetchUserOrders } from '../services/dbService';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
 interface MyOrdersProps {
@@ -274,37 +274,6 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     setTimeout(() => setToast(null), duration);
   };
 
-  const handleCancelOrder = async (orderId: string) => {
-    const updated = currentOrders.map(ord => 
-      ord.id === orderId ? { ...ord, status: 'Cancelled' as const } : ord
-    );
-    setOrders(updated);
-    onUpdateOrders(updated);
-    setActiveMenuOrderId(null);
-    setCancellingOrderId(null);
-
-    // Persist immediately in localStorage
-    try {
-      localStorage.setItem('melody_orders', JSON.stringify(updated));
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        localStorage.setItem(`melody_orders_${currentUser.uid}`, JSON.stringify(updated));
-      }
-      const savedProfile = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
-      if (savedProfile) {
-        const parsed = JSON.parse(savedProfile);
-        parsed.orders = updated;
-        localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
-        localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
-      }
-    } catch (e) {
-      console.warn('Local order persistence notice:', e);
-    }
-
-    const currentUser = auth.currentUser;
-    await updateOrderStatusInFirestore(currentUser ? currentUser.uid : null, orderId, 'Cancelled');
-    showToast('Order Cancelled', 'You will get your refund after verification under 24 hours.', 'success', 5000);
-  };
 
 
   const handleDownloadReceipt = (order: Order, specificItem?: CartItem) => {
@@ -568,6 +537,60 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     );
   };
 
+  const handleRedirectToSupportWithReceipt = (order: Order, channel: 'whatsapp' | 'call' = 'whatsapp') => {
+    // 1. Download official order receipt for customer
+    handleDownloadReceipt(order);
+
+    // 2. Prepare prefilled support message with receipt details
+    const itemsList = (Array.isArray(order.items) ? order.items.filter(Boolean) : [])
+      .map(it => `• ${it.name} (Qty: ${it.quantity || 1}, ₹${((Number(it.price) || 0) * (Number(it.quantity) || 1)).toLocaleString()})`)
+      .join('\n');
+
+    const customerName = order.customerName || user?.name || user?.displayName || 'Valued Customer';
+    const customerPhone = order.customerPhone || user?.phone || user?.phoneNumber || 'N/A';
+    const totalAmount = Number(order.total || 0).toLocaleString();
+
+    const supportMsg = `Hello MArts Support,
+
+I would like to cancel my order. Here are my order receipt details:
+📦 Order ID: #${order.id}
+📅 Order Date: ${order.date || 'Recent'}
+🛍️ Products:
+${itemsList || 'Handcrafted Pottery & Statues'}
+💰 Total Amount: ₹${totalAmount}
+👤 Customer: ${customerName}
+📞 Phone: ${customerPhone}
+💳 Payment Method: ${order.paymentMethod || 'Online'}
+
+I have downloaded my order receipt. Please verify and process the cancellation manually.`;
+
+    // 3. Close the modal
+    setCancellingOrderId(null);
+
+    // 4. Show confirmation toast noting admin will update manually
+    showToast(
+      'Receipt Downloaded',
+      'Connecting to Support (+91 98765 43210). The admin will verify and update your order manually.',
+      'success',
+      6000
+    );
+
+    // 5. Redirect to Support Number
+    if (channel === 'whatsapp') {
+      const whatsappUrl = `https://wa.me/919876543210?text=${encodeURIComponent(supportMsg)}`;
+      try {
+        const opened = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+        if (!opened) {
+          window.location.href = whatsappUrl;
+        }
+      } catch (_) {
+        window.location.href = whatsappUrl;
+      }
+    } else {
+      window.location.href = 'tel:+919876543210';
+    }
+  };
+
   // Filter logic
   const filteredOrders = currentOrders.filter(ord => {
     if (!ord) return false;
@@ -680,7 +703,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
               </button>
             </div>
           ) : (
-            <div className="space-y-8 sm:space-y-10">
+            <div className="flex flex-col">
               {filteredOrders.map((order, orderIdx) => {
                 const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
@@ -723,10 +746,17 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                   : 'Delivery by 3-5 Business Days (Insured Timber Crate)';
 
                 return (
-                  <div 
-                    key={`${order.id}-${orderIdx}`} 
-                    className="bg-transparent border-0 space-y-4 sm:space-y-5"
-                  >
+                  <div key={`${order.id}-${orderIdx}`} className="w-full">
+                    {orderIdx > 0 && (
+                      <div 
+                        className="w-full my-10 sm:my-14 border-t border-[#D5C2B2]" 
+                        role="separator"
+                        aria-orientation="horizontal"
+                      />
+                    )}
+                    <div 
+                      className="bg-transparent border-0 space-y-4 sm:space-y-5"
+                    >
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#EADBCC]/80">
                       <div className="flex-1 min-w-0">
@@ -925,41 +955,97 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
             </div>
           )}
         </div>
       </div>
 
-      {/* Cancel Order Confirmation Modal */}
-      {cancellingOrderId && (
-        <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-center gap-3 text-red-600">
-              <AlertCircle size={28} />
-              <h3 className="text-base font-bold text-gray-900">Cancel Order?</h3>
-            </div>
-            <p className="text-xs text-gray-600 leading-relaxed">
-              Are you sure you want to cancel Order #{cancellingOrderId}? You will get your refund after verification under 24 hours.
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button
-                onClick={() => setCancellingOrderId(null)}
-                className="flex-1 bg-gray-100 text-gray-800 py-2.5 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors cursor-pointer"
-              >
-                Keep Order
-              </button>
-              <button
-                onClick={() => handleCancelOrder(cancellingOrderId)}
-                className="flex-1 bg-red-600 text-white py-2.5 rounded-lg text-xs font-bold hover:bg-red-700 transition-colors shadow-sm cursor-pointer"
-              >
-                Yes, Cancel
-              </button>
+      {/* Cancel Order Support Redirect Modal */}
+      {cancellingOrderId && (() => {
+        const orderToCancel = currentOrders.find(o => String(o.id) === String(cancellingOrderId));
+        if (!orderToCancel) return null;
+
+        const itemsCount = (Array.isArray(orderToCancel.items) ? orderToCancel.items.filter(Boolean) : []).length;
+
+        return (
+          <div className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 border border-[#EADBCC]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center shrink-0 border border-[#EADBCC]">
+                    <Headphones size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 leading-tight">Cancel Order via Support</h3>
+                    <p className="text-xs text-[#735A4C] mt-0.5">Order #{orderToCancel.id}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCancellingOrderId(null)}
+                  className="p-1 text-gray-400 hover:text-gray-700 rounded-full transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Order Brief Summary */}
+              <div className="bg-[#FAF8F5] border border-[#EADBCC] rounded-2xl p-3.5 space-y-2 text-xs text-[#4E392D]">
+                <div className="flex justify-between items-center">
+                  <span className="text-[#735A4C]">Items in Order</span>
+                  <span className="font-semibold text-[#2B221B]">{itemsCount} {itemsCount === 1 ? 'product' : 'products'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#735A4C]">Total Order Value</span>
+                  <span className="font-bold text-[#C85A32]">₹{Number(orderToCancel.total || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[#735A4C]">Artisan Support Desk</span>
+                  <span className="font-semibold text-[#2B221B]">+91 98765 43210</span>
+                </div>
+              </div>
+
+              {/* Process Explanation */}
+              <p className="text-xs text-gray-600 leading-relaxed">
+                To cancel this order, your <strong>official order receipt will be downloaded automatically</strong> and you will be redirected to our support desk with your details. Our admin team will verify your receipt and update the cancellation in the system manually.
+              </p>
+
+              {/* Action Buttons */}
+              <div className="space-y-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleRedirectToSupportWithReceipt(orderToCancel, 'whatsapp')}
+                  className="w-full flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1EBE5D] text-white py-3 px-4 rounded-xl text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <MessageCircle size={18} />
+                  <span>Connect on WhatsApp with Receipt</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleRedirectToSupportWithReceipt(orderToCancel, 'call')}
+                  className="w-full flex items-center justify-center gap-2 bg-[#FAF5EF] hover:bg-[#F2E8DE] text-[#2B221B] border border-[#EADBCC] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
+                >
+                  <Phone size={16} className="text-[#C85A32]" />
+                  <span>Call Support Desk (+91 98765 43210)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCancellingOrderId(null)}
+                  className="w-full text-center text-xs text-gray-500 hover:text-gray-800 py-2 transition-colors cursor-pointer font-medium"
+                >
+                  Keep Order (Do Not Cancel)
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* AI Studio Style White Theme Square Corner Toast */}
       {toast && (
