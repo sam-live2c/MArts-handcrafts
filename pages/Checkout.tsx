@@ -16,6 +16,7 @@ import { openRazorpayCheckout } from '../utils/razorpay';
 import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
 import { FullScreenCircleLoader } from '../components/CircleLoader';
 import { validateOrderRateLimit } from '../utils/authSecurity';
+import { safeStorage, sanitizeCustomizationsForCache } from '../utils/storage';
 
 const upiLogoIcon = 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg';
 
@@ -75,16 +76,14 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   // Customization state
   const [customizations, setCustomizations] = useState<Record<string, ItemCustomization>>(() => {
     try {
-      const saved = localStorage.getItem('melody_customizations_cache');
+      const saved = safeStorage.getItem('marts_customizations_cache');
       if (saved) return JSON.parse(saved);
     } catch (e) {}
     return {};
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem('melody_customizations_cache', JSON.stringify(customizations));
-    } catch (e) {}
+    safeStorage.setItem('marts_customizations_cache', JSON.stringify(sanitizeCustomizationsForCache(customizations)));
   }, [customizations]);
   const [isCustomizationModalOpen, setIsCustomizationModalOpen] = useState(false);
   const [activeCustomizationItemId, setActiveCustomizationItemId] = useState<string | null>(null);
@@ -303,7 +302,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       }, 500);
       return () => clearTimeout(timer);
     }
-    const savedAddr = localStorage.getItem('marts_user_address') || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address || user?.deliveryAddress?.street;
+    const savedAddr = safeStorage.getItem('marts_user_address') || user?.address || user?.deliveryAddress?.street;
     if ((!savedAddr || savedAddr.trim() === '') && (!activeAddress.houseNo || activeAddress.houseNo.trim() === '')) {
       setStep(1);
     }

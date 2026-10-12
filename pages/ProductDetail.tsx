@@ -29,8 +29,8 @@ import { db, auth } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { fetchUserOrders } from "../services/dbService";
 import Logo from "../components/Logo";
-import RunningTruckIcon from "../components/RunningTruckIcon";
 import { ProductDetailSkeleton } from "../components/Skeleton";
+import { safeStorage } from "../utils/storage";
 
 interface ProductDetailProps {
   onAddToCart: (item: CartItem, silent?: boolean) => void;

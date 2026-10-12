@@ -6,6 +6,7 @@ import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
 import { fetchUserAddresses } from '../services/dbService';
 import { CustomizationModal } from '../components/CustomizationModal';
+import { safeStorage, sanitizeCustomizationsForCache } from '../utils/storage';
 import { CartSkeleton } from '../components/Skeleton';
 
 interface CartProps {
@@ -28,10 +29,10 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
     formatted: (typeof user?.address === 'string' ? user.address : '')
   });
 
-  // Customization state (synchronized with localStorage)
+  // Customization state (synchronized with safeStorage)
   const [customizations, setCustomizations] = useState<Record<string, ItemCustomization>>(() => {
     try {
-      const saved = localStorage.getItem('melody_customizations_cache');
+      const saved = safeStorage.getItem('marts_customizations_cache');
       if (saved) return JSON.parse(saved);
     } catch (e) {
       // ignore
@@ -53,9 +54,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
     };
     setCustomizations(prev => {
       const next = { ...prev, [itemId]: updated };
-      try {
-        localStorage.setItem('melody_customizations_cache', JSON.stringify(next));
-      } catch (e) {}
+      safeStorage.setItem('marts_customizations_cache', JSON.stringify(sanitizeCustomizationsForCache(next)));
       return next;
     });
 

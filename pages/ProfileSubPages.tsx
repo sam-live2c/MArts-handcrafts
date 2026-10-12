@@ -14,6 +14,7 @@ import {
   AddressItem,
   deduplicateAddresses
 } from '../services/dbService';
+import { safeStorage, sanitizeUserForCache, broadcastUserUpdate } from '../utils/storage';
 import CircleLoader from '../components/CircleLoader';
 
 interface ProfileSubPagesProps {
@@ -136,10 +137,8 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
         };
         await saveUserAddress(currentUser.uid, defaultAddrItem);
         await saveCustomerDeliveryAddress(currentUser.uid, deliveryAddrObj, currentUser.email || user.email);
-        localStorage.setItem('melody_default_address', JSON.stringify(defaultAddrItem));
-        localStorage.setItem('melody_user_address', formattedAddressStr);
-        localStorage.setItem('agronic_default_address', JSON.stringify(defaultAddrItem));
-        localStorage.setItem('agronic_user_address', formattedAddressStr);
+        safeStorage.setItem('marts_default_address', JSON.stringify(defaultAddrItem));
+        safeStorage.setItem('marts_user_address', formattedAddressStr);
       }
     } else {
       if (houseNo) {
@@ -155,10 +154,8 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
           type: 'HOME',
           isDefault: true
         };
-        localStorage.setItem('melody_default_address', JSON.stringify(defaultAddrItem));
-        localStorage.setItem('melody_user_address', formattedAddressStr);
-        localStorage.setItem('agronic_default_address', JSON.stringify(defaultAddrItem));
-        localStorage.setItem('agronic_user_address', formattedAddressStr);
+        safeStorage.setItem('marts_default_address', JSON.stringify(defaultAddrItem));
+        safeStorage.setItem('marts_user_address', formattedAddressStr);
       }
     }
 
@@ -170,10 +167,8 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
       orders: user?.orders || []
     };
 
-    localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: updatedUser }));
-    }
+    safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
+    broadcastUserUpdate(updatedUser);
     if (onUpdateUser) {
       onUpdateUser(updatedUser);
     }

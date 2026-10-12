@@ -11,6 +11,7 @@ import Header from '../components/Header';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { fetchUserOrders } from '../services/dbService';
+import { safeStorage } from '../utils/storage';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
 interface MyOrdersProps {
@@ -46,7 +47,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     try {
       const uid = auth.currentUser?.uid || user?.id || (user as any)?.uid;
       const targetKey = uid ? `marts_orders_${uid}` : 'marts_orders';
-      const cached = localStorage.getItem(targetKey) || (uid ? localStorage.getItem(`melody_orders_${uid}`) : null) || localStorage.getItem('marts_orders');
+      const cached = safeStorage.getItem(targetKey) || safeStorage.getItem('marts_orders');
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -133,12 +134,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
 
         const liveOrders = sortOrdersSafe(Array.from(mergedMap.values()));
         setOrders(liveOrders);
-        try {
-          localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(liveOrders));
-          localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
-          localStorage.setItem('marts_orders', JSON.stringify(liveOrders));
-          localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
-        } catch (_) {}
+        safeStorage.setItem(`marts_orders_${uid}`, JSON.stringify(liveOrders));
         clearTimeout(fallbackTimer);
         setIsLoading(false);
       };

@@ -11,6 +11,7 @@ import {
   deleteUserAddress,
   deduplicateAddresses
 } from '../services/dbService';
+import { safeStorage, sanitizeUserForCache, broadcastUserUpdate } from '../utils/storage';
 import { AddressPageSkeleton } from '../components/Skeleton';
 
 export type { AddressItem };
@@ -73,7 +74,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
   // Authenticated user email (retrieved regardless of whether signed in via Google or Email)
   const loggedInEmail = user?.email || auth.currentUser?.email || (() => {
     try {
-      const cached = localStorage.getItem('melody_user_profile');
+      const cached = safeStorage.getItem('marts_user_profile');
       if (cached) {
         const parsed = JSON.parse(cached);
         return parsed.email || '';
@@ -137,7 +138,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
         // Unauthenticated guest check user-scoped cache only
         const localUid = user?.id || (user as any)?.uid;
         if (localUid) {
-          const localSaved = localStorage.getItem(`marts_addresses_${localUid}`);
+          const localSaved = safeStorage.getItem(`marts_addresses_${localUid}`);
           if (localSaved) {
             try {
               const parsed = JSON.parse(localSaved);
@@ -180,12 +181,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const selected = updated.find(a => a.id === id);
     if (selected) {
       const formattedStr = `${selected.houseNo}, ${selected.area ? selected.area + ', ' : ''}${selected.city}, ${selected.state} ${selected.pincode}`;
-      localStorage.setItem('marts_default_address', JSON.stringify(selected));
-      localStorage.setItem('marts_user_address', formattedStr);
-      localStorage.setItem('melody_default_address', JSON.stringify(selected));
-      localStorage.setItem('melody_user_address', formattedStr);
-      localStorage.setItem('agronic_default_address', JSON.stringify(selected));
-      localStorage.setItem('agronic_user_address', formattedStr);
+      safeStorage.setItem('marts_default_address', JSON.stringify(selected));
+      safeStorage.setItem('marts_user_address', formattedStr);
       const currentUser = auth.currentUser;
       if (currentUser) {
         const updatedUser = await saveUserAddress(currentUser.uid, selected);
@@ -294,12 +291,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const formattedStr = `${addrToSave.houseNo}, ${addrToSave.area ? addrToSave.area + ', ' : ''}${addrToSave.city}, ${addrToSave.state} ${addrToSave.pincode}`;
 
     if (addrToSave.isDefault || addresses.length === 0) {
-      localStorage.setItem('marts_default_address', JSON.stringify(addrToSave));
-      localStorage.setItem('marts_user_address', formattedStr);
-      localStorage.setItem('melody_default_address', JSON.stringify(addrToSave));
-      localStorage.setItem('melody_user_address', formattedStr);
-      localStorage.setItem('agronic_default_address', JSON.stringify(addrToSave));
-      localStorage.setItem('agronic_user_address', formattedStr);
+      safeStorage.setItem('marts_default_address', JSON.stringify(addrToSave));
+      safeStorage.setItem('marts_user_address', formattedStr);
     }
 
     isSavingRef.current = true;
@@ -310,7 +303,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       updatedProfile = await saveUserAddress(currentUser.uid, addrToSave);
       canonicalAddresses = await fetchUserAddresses(currentUser.uid);
     } else {
-      const cached = localStorage.getItem('melody_user_profile');
+      const cached = safeStorage.getItem('marts_user_profile');
       let current: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
       updatedProfile = {
         ...current,
@@ -318,10 +311,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
         phone: addrToSave.phone,
         address: formattedStr
       };
-      localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: updatedProfile }));
-      }
+      safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedProfile)));
+      broadcastUserUpdate(updatedProfile);
     }
 
     if (onUpdateUser && updatedProfile) {
@@ -370,12 +361,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     const activeAddress = addresses.find(a => a.id === selectedId) || addresses[0];
     if (activeAddress) {
       const formattedStr = `${activeAddress.houseNo}, ${activeAddress.area ? activeAddress.area + ', ' : ''}${activeAddress.city}, ${activeAddress.state} ${activeAddress.pincode}`;
-      localStorage.setItem('marts_default_address', JSON.stringify(activeAddress));
-      localStorage.setItem('marts_user_address', formattedStr);
-      localStorage.setItem('melody_default_address', JSON.stringify(activeAddress));
-      localStorage.setItem('melody_user_address', formattedStr);
-      localStorage.setItem('agronic_default_address', JSON.stringify(activeAddress));
-      localStorage.setItem('agronic_user_address', formattedStr);
+      safeStorage.setItem('marts_default_address', JSON.stringify(activeAddress));
+      safeStorage.setItem('marts_user_address', formattedStr);
 
       const currentUser = auth.currentUser;
       if (currentUser) {
