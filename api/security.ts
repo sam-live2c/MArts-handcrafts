@@ -128,8 +128,6 @@ export function securityHeadersMiddleware(req: Request, res: Response, next: Nex
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // Clickjacking guard (allow same origin)
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   next();
 }

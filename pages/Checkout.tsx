@@ -63,6 +63,15 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [customizationToast, setCustomizationToast] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (paymentError) {
+      const timer = setTimeout(() => {
+        setPaymentError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [paymentError]);
+
   // Customization state
   const [customizations, setCustomizations] = useState<Record<string, ItemCustomization>>(() => {
     try {
@@ -1019,22 +1028,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                        </button>
                     </div>
 
-                    {/* Inline error display for non-shifting layout */}
-                    {paymentError && (
-                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs sm:text-sm rounded-xl flex items-center justify-between gap-3 animate-in fade-in duration-150">
-                        <div className="flex items-center gap-2">
-                          <AlertCircle size={16} className="text-red-500 shrink-0" />
-                          <span>{paymentError}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setStep(1)}
-                          className="text-xs font-bold text-[#C85A32] hover:underline underline-offset-2 shrink-0 cursor-pointer"
-                        >
-                          Update Address
-                        </button>
-                      </div>
-                    )}
 
                     {/* Official partner & security */}
                     <div className="py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
