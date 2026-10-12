@@ -132,7 +132,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       const currentUser = auth.currentUser;
       let fetched: AddressItem[] = [];
       if (currentUser) {
-        fetched = await fetchUserAddresses(currentUser.uid);
+        fetched = await fetchUserAddresses(currentUser.uid, loggedInEmail);
       }
 
       // Check localStorage if empty

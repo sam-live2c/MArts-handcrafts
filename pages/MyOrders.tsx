@@ -85,6 +85,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
   useEffect(() => {
     let unsubUserOrders: (() => void) | null = null;
     let unsubGlobalOrders: (() => void) | null = null;
+    let unsubEmailOrders: (() => void) | null = null;
+    let unsubCanonicalOrders: (() => void) | null = null;
 
     // Safety timeout to prevent infinite skeleton if offline or network stalled
     const fallbackTimer = setTimeout(() => {
@@ -94,11 +96,28 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     const setupListeners = (uid: string) => {
       const subOrdersMap = new Map<string, Order>();
       const globalOrdersMap = new Map<string, Order>();
+      const emailOrdersMap = new Map<string, Order>();
+      const canonicalOrdersMap = new Map<string, Order>();
+      const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
 
       const syncAndDispatchOrders = () => {
         const mergedMap = new Map<string, Order>();
         subOrdersMap.forEach((ord, id) => mergedMap.set(String(id), ord));
+        canonicalOrdersMap.forEach((ord, id) => mergedMap.set(String(id), ord));
         globalOrdersMap.forEach((ord, id) => {
+          const strId = String(id);
+          const existing = mergedMap.get(strId);
+          if (!existing) {
+            mergedMap.set(strId, ord);
+          } else {
+            const existingTime = existing.updatedAt || existing.createdAt || 0;
+            const incomingTime = ord.updatedAt || ord.createdAt || 0;
+            if (incomingTime >= existingTime || ord.status !== existing.status) {
+              mergedMap.set(strId, { ...existing, ...ord });
+            }
+          }
+        });
+        emailOrdersMap.forEach((ord, id) => {
           const strId = String(id);
           const existing = mergedMap.get(strId);
           if (!existing) {
@@ -117,13 +136,15 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         try {
           localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(liveOrders));
           localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
+          localStorage.setItem('marts_orders', JSON.stringify(liveOrders));
+          localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
         } catch (_) {}
         clearTimeout(fallbackTimer);
         setIsLoading(false);
       };
 
       // Initial direct fetch from Firestore
-      fetchUserOrders(uid).then(fetched => {
+      fetchUserOrders(uid, cleanEmail).then(fetched => {
         if (fetched) {
           fetched.forEach(o => {
             if (o && o.id) subOrdersMap.set(o.id, o);
@@ -155,7 +176,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         setIsLoading(false);
       });
 
-      // 2. Listen to real-time live updates from top-level global orders collection
+      // 2. Listen to real-time live updates from top-level global orders collection by userId
       try {
         const globalOrdersQuery = query(collection(db, 'orders'), where('userId', '==', uid));
         unsubGlobalOrders = onSnapshot(globalOrdersQuery, (snapshot) => {
@@ -175,6 +196,49 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       } catch (err) {
         console.warn('Global orders query listener setup notice:', err);
       }
+
+      // 3. Listen to real-time live updates from global orders collection by customerEmail
+      if (cleanEmail) {
+        try {
+          const emailOrdersQuery = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
+          unsubEmailOrders = onSnapshot(emailOrdersQuery, (snapshot) => {
+            emailOrdersMap.clear();
+            snapshot.forEach(docSnap => {
+              const ord = docSnap.data() as Order;
+              if (ord && ord.id) {
+                emailOrdersMap.set(ord.id, ord);
+              }
+            });
+            syncAndDispatchOrders();
+          }, (err) => {
+            console.warn('Email orders query listener notice:', err);
+          });
+        } catch (err) {
+          console.warn('Email orders query setup notice:', err);
+        }
+
+        // Also listen to canonical email document orders subcollection
+        const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+        if (emailDocId !== uid) {
+          try {
+            const canonicalOrdersRef = collection(db, 'users', emailDocId, 'orders');
+            unsubCanonicalOrders = onSnapshot(canonicalOrdersRef, (snapshot) => {
+              canonicalOrdersMap.clear();
+              snapshot.forEach(docSnap => {
+                const ord = docSnap.data() as Order;
+                if (ord && ord.id) {
+                  canonicalOrdersMap.set(ord.id, ord);
+                }
+              });
+              syncAndDispatchOrders();
+            }, (err) => {
+              console.warn('Canonical orders subcollection listener notice:', err);
+            });
+          } catch (err) {
+            console.warn('Canonical orders subcollection setup notice:', err);
+          }
+        }
+      }
     };
 
     const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
@@ -185,6 +249,14 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       if (unsubGlobalOrders) {
         unsubGlobalOrders();
         unsubGlobalOrders = null;
+      }
+      if (unsubEmailOrders) {
+        unsubEmailOrders();
+        unsubEmailOrders = null;
+      }
+      if (unsubCanonicalOrders) {
+        unsubCanonicalOrders();
+        unsubCanonicalOrders = null;
       }
 
       const effectiveUid = currentUser?.uid 
@@ -207,6 +279,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       clearTimeout(fallbackTimer);
       if (unsubUserOrders) unsubUserOrders();
       if (unsubGlobalOrders) unsubGlobalOrders();
+      if (unsubEmailOrders) unsubEmailOrders();
+      if (unsubCanonicalOrders) unsubCanonicalOrders();
       unsubscribeAuth();
     };
   }, []);

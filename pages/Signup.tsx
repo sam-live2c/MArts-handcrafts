@@ -346,39 +346,30 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const fbUser = result.user;
-      const userDocRef = doc(db, 'users', fbUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const cleanEmail = (fbUser.email || '').trim().toLowerCase();
 
-      let userProfile: User;
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        userProfile = {
-          name: data.name || fbUser.displayName || 'Customer',
-          displayName: data.displayName || fbUser.displayName || 'Customer',
-          phone: data.phone || data.phoneNumber || '',
-          email: fbUser.email || '',
-          address: data.address || '',
-          orders: data.orders || [],
-          role: data.role || 'customer'
-        };
-      } else {
-        userProfile = {
-          name: fbUser.displayName || 'Customer',
-          displayName: fbUser.displayName || 'Customer',
-          email: fbUser.email || '',
-          phone: fbUser.phoneNumber || '',
-          address: '',
-          orders: [],
-          role: 'customer'
-        };
-        await setDoc(userDocRef, userProfile, { merge: true }).catch(() => {});
-      }
+      // Seamlessly restore and unify existing account regardless of whether they previously signed in with email/password or OTP
+      const restored = await restoreUserAccountByEmail(
+        cleanEmail, 
+        undefined, 
+        fbUser.displayName || undefined, 
+        fbUser.uid,
+        {
+          avatar: fbUser.photoURL || undefined,
+          phone: fbUser.phoneNumber || undefined,
+          phoneNumber: fbUser.phoneNumber || undefined
+        }
+      );
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
-      localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
-      handlePostAuthRedirect(userProfile);
+      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+      showToast('Welcome to MArts! Account ready.');
+      handlePostAuthRedirect(restored.user);
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        showToast('An account with this email already exists. Redirecting to login to link Google...', 'error');
+        navigate('/login?mode=password');
+      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         showToast(err.message || 'Google sign-up failed. Please try again.', 'error');
       }
     } finally {

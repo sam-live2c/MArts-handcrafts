@@ -55,7 +55,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
       const loadAddrs = async () => {
         let fetched: AddressItem[] = [];
         if (currentUser) {
-          fetched = await fetchUserAddresses(currentUser.uid);
+          fetched = await fetchUserAddresses(currentUser.uid, user?.email || currentUser.email || undefined);
         }
 
         if (fetched.length === 0) {

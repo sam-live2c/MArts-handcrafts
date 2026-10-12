@@ -42,7 +42,7 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
       const currentUser = auth.currentUser;
       if (currentUser) {
         try {
-          const addresses = await fetchUserAddresses(currentUser.uid);
+          const addresses = await fetchUserAddresses(currentUser.uid, user?.email || currentUser.email || undefined);
           if (addresses.length > 0) {
             const def = addresses.find(a => a.isDefault) || addresses[0];
             const formatted = `${def.houseNo}, ${def.area ? def.area + ', ' : ''}${def.city}, ${def.state} ${def.pincode}`;

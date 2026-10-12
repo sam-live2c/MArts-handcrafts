@@ -30,6 +30,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import {
   fetchUserProfile,
+  restoreUserAccountByEmail,
   fetchUserCart,
   syncUserCartToFirestore,
   fetchUserWishlist,
@@ -185,10 +186,15 @@ const App: React.FC = () => {
           }
         } catch (_) {}
 
+        const cleanEmail = (firebaseUser.email || '').trim().toLowerCase();
         try {
-          fetchUserProfile(firebaseUser.uid).then((profile) => {
+          fetchUserProfile(firebaseUser.uid, cleanEmail).then((profile) => {
             if (profile) {
               setUser(profile);
+            } else if (cleanEmail) {
+              restoreUserAccountByEmail(cleanEmail, undefined, firebaseUser.displayName || undefined, firebaseUser.uid)
+                .then(restored => setUser(restored.user))
+                .catch(() => {});
             } else {
               const newProfile: User = {
                 name: firebaseUser.displayName || 'User',

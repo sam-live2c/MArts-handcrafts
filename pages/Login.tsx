@@ -8,7 +8,9 @@ import {
   GoogleAuthProvider,
   sendPasswordResetEmail,
   createUserWithEmailAndPassword,
-  updatePassword
+  updatePassword,
+  linkWithCredential,
+  type AuthCredential
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
@@ -99,6 +101,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   // Toast status notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Pending Google Credential when linking accounts with same email
+  const [pendingGoogleCred, setPendingGoogleCred] = useState<AuthCredential | null>(null);
 
   // Loading States
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -222,40 +227,32 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         // Clear failed attempts counter on authenticated success
         await reportLoginAttempt(cleanEmail, true);
 
-        // Retrieve full profile from Firestore
-        const userDocRef = doc(db, 'users', fbUid);
-        const emailDocRef = doc(db, 'users', emailDocId);
-        const [userDocSnap, emailDocSnap] = await Promise.all([
-          getDoc(userDocRef).catch(() => null),
-          getDoc(emailDocRef).catch(() => null)
-        ]);
+        // Link pending Google credential if user had attempted Google sign in first
+        if (pendingGoogleCred) {
+          try {
+            await linkWithCredential(firebaseUser, pendingGoogleCred);
+            showToast('Google account successfully linked to your profile!');
+            setPendingGoogleCred(null);
+          } catch (linkErr) {
+            console.warn('Account linking notice:', linkErr);
+          }
+        }
 
-        const data = (userDocSnap && userDocSnap.exists() ? userDocSnap.data() : null) || 
-                     (emailDocSnap && emailDocSnap.exists() ? emailDocSnap.data() : null) || {};
+        // Restore and unify entire profile across all sources
+        const restored = await restoreUserAccountByEmail(
+          cleanEmail, 
+          pwdHash, 
+          firebaseUser.displayName || undefined, 
+          fbUid,
+          {
+            phone: firebaseUser.phoneNumber || undefined,
+            phoneNumber: firebaseUser.phoneNumber || undefined
+          }
+        );
 
-        const orders = await fetchUserOrders(fbUid).catch(() => []);
-
-        const loggedInUser: User = {
-          name: data.name || data.displayName || firebaseUser.displayName || cleanEmail.split('@')[0],
-          displayName: data.displayName || data.name || firebaseUser.displayName || cleanEmail.split('@')[0],
-          businessName: data.businessName || '',
-          phone: data.phone || data.phoneNumber || '',
-          phoneNumber: data.phoneNumber || data.phone || '',
-          email: cleanEmail,
-          address: data.address || '',
-          deliveryAddress: data.deliveryAddress,
-          shippingAddress: data.shippingAddress,
-          orders: orders.length > 0 ? orders : (Array.isArray(data.orders) ? data.orders : []),
-          role: data.role || 'customer'
-        };
-
-        // Sync password hash in Firestore
-        await setDoc(userDocRef, { ...loggedInUser, passwordHash: pwdHash, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
-        await setDoc(emailDocRef, { ...loggedInUser, passwordHash: pwdHash, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
-
-        localStorage.setItem('melody_user_profile', JSON.stringify(loggedInUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(loggedInUser));
-        await handlePostAuthRedirect(fbUid, loggedInUser);
+        localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+        localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+        await handlePostAuthRedirect(fbUid, restored.user);
         return;
       }
 
@@ -271,7 +268,22 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
             // Sync with Firebase Auth in background if possible
             createUserWithEmailAndPassword(auth, cleanEmail, password)
-              .catch(() => signInWithEmailAndPassword(auth, cleanEmail, password).catch(() => {}));
+              .then(async (userCred) => {
+                if (pendingGoogleCred && userCred.user) {
+                  await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
+                  setPendingGoogleCred(null);
+                }
+              })
+              .catch(() => {
+                signInWithEmailAndPassword(auth, cleanEmail, password)
+                  .then(async (userCred) => {
+                    if (pendingGoogleCred && userCred.user) {
+                      await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
+                      setPendingGoogleCred(null);
+                    }
+                  })
+                  .catch(() => {});
+              });
 
             const restored = await restoreUserAccountByEmail(cleanEmail, pwdHash);
             localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
@@ -378,6 +390,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       // Restore full authentic profile, orders, and saved addresses
       const restored = await restoreUserAccountByEmail(cleanEmail);
+      if (pendingGoogleCred && auth.currentUser) {
+        try {
+          await linkWithCredential(auth.currentUser, pendingGoogleCred);
+          showToast('Google account successfully linked!');
+          setPendingGoogleCred(null);
+        } catch (linkErr) {
+          console.warn('Account linking notice:', linkErr);
+        }
+      }
       localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
       localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
       await handlePostAuthRedirect(restored.docId, restored.user);
@@ -523,39 +544,38 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const fbUser = result.user;
-      const userDocRef = doc(db, 'users', fbUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
+      const cleanEmail = (fbUser.email || '').trim().toLowerCase();
 
-      let userProfile: User;
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        userProfile = {
-          name: data.name || fbUser.displayName || 'Customer',
-          displayName: data.displayName || fbUser.displayName || 'Customer',
-          phone: data.phone || data.phoneNumber || '',
-          email: fbUser.email || '',
-          address: data.address || '',
-          orders: data.orders || [],
-          role: data.role || 'customer'
-        };
-      } else {
-        userProfile = {
-          name: fbUser.displayName || 'Customer',
-          displayName: fbUser.displayName || 'Customer',
-          email: fbUser.email || '',
-          phone: fbUser.phoneNumber || '',
-          address: '',
-          orders: [],
-          role: 'customer'
-        };
-        await setDoc(userDocRef, userProfile, { merge: true }).catch(() => {});
-      }
+      // Seamlessly restore and unify existing account regardless of whether they previously signed in with email/password or OTP
+      const unified = await restoreUserAccountByEmail(
+        cleanEmail,
+        undefined,
+        fbUser.displayName || undefined,
+        fbUser.uid,
+        {
+          avatar: fbUser.photoURL || undefined,
+          phone: fbUser.phoneNumber || undefined,
+          phoneNumber: fbUser.phoneNumber || undefined
+        }
+      );
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
-      localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
-      await handlePostAuthRedirect(fbUser.uid, userProfile);
+      localStorage.setItem('melody_user_profile', JSON.stringify(unified.user));
+      localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
+      showToast('Welcome back! Account restored successfully.');
+      await handlePostAuthRedirect(fbUser.uid, unified.user);
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+      if (err.code === 'auth/account-exists-with-different-credential') {
+        const pendingCred = GoogleAuthProvider.credentialFromError(err);
+        const conflictEmail = (err.customData?.email || err.email || '').trim().toLowerCase();
+        if (conflictEmail) {
+          setEmail(conflictEmail);
+        }
+        setPendingGoogleCred(pendingCred);
+        const msg = 'An account with this email already exists. Please enter your password or sign in with an email code to link Google.';
+        setErrorMessage(msg);
+        showToast(msg, 'error');
+        switchView('password');
+      } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         showToast(err.message || 'Google sign-in failed. Please try again.', 'error');
       }
     } finally {
