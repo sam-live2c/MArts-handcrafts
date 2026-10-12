@@ -367,8 +367,12 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       handlePostAuthRedirect(restored.user);
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {
-        showToast('An account with this email already exists. Redirecting to login to link Google...', 'error');
-        navigate('/login?mode=password');
+        const conflictEmail = (err.customData?.email || err.email || '').trim().toLowerCase();
+        try {
+          if (conflictEmail) sessionStorage.setItem('marts_conflict_email', conflictEmail);
+        } catch (_) {}
+        showToast('An account with this email already exists. Enter password or sign in with email code to link Google.', 'success');
+        navigate(`/login?email=${encodeURIComponent(conflictEmail)}&mode=password`);
       } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         showToast(err.message || 'Google sign-up failed. Please try again.', 'error');
       }

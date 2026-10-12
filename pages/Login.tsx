@@ -79,6 +79,13 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   // Form Fields
   const [email, setEmail] = useState(() => {
     try {
+      const qEmail = searchParams.get('email');
+      if (qEmail) return qEmail.trim().toLowerCase();
+      const conflict = sessionStorage.getItem('marts_conflict_email');
+      if (conflict) {
+        sessionStorage.removeItem('marts_conflict_email');
+        return conflict.trim().toLowerCase();
+      }
       return sessionStorage.getItem('marts_pending_login_email') || '';
     } catch (_) {
       return '';
@@ -519,10 +526,32 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
       // Attempt to update Firebase Auth if active, or register credential
       if (auth.currentUser) {
-        updatePassword(auth.currentUser, newPassword).catch(() => {});
+        updatePassword(auth.currentUser, newPassword)
+          .then(async () => {
+            if (pendingGoogleCred && auth.currentUser) {
+              await linkWithCredential(auth.currentUser, pendingGoogleCred).catch(() => {});
+              setPendingGoogleCred(null);
+            }
+          })
+          .catch(() => {});
       } else {
         createUserWithEmailAndPassword(auth, cleanEmail, newPassword)
-          .catch(() => signInWithEmailAndPassword(auth, cleanEmail, newPassword).catch(() => {}));
+          .then(async (userCred) => {
+            if (pendingGoogleCred && userCred.user) {
+              await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
+              setPendingGoogleCred(null);
+            }
+          })
+          .catch(() => {
+            signInWithEmailAndPassword(auth, cleanEmail, newPassword)
+              .then(async (userCred) => {
+                if (pendingGoogleCred && userCred.user) {
+                  await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
+                  setPendingGoogleCred(null);
+                }
+              })
+              .catch(() => {});
+          });
       }
 
       showToast('Password reset successfully!');

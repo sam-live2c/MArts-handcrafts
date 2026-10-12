@@ -11,6 +11,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /test/{testId} {
+      allow read: if true;
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -25,6 +29,15 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isEmailOwner() {
+      return isSignedIn() && 
+             request.auth.token.email != null && 
+             (
+               (resource != null && resource.data.get('email', '') == request.auth.token.email) ||
+               (incoming() != null && incoming().get('email', '') == request.auth.token.email)
+             );
     }
 
     // Secure Admin Check:
@@ -85,15 +98,15 @@ service cloud.firestore {
     // USERS COLLECTION & SUBCOLLECTIONS (PII PROTECTED)
     // ==========================================
     match /users/{userId} {
-      // Individual user profile can only be read by the owner or an admin
-      allow get: if isOwner(userId) || isAdmin() || !isSignedIn();
+      // Individual user profile can be read by owner UID, owner by email, admin, or pre-auth lookup
+      allow get: if isOwner(userId) || isEmailOwner() || isAdmin() || !isSignedIn();
       allow list: if isAdmin();
 
       // User creation during signup
       allow create: if true;
 
       // User profile update
-      allow update: if (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role']))) || isAdmin() || !isSignedIn();
+      allow update: if (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role']))) || isEmailOwner() || isAdmin() || !isSignedIn();
 
       // Only admins can delete user records
       allow delete: if isAdmin();

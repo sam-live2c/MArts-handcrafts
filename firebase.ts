@@ -50,12 +50,8 @@ export const rtdb = getDatabase(app);
 // Validate connection to Firestore on initialization with graceful offline handling
 async function testFirestoreConnection() {
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && (error.message.includes('the client is offline') || (error as any).code === 'unavailable')) {
-      console.warn('Notice: Firestore operating in offline or cache-first mode.');
-    }
-  }
+    await getDocFromServer(doc(db, 'products', '__ping__')).catch(() => {});
+  } catch (_) {}
 }
 testFirestoreConnection();
 

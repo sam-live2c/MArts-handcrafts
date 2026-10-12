@@ -240,29 +240,27 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
   } catch (_) {}
 
   try {
-    const userDocSnap = await withTimeout(getDoc(doc(db, 'users', uid)), 2500);
     const cleanEmail = (fallbackEmail || cachedUser?.email || '').trim().toLowerCase();
+    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
 
-    if (userDocSnap.exists()) {
+    // Fetch user doc and email doc in parallel with fast 1500ms timeout
+    const fetchPromises: Promise<any>[] = [
+      withTimeout(getDoc(doc(db, 'users', uid)), 1500).catch(() => null)
+    ];
+    if (emailDocId && emailDocId !== uid) {
+      fetchPromises.push(withTimeout(getDoc(doc(db, 'users', emailDocId)), 1500).catch(() => null));
+    }
+
+    const [userDocSnap, emailSnap] = await Promise.all(fetchPromises);
+
+    if (userDocSnap && userDocSnap.exists()) {
       const data = userDocSnap.data();
       const userEmail = (data.email || cleanEmail || '').trim().toLowerCase();
-      const emailDocId = userEmail ? 'marts_user_' + userEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
-      
-      // If profile doc in users/{uid} is sparse (e.g. no orders or no address), check if email doc has richer data
-      let emailDocData: any = {};
-      if (emailDocId && emailDocId !== uid) {
-        try {
-          const emailSnap = await withTimeout(getDoc(doc(db, 'users', emailDocId)), 2000);
-          if (emailSnap.exists()) {
-            emailDocData = emailSnap.data() || {};
-          }
-        } catch (_) {}
-      }
+      const emailDocData = (emailSnap && emailSnap.exists()) ? emailSnap.data() : {};
 
       const deliveryAddr = (data.deliveryAddress || data.shippingAddress || emailDocData.deliveryAddress || emailDocData.shippingAddress) as StoreDeliveryAddress | undefined;
       let addressStr = data.address || emailDocData.address || '';
       
-      // If user profile doc address is empty, check deliveryAddress / shippingAddress
       if (!addressStr && deliveryAddr) {
         if (typeof deliveryAddr === 'string') {
           addressStr = deliveryAddr;
@@ -278,12 +276,24 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
         }
       }
 
-      // Fetch all orders unified for this uid and email
-      const initialOrders = await fetchUserOrders(uid, userEmail).catch(() => {
-        return Array.isArray(data.orders) && data.orders.length > 0
-          ? data.orders
-          : (Array.isArray(emailDocData.orders) ? emailDocData.orders : []);
-      });
+      // Check cached orders immediately for instant UI render
+      const cachedOrders = (Array.isArray(cachedUser?.orders) && cachedUser.orders.length > 0)
+        ? cachedUser.orders
+        : (() => {
+            try {
+              const o = localStorage.getItem(`marts_orders_${uid}`) || localStorage.getItem('marts_orders');
+              return o ? JSON.parse(o) : [];
+            } catch { return []; }
+          })();
+
+      const initialOrders = Array.isArray(data.orders) && data.orders.length > 0
+        ? data.orders
+        : (Array.isArray(emailDocData.orders) && emailDocData.orders.length > 0
+            ? emailDocData.orders
+            : cachedOrders);
+
+      // Refresh orders in background without delaying profile load
+      fetchUserOrders(uid, userEmail).catch(() => {});
 
       const userProfile: User = {
         name: data.displayName || data.name || emailDocData.displayName || emailDocData.name || cachedUser?.name || 'Customer',
@@ -332,8 +342,25 @@ export const findUserAccountByEmail = async (email: string): Promise<{
 }> => {
   const cleanEmail = email.trim().toLowerCase();
   const docId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+  // Check local storage cached profile first for instant response
   try {
-    const snap = await withTimeout(getDoc(doc(db, 'users', docId)), 3000);
+    const cachedStr = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+    if (cachedStr) {
+      const parsed = JSON.parse(cachedStr);
+      if (parsed && parsed.email?.toLowerCase() === cleanEmail) {
+        return {
+          exists: true,
+          docId,
+          data: parsed,
+          user: parsed
+        };
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'users', docId)), 1500);
     if (snap.exists()) {
       const data = snap.data();
       const deliveryAddr = (data.deliveryAddress || data.shippingAddress) as StoreDeliveryAddress | undefined;
@@ -392,6 +419,7 @@ export const findUserAccountByEmail = async (email: string): Promise<{
  * restores delivery addresses, synchronizes profiles between Google UID and Email ID,
  * updates password hash if a new password is provided,
  * and syncs to local storage so the user experiences zero disruption no matter the login method.
+ * Runs in parallel with fast timeouts and background non-blocking persistence.
  */
 export const restoreUserAccountByEmail = async (
   email: string,
@@ -404,82 +432,109 @@ export const restoreUserAccountByEmail = async (
   const docId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
   const targetUid = firebaseUid || docId;
 
-  // Check if profile exists across docId, firebaseUid, or any query matching email
-  let existingData: any = {};
-  const discoveredUids = new Set<string>([docId]);
-  if (firebaseUid) discoveredUids.add(firebaseUid);
-
+  // 1. Instantly gather local storage data (0ms latency base)
+  let localData: any = {};
   try {
-    const [snapEmail, snapUid] = await Promise.all([
-      withTimeout(getDoc(doc(db, 'users', docId)), 3000).catch(() => null),
-      firebaseUid && firebaseUid !== docId 
-        ? withTimeout(getDoc(doc(db, 'users', firebaseUid)), 3000).catch(() => null)
-        : Promise.resolve(null)
-    ]);
-    if (snapEmail && snapEmail.exists()) {
-      existingData = { ...existingData, ...snapEmail.data() };
-    }
-    if (snapUid && snapUid.exists()) {
-      existingData = { ...snapUid.data(), ...existingData };
+    const cachedProfile = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+    if (cachedProfile) {
+      const parsed = JSON.parse(cachedProfile);
+      if (parsed && (parsed.email?.toLowerCase() === cleanEmail || !parsed.email)) {
+        localData = { ...parsed };
+      }
     }
   } catch (_) {}
 
-  // Also query users collection for any user document with this email
-  try {
-    const qEmailUsers = query(collection(db, 'users'), where('email', '==', cleanEmail));
-    const usersSnap = await withTimeout(getDocs(qEmailUsers), 3000);
-    usersSnap.forEach(d => {
-      discoveredUids.add(d.id);
-      existingData = { ...existingData, ...d.data() };
-    });
-  } catch (_) {}
-
-  if (extraData) {
-    existingData = { ...existingData, ...extraData };
-  }
-
-  // Gather existing orders from all sources
+  // 2. Parallel fetch from Firestore with snappy timeout (1500ms max)
+  let remoteData: any = {};
   const ordersMap = new Map<string, Order>();
+  const addressesMap = new Map<string, AddressItem>();
 
-  // 1. Orders from profile data array
-  if (Array.isArray(existingData.orders)) {
-    existingData.orders.forEach((o: Order) => {
-      if (o && o.id) ordersMap.set(o.id, o);
-    });
-  }
-
-  // 2. Orders from subcollection across all discovered user documents
-  for (const uId of discoveredUids) {
+  // Include cached orders immediately
+  const localOrdersSources = [
+    `marts_orders_${targetUid}`,
+    `melody_orders_${targetUid}`,
+    `marts_orders_${docId}`,
+    `melody_orders_${docId}`,
+    'marts_orders',
+    'melody_orders'
+  ];
+  for (const key of localOrdersSources) {
     try {
-      const userOrdersSnap = await withTimeout(getDocs(collection(db, 'users', uId, 'orders')), 3000);
-      userOrdersSnap.forEach(d => {
-        const o = d.data() as Order;
-        if (o && o.id) ordersMap.set(o.id, o);
-      });
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach((o: Order) => {
+            if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === targetUid || o.userId === docId || !o.customerEmail)) {
+              ordersMap.set(o.id, o);
+            }
+          });
+        }
+      }
     } catch (_) {}
   }
 
-  // 3. Orders from global orders matching customerEmail
-  try {
-    const qEmail = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
-    const globalEmailSnap = await withTimeout(getDocs(qEmail), 3000);
-    globalEmailSnap.forEach(d => {
-      const o = d.data() as Order;
-      if (o && o.id) {
-        const prev = ordersMap.get(o.id);
-        if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
-          ordersMap.set(o.id, { ...prev, ...o });
+  // Include cached addresses immediately
+  const localAddressSources = [
+    `melody_addresses_${targetUid}`,
+    `melody_addresses_${docId}`,
+    'melody_addresses',
+    'melody_default_address',
+    'marts_default_address'
+  ];
+  for (const key of localAddressSources) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((a: AddressItem) => {
+            if (a && a.id) addressesMap.set(a.id, a);
+          });
+        } else if (parsed && parsed.id) {
+          addressesMap.set(parsed.id, parsed);
         }
       }
-    });
-  } catch (_) {}
+    } catch (_) {}
+  }
 
-  // Orders from global orders matching any discovered UID
-  for (const uId of discoveredUids) {
-    try {
-      const qUser = query(collection(db, 'orders'), where('userId', '==', uId));
-      const globalUserSnap = await withTimeout(getDocs(qUser), 3000);
-      globalUserSnap.forEach(d => {
+  // Fire parallel queries for Firestore
+  const queries: Promise<any>[] = [
+    // 0: deterministic email document
+    getDoc(doc(db, 'users', docId)).catch(() => null),
+    // 1: customer orders in global collection
+    getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null),
+    // 2: addresses under docId
+    getDocs(collection(db, 'users', docId, 'addresses')).catch(() => null),
+    // 3: orders under docId
+    getDocs(collection(db, 'users', docId, 'orders')).catch(() => null)
+  ];
+
+  if (firebaseUid && firebaseUid !== docId) {
+    queries.push(
+      // 4: firebaseUid user doc
+      getDoc(doc(db, 'users', firebaseUid)).catch(() => null),
+      // 5: global orders by userId == firebaseUid
+      getDocs(query(collection(db, 'orders'), where('userId', '==', firebaseUid))).catch(() => null),
+      // 6: addresses under firebaseUid
+      getDocs(collection(db, 'users', firebaseUid, 'addresses')).catch(() => null),
+      // 7: orders under firebaseUid
+      getDocs(collection(db, 'users', firebaseUid, 'orders')).catch(() => null)
+    );
+  }
+
+  try {
+    const results = await withTimeout(Promise.allSettled(queries), 1500);
+
+    // Process docId
+    const res0 = results[0];
+    if (res0.status === 'fulfilled' && res0.value && typeof res0.value.exists === 'function' && res0.value.exists()) {
+      remoteData = { ...remoteData, ...res0.value.data() };
+    }
+    // Process global customer orders
+    const res1 = results[1];
+    if (res1.status === 'fulfilled' && res1.value && typeof res1.value.forEach === 'function') {
+      res1.value.forEach((d: any) => {
         const o = d.data() as Order;
         if (o && o.id) {
           const prev = ordersMap.get(o.id);
@@ -488,52 +543,11 @@ export const restoreUserAccountByEmail = async (
           }
         }
       });
-    } catch (_) {}
-  }
-
-  // 4. Also check local storage cached orders
-  for (const uId of discoveredUids) {
-    try {
-      const cachedOrdersStr = localStorage.getItem(`marts_orders_${uId}`) || localStorage.getItem(`melody_orders_${uId}`);
-      if (cachedOrdersStr) {
-        const parsed: Order[] = JSON.parse(cachedOrdersStr);
-        if (Array.isArray(parsed)) {
-          parsed.forEach(o => {
-            if (o && o.id) {
-              if (!ordersMap.has(o.id)) ordersMap.set(o.id, o);
-            }
-          });
-        }
-      }
-    } catch (_) {}
-  }
-  try {
-    const globalCachedOrders = localStorage.getItem('marts_orders') || localStorage.getItem('melody_orders');
-    if (globalCachedOrders) {
-      const parsed: Order[] = JSON.parse(globalCachedOrders);
-      if (Array.isArray(parsed)) {
-        parsed.forEach(o => {
-          if (o && o.id && (o.customerEmail === cleanEmail || discoveredUids.has(o.userId))) {
-            if (!ordersMap.has(o.id)) ordersMap.set(o.id, o);
-          }
-        });
-      }
     }
-  } catch (_) {}
-
-  const restoredOrders = Array.from(ordersMap.values()).sort((a, b) => {
-    const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-    const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
-    if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-    return (b.id || '').localeCompare(a.id || '');
-  });
-
-  // Gather addresses from subcollections across all discovered UIDs
-  const addressesMap = new Map<string, AddressItem>();
-  for (const uId of discoveredUids) {
-    try {
-      const addrSnap = await withTimeout(getDocs(collection(db, 'users', uId, 'addresses')), 3000);
-      addrSnap.forEach(d => {
+    // Process addresses subcollection under docId
+    const res2 = results[2];
+    if (res2.status === 'fulfilled' && res2.value && typeof res2.value.forEach === 'function') {
+      res2.value.forEach((d: any) => {
         const data = d.data();
         if (d.id !== 'default') {
           const item: AddressItem = {
@@ -549,11 +563,92 @@ export const restoreUserAccountByEmail = async (
             type: data.type || 'HOME',
             isDefault: data.isDefault === true
           };
-          if (!addressesMap.has(item.id)) addressesMap.set(item.id, item);
+          addressesMap.set(item.id, item);
         }
       });
-    } catch (_) {}
+    }
+    // Process orders subcollection under docId
+    const res3 = results[3];
+    if (res3.status === 'fulfilled' && res3.value && typeof res3.value.forEach === 'function') {
+      res3.value.forEach((d: any) => {
+        const o = d.data() as Order;
+        if (o && o.id) ordersMap.set(o.id, o);
+      });
+    }
+
+    if (firebaseUid && firebaseUid !== docId) {
+      // Process firebaseUid user doc
+      const res4 = results[4];
+      if (res4 && res4.status === 'fulfilled' && res4.value && typeof res4.value.exists === 'function' && res4.value.exists()) {
+        remoteData = { ...res4.value.data(), ...remoteData };
+      }
+      // Process firebaseUid global orders
+      const res5 = results[5];
+      if (res5 && res5.status === 'fulfilled' && res5.value && typeof res5.value.forEach === 'function') {
+        res5.value.forEach((d: any) => {
+          const o = d.data() as Order;
+          if (o && o.id) {
+            const prev = ordersMap.get(o.id);
+            if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
+              ordersMap.set(o.id, { ...prev, ...o });
+            }
+          }
+        });
+      }
+      // Process firebaseUid addresses
+      const res6 = results[6];
+      if (res6 && res6.status === 'fulfilled' && res6.value && typeof res6.value.forEach === 'function') {
+        res6.value.forEach((d: any) => {
+          const data = d.data();
+          if (d.id !== 'default') {
+            const item: AddressItem = {
+              id: data.id || d.id,
+              name: data.recipientName || data.name || '',
+              phone: data.phone || data.phoneNumber || '',
+              email: cleanEmail,
+              pincode: data.postalCode || data.pin || data.pincode || '',
+              houseNo: data.street || data.houseNo || '',
+              area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
+              city: data.city || '',
+              state: data.state || '',
+              type: data.type || 'HOME',
+              isDefault: data.isDefault === true
+            };
+            addressesMap.set(item.id, item);
+          }
+        });
+      }
+      // Process firebaseUid orders subcollection
+      const res7 = results[7];
+      if (res7 && res7.status === 'fulfilled' && res7.value && typeof res7.value.forEach === 'function') {
+        res7.value.forEach((d: any) => {
+          const o = d.data() as Order;
+          if (o && o.id) ordersMap.set(o.id, o);
+        });
+      }
+    }
+  } catch (_) {
+    // Timeout or network notice - local data is already loaded!
   }
+
+  const existingData = { ...localData, ...remoteData, ...(extraData || {}) };
+
+  // Orders in existingData.orders
+  if (Array.isArray(existingData.orders)) {
+    existingData.orders.forEach((o: Order) => {
+      if (o && o.id && !ordersMap.has(o.id)) ordersMap.set(o.id, o);
+    });
+  }
+
+  const restoredOrders = Array.from(ordersMap.values()).sort((a, b) => {
+    const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+    const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+    if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+    return (b.id || '').localeCompare(a.id || '');
+  });
+
+  const dedupedAddresses = deduplicateAddresses(Array.from(addressesMap.values()));
+  const defaultAddressItem = dedupedAddresses.find(a => a.isDefault) || dedupedAddresses[0];
 
   const deliveryAddr = existingData.deliveryAddress || existingData.shippingAddress;
   let addressStr = existingData.address || '';
@@ -571,8 +666,6 @@ export const restoreUserAccountByEmail = async (
       ].filter(Boolean).join(', ');
     }
   }
-
-  const defaultAddressItem = Array.from(addressesMap.values()).find(a => a.isDefault) || Array.from(addressesMap.values())[0];
   if (!addressStr && defaultAddressItem) {
     addressStr = `${defaultAddressItem.houseNo}, ${defaultAddressItem.area ? defaultAddressItem.area + ', ' : ''}${defaultAddressItem.city}, ${defaultAddressItem.state} ${defaultAddressItem.pincode}`.trim();
   }
@@ -594,52 +687,7 @@ export const restoreUserAccountByEmail = async (
     role: existingData.role || 'customer'
   };
 
-  // Write back merged profile to Firestore in both emailDocId and targetUid
-  const updatePayload: Record<string, any> = {
-    ...restoredProfile,
-    updatedAt: new Date().toISOString()
-  };
-  if (newPasswordHash) {
-    updatePayload.passwordHash = newPasswordHash;
-  } else if (existingData.passwordHash) {
-    updatePayload.passwordHash = existingData.passwordHash;
-  }
-
-  try {
-    await withTimeout(setDoc(doc(db, 'users', docId), updatePayload, { merge: true }), 3000);
-    if (firebaseUid && firebaseUid !== docId) {
-      await withTimeout(setDoc(doc(db, 'users', firebaseUid), updatePayload, { merge: true }), 3000);
-    }
-  } catch (err) {
-    console.warn('Notice: offline write during account restoration:', err);
-  }
-
-  // Cross-replicate addresses into both docId and firebaseUid so lookups on either return all saved addresses
-  const dedupedAddresses = deduplicateAddresses(Array.from(addressesMap.values()));
-  if (dedupedAddresses.length > 0) {
-    for (const addr of dedupedAddresses) {
-      try {
-        await withTimeout(setDoc(doc(db, 'users', docId, 'addresses', addr.id), addr, { merge: true }), 2000);
-        if (firebaseUid && firebaseUid !== docId) {
-          await withTimeout(setDoc(doc(db, 'users', firebaseUid, 'addresses', addr.id), addr, { merge: true }), 2000);
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Mirror top orders into user subcollection so real-time subcollection listeners pick them up
-  if (restoredOrders.length > 0) {
-    for (const ord of restoredOrders.slice(0, 20)) {
-      try {
-        await withTimeout(setDoc(doc(db, 'users', docId, 'orders', ord.id), ord, { merge: true }), 2000);
-        if (firebaseUid && firebaseUid !== docId) {
-          await withTimeout(setDoc(doc(db, 'users', firebaseUid, 'orders', ord.id), ord, { merge: true }), 2000);
-        }
-      } catch (_) {}
-    }
-  }
-
-  // Update localStorage immediately across all identity keys
+  // Immediate local cache resolution (0ms latency for smooth instant login)
   try {
     localStorage.setItem('marts_user_profile', JSON.stringify(restoredProfile));
     localStorage.setItem('melody_user_profile', JSON.stringify(restoredProfile));
@@ -658,15 +706,60 @@ export const restoreUserAccountByEmail = async (
       if (firebaseUid) {
         localStorage.setItem(`melody_addresses_${firebaseUid}`, JSON.stringify(dedupedAddresses));
       }
-      const def = dedupedAddresses.find(a => a.isDefault) || dedupedAddresses[0];
-      localStorage.setItem('melody_default_address', JSON.stringify(def));
-      localStorage.setItem('marts_default_address', JSON.stringify(def));
+      localStorage.setItem('melody_addresses', JSON.stringify(dedupedAddresses));
+      if (defaultAddressItem) {
+        localStorage.setItem('melody_default_address', JSON.stringify(defaultAddressItem));
+        localStorage.setItem('marts_default_address', JSON.stringify(defaultAddressItem));
+      }
     }
     if (addressStr) {
       localStorage.setItem('marts_user_address', addressStr);
       localStorage.setItem('melody_user_address', addressStr);
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: restoredProfile }));
+    }
   } catch (_) {}
+
+  // Background non-blocking writes to Firestore (never freezes the UI or delays login redirect)
+  (async () => {
+    try {
+      const updatePayload: Record<string, any> = {
+        ...restoredProfile,
+        updatedAt: new Date().toISOString()
+      };
+      if (newPasswordHash) {
+        updatePayload.passwordHash = newPasswordHash;
+      } else if (existingData.passwordHash) {
+        updatePayload.passwordHash = existingData.passwordHash;
+      }
+
+      const syncWrites: Promise<any>[] = [
+        setDoc(doc(db, 'users', docId), updatePayload, { merge: true }).catch(() => {})
+      ];
+      if (firebaseUid && firebaseUid !== docId) {
+        syncWrites.push(setDoc(doc(db, 'users', firebaseUid), updatePayload, { merge: true }).catch(() => {}));
+      }
+
+      // Replicate addresses in parallel
+      for (const addr of dedupedAddresses) {
+        syncWrites.push(setDoc(doc(db, 'users', docId, 'addresses', addr.id), addr, { merge: true }).catch(() => {}));
+        if (firebaseUid && firebaseUid !== docId) {
+          syncWrites.push(setDoc(doc(db, 'users', firebaseUid, 'addresses', addr.id), addr, { merge: true }).catch(() => {}));
+        }
+      }
+
+      // Replicate top orders to user subcollections in parallel
+      for (const ord of restoredOrders.slice(0, 15)) {
+        syncWrites.push(setDoc(doc(db, 'users', docId, 'orders', ord.id), ord, { merge: true }).catch(() => {}));
+        if (firebaseUid && firebaseUid !== docId) {
+          syncWrites.push(setDoc(doc(db, 'users', firebaseUid, 'orders', ord.id), ord, { merge: true }).catch(() => {}));
+        }
+      }
+
+      await Promise.allSettled(syncWrites);
+    } catch (_) {}
+  })();
 
   return { user: restoredProfile, docId: targetUid };
 };
@@ -1351,41 +1444,55 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
   })()).trim().toLowerCase();
 
   try {
-    // 1. Fetch from user's personal orders subcollection
-    try {
-      const userOrdersRef = collection(db, 'users', uid, 'orders');
-      const snapshot = await withTimeout(getDocs(userOrdersRef), 6000);
-      snapshot.forEach(docSnap => {
-        const o = docSnap.data() as Order;
-        if (o && o.id) ordersMap.set(o.id, o);
-      });
-    } catch (e) {
-      console.warn('Subcollection fetch note:', e);
+    // 0. Include cached orders immediately for instant UI
+    const cachedSources = [
+      `marts_orders_${uid}`,
+      `melody_orders_${uid}`,
+      'marts_orders',
+      'melody_orders'
+    ];
+    if (cleanEmail) {
+      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      cachedSources.push(`marts_orders_${emailDocId}`, `melody_orders_${emailDocId}`);
     }
-
-    // 2. Fetch from global orders collection where userId matches
-    try {
-      const q = query(collection(db, 'orders'), where('userId', '==', uid));
-      const globalSnap = await withTimeout(getDocs(q), 6000);
-      globalSnap.forEach(docSnap => {
-        const o = docSnap.data() as Order;
-        if (o && o.id) {
-          const existing = ordersMap.get(o.id);
-          if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
-            ordersMap.set(o.id, { ...existing, ...o });
+    for (const key of cachedSources) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((o: Order) => {
+              if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === uid || !o.customerEmail)) {
+                ordersMap.set(o.id, o);
+              }
+            });
           }
         }
-      });
-    } catch (e) {
-      console.warn('Global orders query fetch note:', e);
+      } catch (_) {}
     }
 
-    // 3. Fetch from global orders collection matching customerEmail
+    // Run all Firestore order queries in parallel with fast 1800ms timeout
+    const orderPromises: Promise<any>[] = [
+      getDocs(collection(db, 'users', uid, 'orders')).catch(() => null),
+      getDocs(query(collection(db, 'orders'), where('userId', '==', uid))).catch(() => null)
+    ];
+
+    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
     if (cleanEmail) {
-      try {
-        const qEmail = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
-        const emailSnap = await withTimeout(getDocs(qEmail), 5000);
-        emailSnap.forEach(docSnap => {
+      orderPromises.push(
+        getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null)
+      );
+      if (emailDocId && emailDocId !== uid) {
+        orderPromises.push(
+          getDocs(collection(db, 'users', emailDocId, 'orders')).catch(() => null)
+        );
+      }
+    }
+
+    const settled = await withTimeout(Promise.allSettled(orderPromises), 1800);
+    for (const res of settled) {
+      if (res.status === 'fulfilled' && res.value && typeof res.value.forEach === 'function') {
+        res.value.forEach((docSnap: any) => {
           const o = docSnap.data() as Order;
           if (o && o.id) {
             const existing = ordersMap.get(o.id);
@@ -1394,25 +1501,6 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
             }
           }
         });
-      } catch (e) {
-        console.warn('Orders by email query fetch note:', e);
-      }
-
-      // Check emailDocId subcollection users/marts_user_{cleanEmail}/orders
-      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      if (emailDocId !== uid) {
-        try {
-          const emailSubSnap = await withTimeout(getDocs(collection(db, 'users', emailDocId, 'orders')), 4000);
-          emailSubSnap.forEach(docSnap => {
-            const o = docSnap.data() as Order;
-            if (o && o.id) {
-              const existing = ordersMap.get(o.id);
-              if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
-                ordersMap.set(o.id, { ...existing, ...o });
-              }
-            }
-          });
-        } catch (_) {}
       }
     }
 
