@@ -1562,16 +1562,21 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
     return '';
   })()).trim().toLowerCase();
 
+  const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
+
   try {
-    // 0. Include cached orders immediately for instant UI
+    // 0. Include all cached orders immediately across all possible scopes
     const cachedSources = [
       `marts_orders_${uid}`,
       'marts_orders'
     ];
     if (cleanEmail) {
-      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      cachedSources.push(`marts_orders_${cleanEmail}`);
+    }
+    if (emailDocId) {
       cachedSources.push(`marts_orders_${emailDocId}`);
     }
+
     for (const key of cachedSources) {
       try {
         const raw = safeStorage.getItem(key);
@@ -1579,7 +1584,7 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             parsed.forEach((o: Order) => {
-              if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === uid || !o.customerEmail)) {
+              if (o && o.id) {
                 ordersMap.set(o.id, o);
               }
             });
@@ -1588,68 +1593,87 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       } catch (_) {}
     }
 
-    // Run all Firestore order queries in parallel with snappy timeout
+    // Run all Firestore order queries in parallel with generous 8-second window
     const orderPromises: Promise<any>[] = [
       getDocs(collection(db, 'users', uid, 'orders')).catch(() => null),
-      getDocs(query(collection(db, 'orders'), where('userId', '==', uid))).catch(() => null)
+      getDocs(query(collection(db, 'orders'), where('userId', '==', uid))).catch(() => null),
+      getDoc(doc(db, 'users', uid)).catch(() => null)
     ];
 
-    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
     if (cleanEmail) {
       orderPromises.push(
         getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null)
       );
       if (emailDocId && emailDocId !== uid) {
         orderPromises.push(
-          getDocs(collection(db, 'users', emailDocId, 'orders')).catch(() => null)
+          getDocs(collection(db, 'users', emailDocId, 'orders')).catch(() => null),
+          getDoc(doc(db, 'users', emailDocId)).catch(() => null)
         );
       }
     }
 
-    const settled = await withTimeout(Promise.allSettled(orderPromises), 1800);
+    const settled = await withTimeout(Promise.allSettled(orderPromises), 8000);
     for (const res of settled) {
-      if (res.status === 'fulfilled' && res.value && typeof res.value.forEach === 'function') {
-        res.value.forEach((docSnap: any) => {
-          const o = docSnap.data() as Order;
-          if (o && o.id) {
-            const existing = ordersMap.get(o.id);
-            if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
-              ordersMap.set(o.id, { ...existing, ...o });
+      if (res.status === 'fulfilled' && res.value) {
+        const val = res.value;
+        // Check if query snapshot or collection snapshot
+        if (typeof val.forEach === 'function') {
+          val.forEach((docSnap: any) => {
+            const o = docSnap.data() as Order;
+            if (o && o.id) {
+              const existing = ordersMap.get(o.id);
+              if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                ordersMap.set(o.id, { ...existing, ...o });
+              }
             }
+          });
+        } else if (typeof val.data === 'function') {
+          // Document snapshot (users/{uid} or users/{emailDocId})
+          const dData = val.data();
+          if (dData && Array.isArray(dData.orders)) {
+            dData.orders.forEach((o: Order) => {
+              if (o && o.id) {
+                const existing = ordersMap.get(o.id);
+                if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                  ordersMap.set(o.id, { ...existing, ...o });
+                }
+              }
+            });
           }
-        });
+        }
       }
     }
 
     const orders = Array.from(ordersMap.values());
     const sorted = orders.sort((a, b) => {
-      const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-      const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+      const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+      const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
       if (timeA && timeB && timeA !== timeB) return timeB - timeA;
       return (b.id || '').localeCompare(a.id || '');
     });
 
     if (sorted.length > 0) {
       safeStorage.setItem(`marts_orders_${uid}`, JSON.stringify(sorted));
+      safeStorage.setItem('marts_orders', JSON.stringify(sorted));
+      if (cleanEmail) {
+        safeStorage.setItem(`marts_orders_${cleanEmail}`, JSON.stringify(sorted));
+      }
+      if (emailDocId) {
+        safeStorage.setItem(`marts_orders_${emailDocId}`, JSON.stringify(sorted));
+      }
       return sorted;
     }
 
-    // Check user-scoped cached fallback only if firestore returned empty
-    const cached = safeStorage.getItem(`marts_orders_${uid}`) || safeStorage.getItem('marts_orders');
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch (e) {}
-    }
-    return [];
+    // Return current orders in map even if Firestore returned 0 docs
+    return sorted;
   } catch (err) {
-    console.warn('Firestore offline when fetching orders, using user-scoped local storage.');
-    const cached = safeStorage.getItem(`marts_orders_${uid}`) || safeStorage.getItem('marts_orders');
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
-    }
-    return [];
+    console.warn('Notice when fetching orders, using cached order store:', err);
+    return Array.from(ordersMap.values()).sort((a, b) => {
+      const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+      const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      return (b.id || '').localeCompare(a.id || '');
+    });
   }
 };
 
@@ -1812,13 +1836,62 @@ export const saveOrderToFirestore = async (
           console.warn('User order subcollection setDoc notice:', e);
         });
 
-        // Also sync orders array to the parent users document preserving all orders
-        const localCachedRaw = safeStorage.getItem('marts_orders') || '[]';
-        let allOrdersToSync = [orderData];
+        // Gather all existing orders across candidate caches and merge with orderData
+        const existingMap = new Map<string, Order>();
+        existingMap.set(orderData.id, orderData);
+
+        const candidateKeys = [
+          `marts_orders_${uid}`,
+          'marts_orders'
+        ];
+        if (orderData.customerEmail) {
+          const cleanEmail = orderData.customerEmail.trim().toLowerCase();
+          candidateKeys.push(`marts_orders_${cleanEmail}`);
+          candidateKeys.push(`marts_orders_marts_user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`);
+        }
+
+        for (const k of candidateKeys) {
+          try {
+            const raw = safeStorage.getItem(k);
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                list.forEach((o: Order) => {
+                  if (o && o.id && !existingMap.has(o.id)) {
+                    existingMap.set(o.id, o);
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        // Also check if user doc already has existing orders to preserve
         try {
-          const parsed = JSON.parse(localCachedRaw);
-          if (Array.isArray(parsed) && parsed.length > 0) allOrdersToSync = parsed;
+          const uDocSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
+          if (uDocSnap && uDocSnap.exists()) {
+            const uData = uDocSnap.data();
+            if (Array.isArray(uData.orders)) {
+              uData.orders.forEach((o: Order) => {
+                if (o && o.id && !existingMap.has(o.id)) {
+                  existingMap.set(o.id, o);
+                }
+              });
+            }
+          }
         } catch (_) {}
+
+        const allOrdersToSync = Array.from(existingMap.values()).sort((a, b) => {
+          const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+          const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+          return (b.id || '').localeCompare(a.id || '');
+        });
+
+        // Cache across all user scopes
+        candidateKeys.forEach(k => {
+          try { safeStorage.setItem(k, JSON.stringify(allOrdersToSync)); } catch (_) {}
+        });
 
         await withTimeout(setDoc(doc(db, 'users', uid), {
           orders: allOrdersToSync,
@@ -1833,7 +1906,32 @@ export const saveOrderToFirestore = async (
         if (uid !== emailDocId) {
           const emailOrderRef = doc(db, 'users', emailDocId, 'orders', order.id);
           await withTimeout(setDoc(emailOrderRef, orderData), 2500).catch(() => {});
+          
+          // Get current orders on emailDoc to preserve
+          const emailOrdersMap = new Map<string, Order>();
+          emailOrdersMap.set(orderData.id, orderData);
+          try {
+            const eDocSnap = await getDoc(doc(db, 'users', emailDocId)).catch(() => null);
+            if (eDocSnap && eDocSnap.exists()) {
+              const eData = eDocSnap.data();
+              if (Array.isArray(eData.orders)) {
+                eData.orders.forEach((o: Order) => {
+                  if (o && o.id && !emailOrdersMap.has(o.id)) {
+                    emailOrdersMap.set(o.id, o);
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+          const mergedEmailOrders = Array.from(emailOrdersMap.values()).sort((a, b) => {
+            const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+            const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+            if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+            return (b.id || '').localeCompare(a.id || '');
+          });
+
           await withTimeout(setDoc(doc(db, 'users', emailDocId), {
+            orders: mergedEmailOrders,
             updatedAt: new Date().toISOString()
           }, { merge: true }), 2500).catch(() => {});
         }

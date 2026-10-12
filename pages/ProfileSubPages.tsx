@@ -81,7 +81,10 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
 
   useEffect(() => {
     if (!user) {
-      navigate('/login');
+      const cached = safeStorage.getItem('marts_user_profile') || safeStorage.getItem('melody_user_profile');
+      if (!cached) {
+        navigate('/login');
+      }
     }
   }, [user, navigate]);
 

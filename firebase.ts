@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
 import { initializeFirestore, doc, getDocFromServer, setLogLevel } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
@@ -28,8 +28,13 @@ export const firebaseConfig = {
 // Initialize Firebase App instance safely (prevent duplicate re-init)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// Firebase Authentication instance
+// Firebase Authentication instance with guaranteed local persistence
 export const auth = getAuth(app);
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch(() => {
+    setPersistence(auth, inMemoryPersistence).catch(() => {});
+  });
+}
 
 // Suppress internal transport retry logs in sandboxed/preview dev environment
 setLogLevel('silent');

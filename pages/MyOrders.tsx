@@ -41,21 +41,37 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
 
   // Helper to safely retrieve already existing orders immediately for instant rendering without skeleton splash
   const getInitialOrders = (): Order[] => {
+    const ordersMap = new Map<string, Order>();
     if (Array.isArray(user?.orders) && user.orders.length > 0) {
-      return sortOrdersSafe(user.orders);
+      user.orders.forEach(o => { if (o && o.id) ordersMap.set(o.id, o); });
     }
     try {
-      const uid = auth.currentUser?.uid || user?.id || (user as any)?.uid;
-      const targetKey = uid ? `marts_orders_${uid}` : 'marts_orders';
-      const cached = safeStorage.getItem(targetKey) || safeStorage.getItem('marts_orders');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return sortOrdersSafe(parsed);
-        }
-      }
+      const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+      const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
+      const uid = auth.currentUser?.uid || user?.id || (user as any)?.uid || emailDocId;
+
+      const keys = ['marts_orders'];
+      if (uid) keys.push(`marts_orders_${uid}`);
+      if (cleanEmail) keys.push(`marts_orders_${cleanEmail}`);
+      if (emailDocId && emailDocId !== uid) keys.push(`marts_orders_${emailDocId}`);
+
+      keys.forEach(k => {
+        try {
+          const raw = safeStorage.getItem(k);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((o: Order) => {
+                if (o && o.id && !ordersMap.has(o.id)) {
+                  ordersMap.set(o.id, o);
+                }
+              });
+            }
+          }
+        } catch (_) {}
+      });
     } catch (_) {}
-    return [];
+    return sortOrdersSafe(Array.from(ordersMap.values()));
   };
 
   const initialOrders = getInitialOrders();
@@ -95,55 +111,37 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     }, 2500);
 
     const setupListeners = (uid: string) => {
-      const subOrdersMap = new Map<string, Order>();
-      const globalOrdersMap = new Map<string, Order>();
-      const emailOrdersMap = new Map<string, Order>();
-      const canonicalOrdersMap = new Map<string, Order>();
+      // Single unified master orders map that accumulates and never deletes existing orders
+      const masterOrdersMap = new Map<string, Order>();
+      initialOrders.forEach(o => { if (o && o.id) masterOrdersMap.set(String(o.id), o); });
+      if (Array.isArray(user?.orders)) {
+        user.orders.forEach(o => { if (o && o.id) masterOrdersMap.set(String(o.id), o); });
+      }
+
       const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
 
       const syncAndDispatchOrders = () => {
-        const mergedMap = new Map<string, Order>();
-        subOrdersMap.forEach((ord, id) => mergedMap.set(String(id), ord));
-        canonicalOrdersMap.forEach((ord, id) => mergedMap.set(String(id), ord));
-        globalOrdersMap.forEach((ord, id) => {
-          const strId = String(id);
-          const existing = mergedMap.get(strId);
-          if (!existing) {
-            mergedMap.set(strId, ord);
-          } else {
-            const existingTime = existing.updatedAt || existing.createdAt || 0;
-            const incomingTime = ord.updatedAt || ord.createdAt || 0;
-            if (incomingTime >= existingTime || ord.status !== existing.status) {
-              mergedMap.set(strId, { ...existing, ...ord });
-            }
-          }
-        });
-        emailOrdersMap.forEach((ord, id) => {
-          const strId = String(id);
-          const existing = mergedMap.get(strId);
-          if (!existing) {
-            mergedMap.set(strId, ord);
-          } else {
-            const existingTime = existing.updatedAt || existing.createdAt || 0;
-            const incomingTime = ord.updatedAt || ord.createdAt || 0;
-            if (incomingTime >= existingTime || ord.status !== existing.status) {
-              mergedMap.set(strId, { ...existing, ...ord });
-            }
-          }
-        });
-
-        const liveOrders = sortOrdersSafe(Array.from(mergedMap.values()));
+        const liveOrders = sortOrdersSafe(Array.from(masterOrdersMap.values()));
         setOrders(liveOrders);
         safeStorage.setItem(`marts_orders_${uid}`, JSON.stringify(liveOrders));
+        if (cleanEmail) {
+          safeStorage.setItem(`marts_orders_${cleanEmail}`, JSON.stringify(liveOrders));
+        }
+        safeStorage.setItem('marts_orders', JSON.stringify(liveOrders));
         clearTimeout(fallbackTimer);
         setIsLoading(false);
       };
 
       // Initial direct fetch from Firestore
       fetchUserOrders(uid, cleanEmail).then(fetched => {
-        if (fetched) {
+        if (Array.isArray(fetched) && fetched.length > 0) {
           fetched.forEach(o => {
-            if (o && o.id) subOrdersMap.set(o.id, o);
+            if (o && o.id) {
+              const existing = masterOrdersMap.get(String(o.id));
+              if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                masterOrdersMap.set(String(o.id), { ...existing, ...o });
+              }
+            }
           });
           syncAndDispatchOrders();
         }
@@ -158,11 +156,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       // 1. Listen to real-time live updates from user's orders subcollection
       const userOrdersRef = collection(db, 'users', uid, 'orders');
       unsubUserOrders = onSnapshot(userOrdersRef, (snapshot) => {
-        subOrdersMap.clear();
         snapshot.forEach(docSnap => {
           const ord = docSnap.data() as Order;
           if (ord && ord.id) {
-            subOrdersMap.set(ord.id, ord);
+            const existing = masterOrdersMap.get(String(ord.id));
+            if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+              masterOrdersMap.set(String(ord.id), { ...existing, ...ord });
+            }
           }
         });
         syncAndDispatchOrders();
@@ -176,11 +176,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       try {
         const globalOrdersQuery = query(collection(db, 'orders'), where('userId', '==', uid));
         unsubGlobalOrders = onSnapshot(globalOrdersQuery, (snapshot) => {
-          globalOrdersMap.clear();
           snapshot.forEach(docSnap => {
             const ord = docSnap.data() as Order;
             if (ord && ord.id) {
-              globalOrdersMap.set(ord.id, ord);
+              const existing = masterOrdersMap.get(String(ord.id));
+              if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                masterOrdersMap.set(String(ord.id), { ...existing, ...ord });
+              }
             }
           });
           syncAndDispatchOrders();
@@ -198,11 +200,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         try {
           const emailOrdersQuery = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
           unsubEmailOrders = onSnapshot(emailOrdersQuery, (snapshot) => {
-            emailOrdersMap.clear();
             snapshot.forEach(docSnap => {
               const ord = docSnap.data() as Order;
               if (ord && ord.id) {
-                emailOrdersMap.set(ord.id, ord);
+                const existing = masterOrdersMap.get(String(ord.id));
+                if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                  masterOrdersMap.set(String(ord.id), { ...existing, ...ord });
+                }
               }
             });
             syncAndDispatchOrders();
@@ -219,11 +223,13 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           try {
             const canonicalOrdersRef = collection(db, 'users', emailDocId, 'orders');
             unsubCanonicalOrders = onSnapshot(canonicalOrdersRef, (snapshot) => {
-              canonicalOrdersMap.clear();
               snapshot.forEach(docSnap => {
                 const ord = docSnap.data() as Order;
                 if (ord && ord.id) {
-                  canonicalOrdersMap.set(ord.id, ord);
+                  const existing = masterOrdersMap.get(String(ord.id));
+                  if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                    masterOrdersMap.set(String(ord.id), { ...existing, ...ord });
+                  }
                 }
               });
               syncAndDispatchOrders();
@@ -236,6 +242,22 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         }
       }
     };
+
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
+    const effectiveUid = auth.currentUser?.uid 
+      || (user as any)?.uid 
+      || user?.id
+      || emailDocId
+      || user?.phone 
+      || null;
+
+    if (effectiveUid) {
+      setupListeners(effectiveUid);
+    } else {
+      clearTimeout(fallbackTimer);
+      setIsLoading(false);
+    }
 
     const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
       if (unsubUserOrders) {
@@ -255,17 +277,18 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         unsubCanonicalOrders = null;
       }
 
-      const effectiveUid = currentUser?.uid 
+      const activeCleanEmail = (user?.email || currentUser?.email || '').trim().toLowerCase();
+      const activeEmailDocId = activeCleanEmail ? 'marts_user_' + activeCleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
+      const newEffectiveUid = currentUser?.uid 
         || (user as any)?.uid 
+        || user?.id
+        || activeEmailDocId
         || user?.phone 
-        || user?.email 
         || null;
 
-      if (effectiveUid) {
-        setupListeners(effectiveUid);
+      if (newEffectiveUid) {
+        setupListeners(newEffectiveUid);
       } else {
-        // Not authenticated: no placeholder orders, finish loading clean
-        setOrders([]);
         clearTimeout(fallbackTimer);
         setIsLoading(false);
       }
@@ -279,7 +302,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       if (unsubCanonicalOrders) unsubCanonicalOrders();
       unsubscribeAuth();
     };
-  }, []);
+  }, [user?.email, (user as any)?.uid]);
 
   const processedStateRef = React.useRef<string | null>(null);
 

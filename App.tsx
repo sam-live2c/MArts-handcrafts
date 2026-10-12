@@ -269,7 +269,25 @@ const App: React.FC = () => {
               setUser(prev => {
                 const currentOrders = Array.isArray(prev?.orders) ? prev.orders : [];
                 const incomingOrders = Array.isArray(data.orders) ? data.orders : [];
-                const bestOrders = incomingOrders.length > currentOrders.length ? incomingOrders : (currentOrders.length > 0 ? currentOrders : incomingOrders);
+                
+                // Merge orders strictly by unique ID so orders never disappear or flicker
+                const ordMap = new Map<string, Order>();
+                incomingOrders.forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+                currentOrders.forEach(o => {
+                  if (o && o.id) {
+                    const existing = ordMap.get(o.id);
+                    if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                      ordMap.set(o.id, { ...existing, ...o });
+                    }
+                  }
+                });
+
+                const bestOrders = Array.from(ordMap.values()).sort((a, b) => {
+                  const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+                  const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+                  if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+                  return String(b?.id || '').localeCompare(String(a?.id || ''));
+                });
 
                 const updated: User = {
                   name: data.displayName || data.name || prev?.name || firebaseUser.displayName || 'Customer',
@@ -314,14 +332,11 @@ const App: React.FC = () => {
                 address: '',
                 orders: []
               };
-              const baseOrders = Array.isArray(base?.orders) ? base.orders : [];
-              const merged = (Array.isArray(dbOrders) ? dbOrders : []).filter(o => o && o.id);
-              baseOrders.forEach(o => {
-                if (o && o.id && !merged.some(m => m && m.id === o.id)) {
-                  merged.push(o);
-                }
-              });
-              merged.sort((a, b) => {
+              const ordMap = new Map<string, Order>();
+              (base.orders || []).forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+              dbOrders.forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+
+              const merged = Array.from(ordMap.values()).sort((a, b) => {
                 const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
                 const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
                 if (timeA && timeB && timeA !== timeB) return timeB - timeA;
@@ -334,7 +349,51 @@ const App: React.FC = () => {
           console.warn('Notice: Firestore data sync operated in offline cache mode:', e);
         }
       } else {
-        // User is explicitly signed out of Firebase Auth - do not resurrect cached profiles
+        // Firebase Auth is not signed in or resolving.
+        // Check if user is authenticated via verified email OTP, custom credentials, or active cache session
+        const cachedRaw = safeStorage.getItem('marts_user_profile') || safeStorage.getItem('melody_user_profile');
+        if (cachedRaw) {
+          try {
+            const cachedUser = JSON.parse(cachedRaw);
+            if (cachedUser && (cachedUser.email || cachedUser.phone || cachedUser.name)) {
+              // Active local user session exists! DO NOT LOG OUT!
+              setUser(prev => prev || cachedUser);
+              const cleanCachedEmail = (cachedUser.email || '').trim().toLowerCase();
+              const cachedUid = cachedUser.uid || (cleanCachedEmail ? 'marts_user_' + cleanCachedEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
+
+              if (cachedUid) {
+                // Fetch cart, wishlist, orders for this authenticated user in background
+                Promise.all([
+                  fetchUserCart(cachedUid),
+                  fetchUserWishlist(cachedUid),
+                  fetchUserOrders(cachedUid, cleanCachedEmail)
+                ]).then(([dbCart, dbWishlist, dbOrders]) => {
+                  if (Array.isArray(dbCart) && dbCart.length > 0) setCart(dbCart);
+                  if (Array.isArray(dbWishlist) && dbWishlist.length > 0) setWishlist(dbWishlist);
+                  if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+                    setUser(prev => {
+                      if (!prev) return prev;
+                      const ordMap = new Map<string, Order>();
+                      (prev.orders || []).forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+                      dbOrders.forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+                      return {
+                        ...prev,
+                        orders: Array.from(ordMap.values()).sort((a, b) => {
+                          const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+                          const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+                          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+                          return String(b?.id || '').localeCompare(String(a?.id || ''));
+                        })
+                      };
+                    });
+                  }
+                }).catch(() => {});
+              }
+              return;
+            }
+          } catch (_) {}
+        }
+        // ONLY if no user is found anywhere (e.g. after explicit user logout)
         setUser(null);
       }
     });
@@ -486,6 +545,13 @@ const App: React.FC = () => {
       setUser(updatedUser);
       try {
         safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
+        if (uid) {
+          safeStorage.setItem(`marts_orders_${uid}`, JSON.stringify(updatedOrders));
+        }
+        if (updatedUser.email) {
+          safeStorage.setItem(`marts_orders_${updatedUser.email.toLowerCase().trim()}`, JSON.stringify(updatedOrders));
+        }
+        safeStorage.setItem('marts_orders', JSON.stringify(updatedOrders));
       } catch (_) {}
 
       await saveOrderToFirestore(uid, order, {
@@ -495,7 +561,7 @@ const App: React.FC = () => {
         address: order.customerAddress || updatedUser.address || ''
       }).catch(e => console.warn('saveOrderToFirestore notice:', e));
 
-      if (uid && currentFirebaseUser) {
+      if (uid && uid !== 'guest') {
         setDoc(doc(db, 'users', uid), {
           orders: updatedOrders,
           updatedAt: new Date().toISOString()

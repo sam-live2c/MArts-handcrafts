@@ -421,6 +421,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
       try {
         safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
+        if (restored.docId) {
+          safeStorage.setItem(`marts_user_profile_${restored.docId}`, JSON.stringify(sanitizeUserForCache(restored.user)));
+        }
+        if (Array.isArray(restored.user.orders) && restored.user.orders.length > 0) {
+          safeStorage.setItem(`marts_orders_${restored.docId}`, JSON.stringify(restored.user.orders));
+          safeStorage.setItem(`marts_orders_${cleanEmail}`, JSON.stringify(restored.user.orders));
+          safeStorage.setItem('marts_orders', JSON.stringify(restored.user.orders));
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: restored.user }));
+        }
       } catch (_) {}
       await handlePostAuthRedirect(restored.docId, restored.user);
     } catch {
