@@ -21,7 +21,7 @@ interface LoginProps {
   onLogin: (user: User) => void;
 }
 
-type AuthView = 'password' | 'otp_request' | 'otp_verify' | 'forgot_email' | 'forgot_reset';
+type AuthView = 'password' | 'otp_request' | 'otp_verify' | 'forgot_email' | 'forgot_otp_verify' | 'forgot_new_password' | 'forgot_reset';
 
 const GoogleIcon = () => (
   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
@@ -55,8 +55,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const mode = searchParams.get('mode') || searchParams.get('view');
       if (mode === 'otp') return 'otp_request';
       const saved = sessionStorage.getItem('marts_pending_login_view');
-      if (saved === 'otp_verify' || saved === 'forgot_reset') {
+      if (saved === 'otp_verify' || saved === 'forgot_otp_verify' || saved === 'forgot_new_password') {
         return saved as AuthView;
+      }
+      if (saved === 'forgot_reset') {
+        return 'forgot_otp_verify';
       }
     } catch (_) {}
     return 'password';
@@ -134,7 +137,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   // Timer countdown for resending codes
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if ((view === 'otp_verify' || view === 'forgot_reset') && resendCountdown > 0) {
+    if ((view === 'otp_verify' || view === 'forgot_otp_verify' || view === 'forgot_reset') && resendCountdown > 0) {
       timer = setTimeout(() => {
         setResendCountdown((prev) => prev - 1);
       }, 1000);
@@ -348,14 +351,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         setNewPassword('');
         setConfirmNewPassword('');
         setResendCountdown(30);
-        setView('forgot_reset');
+        setView('forgot_otp_verify');
 
         try {
-          sessionStorage.setItem('marts_pending_login_view', 'forgot_reset');
+          sessionStorage.setItem('marts_pending_login_view', 'forgot_otp_verify');
           sessionStorage.setItem('marts_pending_login_email', cleanEmail);
         } catch (_) {}
 
-        showToast(`Reset code and instructions sent to ${cleanEmail}`);
+        showToast(`Reset code sent to ${cleanEmail}`);
       } else {
         setErrorMessage(res.error || 'Failed to send password reset code. Please try again.');
       }
@@ -366,26 +369,50 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  const handleCompletePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    const enteredOtp = otpCode.trim();
-    if (enteredOtp.length < 6) {
+  const handleVerifyResetOtp = async (codeToVerify?: string) => {
+    const code = (codeToVerify || otpCode).trim();
+    if (code.length < 6) {
       setErrorMessage('Please enter the 6-digit verification code');
       return;
     }
 
+    setIsLoading(true);
+    setErrorMessage(null);
     const cleanEmail = email.trim().toLowerCase();
-    const verifyRes = await resendService.verifyOtp(cleanEmail, enteredOtp);
 
-    if (!verifyRes.success) {
-      setErrorMessage(verifyRes.error || 'Invalid or expired code. Please check and try again.');
-      return;
+    try {
+      const verifyRes = await resendService.verifyOtp(cleanEmail, code);
+
+      if (!verifyRes.success) {
+        setErrorMessage(verifyRes.error || 'Invalid or expired code. Please check and try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 1 verified! Move to Step 2: New password section
+      setView('forgot_new_password');
+      setOtpCode('');
+      setErrorMessage(null);
+
+      try {
+        sessionStorage.setItem('marts_pending_login_view', 'forgot_new_password');
+        sessionStorage.setItem('marts_pending_login_email', cleanEmail);
+      } catch (_) {}
+
+      showToast('Code verified! Please create your new password.');
+    } catch {
+      setErrorMessage('An error occurred during verification. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const handleCompletePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
 
     if (!newPassword) {
-      setErrorMessage('Please create a new password');
+      setErrorMessage('Please enter a new password');
       return;
     }
     if (newPassword.length < 6) {
@@ -398,6 +425,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
 
     setIsLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     const uid = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
 
     try {
@@ -416,6 +444,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         orders: [],
         role: 'customer'
       };
+
+      try {
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const data = userDocSnap.data();
+          updatedProfile.name = data.name || updatedProfile.name;
+          updatedProfile.displayName = data.displayName || updatedProfile.displayName;
+          updatedProfile.phone = data.phone || '';
+          updatedProfile.address = data.address || '';
+          updatedProfile.orders = data.orders || [];
+          updatedProfile.role = data.role || 'customer';
+        }
+      } catch (_) {}
+
       localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
       localStorage.setItem('marts_user_profile', JSON.stringify(updatedProfile));
 
@@ -492,7 +534,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {view === 'otp_request' && 'Sign In with OTP'}
           {view === 'otp_verify' && 'Verify Your Email'}
           {view === 'forgot_email' && 'Reset Your Password'}
-          {view === 'forgot_reset' && 'Create New Password'}
+          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && 'Verify Reset Code'}
+          {view === 'forgot_new_password' && 'Create New Password'}
         </h1>
         <p className="mt-2 text-center text-xs sm:text-sm text-[#735A4C]">
           {view === 'password' && (
@@ -509,7 +552,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {view === 'otp_request' && 'Receive a one-time code on your registered email address.'}
           {view === 'otp_verify' && 'Enter the 6-digit code sent to your email.'}
           {view === 'forgot_email' && 'Enter your email to receive password reset instructions.'}
-          {view === 'forgot_reset' && 'Enter the code from your email and your new password.'}
+          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && 'Enter the 6-digit code sent to your registered email.'}
+          {view === 'forgot_new_password' && 'Enter and confirm your new password below.'}
         </p>
       </div>
 
@@ -839,9 +883,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </form>
           )}
 
-          {/* VIEW 5: FORGOT PASSWORD RESET */}
-          {view === 'forgot_reset' && (
-            <form onSubmit={handleCompletePasswordReset} className="space-y-4">
+          {/* VIEW 5: FORGOT PASSWORD - STEP 1: SINGLE OTP VERIFICATION */}
+          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && (
+            <div className="space-y-4 animate-in fade-in duration-200">
               <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
                 <div className="truncate">
                   <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Reset Code Sent To</p>
@@ -858,7 +902,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
               {/* Single OTP Input */}
               <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide text-center">
+                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide text-center">
                   6-Digit Verification Code *
                 </label>
                 <input
@@ -872,11 +916,77 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
                     setOtpCode(digits);
                     setErrorMessage(null);
+                    if (digits.length === 6) {
+                      handleVerifyResetOtp(digits);
+                    }
                   }}
                   placeholder="••••••"
                   className="w-full h-12 text-center text-xl tracking-[0.4em] font-mono font-bold text-[#2B221B] bg-[#FAF8F5] focus:bg-white border border-[#E5D7CA] focus:border-[#C85A32] rounded-xl outline-none transition-all placeholder:text-[#9C8272]/30"
                   autoFocus
                 />
+              </div>
+
+              {/* Stable inline error container */}
+              <div className="min-h-[22px] flex items-center">
+                {errorMessage && (
+                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
+                    <AlertCircle size={13} className="shrink-0 text-red-500" />
+                    <span>{errorMessage}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                disabled={isLoading || otpCode.length < 6}
+                onClick={() => handleVerifyResetOtp()}
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin text-white" />
+                    <span>Verifying Code...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Verify Code</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center justify-between pt-2 text-xs text-[#735A4C]">
+                <button
+                  type="button"
+                  onClick={() => switchView('password')}
+                  className="hover:text-[#2B221B] cursor-pointer"
+                >
+                  Back to Sign In
+                </button>
+                <button
+                  type="button"
+                  disabled={resendCountdown > 0 || isLoading}
+                  onClick={handleRequestPasswordResetOtp}
+                  className="font-bold text-[#C85A32] hover:underline disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
+                >
+                  <RefreshCw size={13} />
+                  <span>
+                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 6: FORGOT PASSWORD - STEP 2: NEW PASSWORD SECTION */}
+          {view === 'forgot_new_password' && (
+            <form onSubmit={handleCompletePasswordReset} className="space-y-4 animate-in fade-in duration-200">
+              <div className="p-3 bg-[#F0FDF4] rounded-2xl border border-[#BBF7D0] flex items-center gap-2.5">
+                <CheckCircle2 size={18} className="text-[#16A34A] shrink-0" />
+                <div className="truncate">
+                  <p className="text-[11px] font-bold text-[#15803D] uppercase">Identity Verified</p>
+                  <p className="text-xs font-semibold text-[#166534] truncate">{email}</p>
+                </div>
               </div>
 
               <div>
@@ -890,6 +1000,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="At least 6 characters"
                     className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
+                    autoFocus
                   />
                   <button
                     type="button"
@@ -915,6 +1026,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 />
               </div>
 
+              {/* Stable inline error container */}
               <div className="min-h-[22px] flex items-center">
                 {errorMessage && (
                   <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
@@ -926,37 +1038,30 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
               <button
                 type="submit"
-                disabled={isLoading || otpCode.length < 6}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50"
+                disabled={isLoading}
+                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
               >
                 {isLoading ? (
                   <>
                     <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Updating Password...</span>
+                    <span>Saving New Password...</span>
                   </>
                 ) : (
-                  <span>Reset Password &amp; Sign In</span>
+                  <>
+                    <span>Save Password &amp; Sign In</span>
+                    <ArrowRight size={16} />
+                  </>
                 )}
               </button>
 
-              <div className="flex items-center justify-between pt-2 text-xs text-[#735A4C]">
+              <div className="pt-2 text-center">
                 <button
                   type="button"
                   onClick={() => switchView('password')}
-                  className="hover:text-[#2B221B] cursor-pointer"
+                  className="text-xs font-semibold text-[#735A4C] hover:text-[#2B221B] cursor-pointer inline-flex items-center gap-1"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={resendCountdown > 0 || isLoading}
-                  onClick={handleRequestPasswordResetOtp}
-                  className="font-bold text-[#C85A32] hover:underline disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
-                >
-                  <RefreshCw size={13} />
-                  <span>
-                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
-                  </span>
+                  <ArrowLeft size={13} />
+                  <span>Back to Sign In</span>
                 </button>
               </div>
             </form>
