@@ -1,7 +1,10 @@
-import {
-  RESEND_API_KEY,
-  RESEND_FROM_EMAIL
-} from '../utils/otp';
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || 're_5CqJrQpS_C8u5pQs5NHCWZynddoyubg4Y')
+  .trim()
+  .replace(/^["']|["']$/g, '');
+
+const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'MArts <auth@martsindia.in>')
+  .trim()
+  .replace(/^["']|["']$/g, '');
 
 export default function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');

@@ -1,7 +1,58 @@
-import {
-  otpStore,
-  verifyOtpToken
-} from '../utils/otp';
+import crypto from 'crypto';
+
+const OTP_SECRET = (process.env.OTP_SECRET || process.env.RESEND_API_KEY || 'marts_guild_artisan_secret_token_key_2026')
+  .trim()
+  .replace(/^["']|["']$/g, '');
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __marts_otp_store: Map<string, { otp: string; expiresAt: number; attempts: number; type: string }> | undefined;
+}
+
+if (!globalThis.__marts_otp_store) {
+  globalThis.__marts_otp_store = new Map();
+}
+const otpStore = globalThis.__marts_otp_store;
+
+function verifyOtpToken(
+  email: string,
+  otp: string,
+  token: string
+): { valid: boolean; error?: string } {
+  if (!token || typeof token !== 'string') {
+    return { valid: false, error: 'Missing verification token' };
+  }
+
+  const parts = token.split('.');
+  if (parts.length !== 2) {
+    return { valid: false, error: 'Malformed verification token' };
+  }
+
+  const [expiresAtStr, expectedHmac] = parts;
+  const expiresAt = Number(expiresAtStr);
+
+  if (isNaN(expiresAt)) {
+    return { valid: false, error: 'Invalid token expiration' };
+  }
+
+  if (Date.now() > expiresAt) {
+    return { valid: false, error: 'Verification code has expired. Please request a new code.' };
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const payload = `${normalizedEmail}:${otp.trim()}:${expiresAt}`;
+  const calculatedHmac = crypto.createHmac('sha256', OTP_SECRET).update(payload).digest('hex');
+
+  // Constant-time comparison
+  const calculatedBuffer = Buffer.from(calculatedHmac, 'hex');
+  const expectedBuffer = Buffer.from(expectedHmac, 'hex');
+
+  if (calculatedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(calculatedBuffer, expectedBuffer)) {
+    return { valid: false, error: 'Invalid verification code. Please check the code and try again.' };
+  }
+
+  return { valid: true };
+}
 
 function sendJson(res: any, status: number, data: any) {
   if (typeof res.status === 'function') {
@@ -63,21 +114,16 @@ export default async function handler(req: any, res: any) {
           success: true,
           message: 'Email successfully verified'
         });
-      } else {
-        return sendJson(res, 400, {
-          success: false,
-          error: tokenResult.error || 'Invalid verification code'
-        });
       }
     }
 
-    // 2. Fallback to in-memory store check
+    // 2. In-memory check fallback (e.g. for local dev server or same lambda container)
     const record = otpStore.get(cleanEmail);
 
     if (!record) {
       return sendJson(res, 400, {
         success: false,
-        error: 'No active verification code found for this email. Please request a new code.'
+        error: token ? 'Invalid verification code or code has expired. Please try again.' : 'No active verification code found. Please request a new code.'
       });
     }
 
@@ -92,20 +138,21 @@ export default async function handler(req: any, res: any) {
     record.attempts += 1;
     if (record.attempts > 5) {
       otpStore.delete(cleanEmail);
-      return sendJson(res, 400, {
+      return sendJson(res, 429, {
         success: false,
-        error: 'Too many incorrect attempts. Please request a new code.'
+        error: 'Too many failed attempts. Please request a new code.'
       });
     }
 
     if (record.otp !== cleanOtp) {
+      const remaining = 5 - record.attempts;
       return sendJson(res, 400, {
         success: false,
-        error: 'Invalid verification code. Please check the code and try again.'
+        error: `Incorrect code. ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`
       });
     }
 
-    // Successfully verified! Clear OTP to prevent replay attacks
+    // Success! Consume code to prevent reuse
     otpStore.delete(cleanEmail);
 
     return sendJson(res, 200, {
@@ -113,6 +160,7 @@ export default async function handler(req: any, res: any) {
       message: 'Email successfully verified'
     });
   } catch (error: any) {
+    console.error('[Verify OTP Error]', error);
     return sendJson(res, 500, {
       success: false,
       error: error.message || 'Server error while verifying OTP'

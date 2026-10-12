@@ -41,11 +41,15 @@ export const resendService = {
         data = JSON.parse(text);
       } catch {
         console.error('[resendService.sendOtp non-JSON response]', response.status, text.slice(0, 150));
+        let errorMsg = `Server error (Status ${response.status}). Please try again.`;
+        if (response.status === 404) {
+          errorMsg = 'Verification route not found (404). Please ensure latest deployment is live.';
+        } else if (text && text.length < 120 && !text.includes('<html') && !text.includes('<!DOCTYPE')) {
+          errorMsg = text.trim();
+        }
         return {
           success: false,
-          error: response.status === 404
-            ? 'Backend API route not found (404). Please ensure serverless routes are deployed.'
-            : `Server returned an unexpected response (Status ${response.status}). Please try again.`
+          error: errorMsg
         };
       }
 
@@ -97,9 +101,13 @@ export const resendService = {
         data = JSON.parse(text);
       } catch {
         console.error('[resendService.verifyOtp non-JSON response]', response.status, text.slice(0, 150));
+        let errorMsg = `Server error (Status ${response.status}). Please try again.`;
+        if (text && text.length < 120 && !text.includes('<html') && !text.includes('<!DOCTYPE')) {
+          errorMsg = text.trim();
+        }
         return {
           success: false,
-          error: `Server returned an unexpected response (Status ${response.status}). Please try again.`
+          error: errorMsg
         };
       }
 
