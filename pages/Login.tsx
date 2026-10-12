@@ -24,6 +24,7 @@ import {
 } from '../services/dbService';
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
+import { checkLoginAttemptAllowed, reportLoginAttempt } from '../utils/authSecurity';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -174,14 +175,32 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       setErrorMessage('Please enter your email address');
       return;
     }
+    if (cleanEmail.length > 100 || !/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(cleanEmail)) {
+      setErrorMessage('Please enter a valid email address');
+      return;
+    }
     if (!password) {
       setErrorMessage('Please enter your password');
+      return;
+    }
+    if (password.length > 128) {
+      setErrorMessage('Password must not exceed 128 characters');
       return;
     }
 
     setIsLoading(true);
 
     try {
+      // Check brute force lockout before executing database query
+      const securityStatus = await checkLoginAttemptAllowed(cleanEmail);
+      if (!securityStatus.allowed) {
+        const lockoutMsg = `Too many failed attempts. For security, your account is locked for ${securityStatus.retryAfterMinutes || 15} minutes.`;
+        setErrorMessage(lockoutMsg);
+        showToast(lockoutMsg, 'error');
+        setIsLoading(false);
+        return;
+      }
+
       const pwdHash = await hashPassword(password);
       const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
 
@@ -200,6 +219,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
 
       if (authSuccess && firebaseUser && fbUid) {
+        // Clear failed attempts counter on authenticated success
+        await reportLoginAttempt(cleanEmail, true);
+
         // Retrieve full profile from Firestore
         const userDocRef = doc(db, 'users', fbUid);
         const emailDocRef = doc(db, 'users', emailDocId);
@@ -245,6 +267,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         if (storedHash) {
           if (storedHash === pwdHash) {
             // Password matches verified hash!
+            await reportLoginAttempt(cleanEmail, true);
+
             // Sync with Firebase Auth in background if possible
             createUserWithEmailAndPassword(auth, cleanEmail, password)
               .catch(() => signInWithEmailAndPassword(auth, cleanEmail, password).catch(() => {}));
@@ -255,7 +279,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             await handlePostAuthRedirect(restored.docId, restored.user);
             return;
           } else {
-            setErrorMessage('Incorrect password. Please try again or click "Forgot password?" to reset.');
+            // Record failed attempt
+            const failure = await reportLoginAttempt(cleanEmail, false);
+            if (failure.isLocked) {
+              const msg = 'Too many failed login attempts. Account temporarily locked for 15 minutes.';
+              setErrorMessage(msg);
+              showToast(msg, 'error');
+            } else if (failure.remainingAttempts !== undefined && failure.remainingAttempts <= 3) {
+              setErrorMessage(`Incorrect password. ${failure.remainingAttempts} attempt(s) remaining before temporary lockout.`);
+            } else {
+              setErrorMessage('Incorrect password. Please try again or click "Forgot password?" to reset.');
+            }
             return;
           }
         } else {
@@ -264,7 +298,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
       }
 
-      setErrorMessage('No account found with this email. Please check your credentials or sign up.');
+      // Unknown account failure count
+      const failure = await reportLoginAttempt(cleanEmail, false);
+      if (failure.isLocked) {
+        const msg = 'Too many failed attempts. Temporarily locked for 15 minutes.';
+        setErrorMessage(msg);
+        showToast(msg, 'error');
+      } else {
+        setErrorMessage('No account found with this email. Please check your credentials or sign up.');
+      }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to sign in. Please try again.');
     } finally {
@@ -731,7 +773,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* VIEW 3: OTP VERIFICATION (SINGLE INPUT FIELD) */}
           {view === 'otp_verify' && (
             <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
+              <div className="p-3 bg-[#FAF3EA] rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center shrink-0">
                     <Mail size={16} />
@@ -887,7 +929,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* VIEW 5: FORGOT PASSWORD - STEP 1: SINGLE OTP VERIFICATION */}
           {(view === 'forgot_otp_verify' || view === 'forgot_reset') && (
             <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
+              <div className="p-3 bg-[#FAF3EA] rounded-2xl flex items-center justify-between">
                 <div className="truncate">
                   <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Reset Code Sent To</p>
                   <p className="text-xs sm:text-sm font-bold text-[#2B221B] truncate">{email}</p>

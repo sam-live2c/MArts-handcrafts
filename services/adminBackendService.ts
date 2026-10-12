@@ -647,6 +647,7 @@ export const checkIsAdmin = async (uid: string): Promise<boolean> => {
     // Bootstrap check for admin email
     const currentEmail = auth.currentUser?.email;
     if (
+      currentEmail === 'sahanurmolla190@gmail.com' ||
       currentEmail === 'ventureforge.corp@gmail.com' ||
       currentEmail === 'xsophiya99@gmail.com' ||
       currentEmail === 'sahanurmolla3131@gmail.com' ||

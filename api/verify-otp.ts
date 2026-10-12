@@ -1,6 +1,7 @@
 import crypto from 'crypto';
+import { containsMaliciousPayload } from './security';
 
-const OTP_SECRET = (process.env.OTP_SECRET || process.env.RESEND_API_KEY || 'marts_guild_artisan_secret_token_key_2026')
+const OTP_SECRET = (process.env.OTP_SECRET || 'marts_guild_artisan_secret_token_key_2026')
   .trim()
   .replace(/^["']|["']$/g, '');
 
@@ -95,6 +96,10 @@ export default async function handler(req: any, res: any) {
       body = {};
     }
 
+    if (containsMaliciousPayload(body)) {
+      return sendJson(res, 400, { success: false, error: 'Suspicious verification payload rejected.' });
+    }
+
     const { email, otp, token } = body;
 
     if (!email || !otp) {
@@ -103,6 +108,10 @@ export default async function handler(req: any, res: any) {
 
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanOtp = String(otp).trim();
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return sendJson(res, 400, { success: false, error: 'Verification code must be exactly 6 numeric digits.' });
+    }
 
     // 1. Try stateless cryptographic token verification first (serverless-friendly)
     if (token && typeof token === 'string') {

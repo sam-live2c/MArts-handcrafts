@@ -160,13 +160,17 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       confirmPassword?: string;
     } = {};
 
-    if (!fullName.trim()) {
+    const cleanName = fullName.trim();
+    if (!cleanName) {
       newErrors.fullName = 'Full name is required';
+    } else if (cleanName.length > 60 || /[<>{}[\]\\]/.test(cleanName)) {
+      newErrors.fullName = 'Name contains invalid characters';
     }
+
     const trimmedEmail = email.trim().toLowerCase();
     if (!trimmedEmail) {
       newErrors.email = 'Email address is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+    } else if (trimmedEmail.length > 100 || !/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(trimmedEmail)) {
       newErrors.email = 'Please enter a valid email address';
     }
 
@@ -174,6 +178,8 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       newErrors.password = 'Password is required';
     } else if (password.length < 6) {
       newErrors.password = 'Must be at least 6 characters';
+    } else if (password.length > 128) {
+      newErrors.password = 'Password cannot exceed 128 characters';
     }
 
     if (!confirmPassword) {
@@ -569,7 +575,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
           ) : (
             /* STEP 2: VERIFY OTP */
             <div className="space-y-5 animate-in fade-in duration-200">
-              <div className="p-3 bg-[#FAF3EA] rounded-2xl border border-[#EADBCC] flex items-center justify-between">
+              <div className="p-3 bg-[#FAF3EA] rounded-2xl flex items-center justify-between">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-[#FAF0E6] text-[#C85A32] flex items-center justify-center shrink-0">
                     <Mail size={16} />

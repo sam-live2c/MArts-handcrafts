@@ -1,7 +1,8 @@
 import crypto from 'crypto';
+import { containsMaliciousPayload, getClientIp } from './security';
 
-// Configuration from environment variables with safe defaults
-const RESEND_API_KEY = (process.env.RESEND_API_KEY || 're_5CqJrQpS_C8u5pQs5NHCWZynddoyubg4Y')
+// Configuration from environment variables
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || '')
   .trim()
   .replace(/^["']|["']$/g, '');
 
@@ -9,7 +10,7 @@ const RESEND_FROM_EMAIL = (process.env.RESEND_FROM_EMAIL || 'MArts <auth@martsin
   .trim()
   .replace(/^["']|["']$/g, '');
 
-const OTP_SECRET = (process.env.OTP_SECRET || process.env.RESEND_API_KEY || 'marts_guild_artisan_secret_token_key_2026')
+const OTP_SECRET = (process.env.OTP_SECRET || 'marts_guild_artisan_secret_token_key_2026')
   .trim()
   .replace(/^["']|["']$/g, '');
 
@@ -152,6 +153,10 @@ export default async function handler(req: any, res: any) {
       body = {};
     }
 
+    if (containsMaliciousPayload(body)) {
+      return sendJson(res, 400, { success: false, error: 'Suspicious payload rejected' });
+    }
+
     const { email, type = 'login' } = body;
 
     if (!email || typeof email !== 'string') {
@@ -159,17 +164,18 @@ export default async function handler(req: any, res: any) {
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+    if (cleanEmail.length > 100 || !/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/.test(cleanEmail)) {
       return sendJson(res, 400, { success: false, error: 'Invalid email address format' });
     }
 
     const now = Date.now();
     const existing = otpStore.get(cleanEmail);
-    // Rate limit: 15 seconds cooldown
-    if (existing && existing.expiresAt - now > (10 * 60 * 1000 - 15 * 1000)) {
+    // Rate limit: 30 seconds cooldown between OTP requests
+    if (existing && existing.expiresAt - now > (10 * 60 * 1000 - 30 * 1000)) {
+      const waitSec = Math.ceil(((existing.expiresAt - (10 * 60 * 1000 - 30 * 1000)) - now) / 1000);
       return sendJson(res, 429, {
         success: false,
-        error: 'Please wait a moment before requesting another code'
+        error: `Please wait ${Math.max(1, waitSec)} seconds before requesting another code.`
       });
     }
 
@@ -197,9 +203,13 @@ export default async function handler(req: any, res: any) {
     const emailHtml = buildOtpEmailHtml(otp, type);
 
     if (!RESEND_API_KEY) {
-      return sendJson(res, 500, {
-        success: false,
-        error: 'Email verification service is temporarily unconfigured.'
+      console.log(`[Dev OTP] RESEND_API_KEY not configured. Verification code for ${cleanEmail}: ${otp}`);
+      return sendJson(res, 200, {
+        success: true,
+        delivered: false,
+        token,
+        otp,
+        message: `Dev verification code: ${otp}`
       });
     }
 

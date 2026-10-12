@@ -38,17 +38,29 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     });
   };
 
-  // Orders initialized strictly empty to prevent any splash of stale/placeholder orders
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Clear any legacy un-scoped demo/placeholder order storage
-  useEffect(() => {
+  // Helper to safely retrieve already existing orders immediately for instant rendering without skeleton splash
+  const getInitialOrders = (): Order[] => {
+    if (Array.isArray(user?.orders) && user.orders.length > 0) {
+      return sortOrdersSafe(user.orders);
+    }
     try {
-      localStorage.removeItem('melody_orders');
-      localStorage.removeItem('marts_orders');
+      const uid = auth.currentUser?.uid || user?.id || (user as any)?.uid;
+      const targetKey = uid ? `marts_orders_${uid}` : 'marts_orders';
+      const cached = localStorage.getItem(targetKey) || (uid ? localStorage.getItem(`melody_orders_${uid}`) : null) || localStorage.getItem('marts_orders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return sortOrdersSafe(parsed);
+        }
+      }
     } catch (_) {}
-  }, []);
+    return [];
+  };
+
+  const initialOrders = getInitialOrders();
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  // Only show loading skeleton if we genuinely have no existing order list to display
+  const [isLoading, setIsLoading] = useState<boolean>(() => initialOrders.length === 0);
 
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';

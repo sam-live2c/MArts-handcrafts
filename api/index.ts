@@ -6,7 +6,9 @@ export default function handler(req: any, res: any) {
     endpoints: [
       '/api/send-otp',
       '/api/verify-otp',
-      '/api/resend-status'
+      '/api/resend-status',
+      '/api/auth-security',
+      '/api/order-security'
     ]
   };
 

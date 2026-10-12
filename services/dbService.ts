@@ -1215,6 +1215,24 @@ export const saveOrderToFirestore = async (
   order: Order, 
   customerInfo?: { name?: string; phone?: string; email?: string; address?: string }
 ): Promise<void> => {
+  // Input validation & Anti-flood cooldown check
+  if (!order || !Array.isArray(order.items) || order.items.length === 0) {
+    console.warn('Rejected empty order payload');
+    return;
+  }
+
+  const effectiveUserId = uid || order.userId || 'guest';
+  try {
+    const lastOrderPlacedKey = `marts_last_order_ts_${effectiveUserId}`;
+    const lastPlaced = Number(localStorage.getItem(lastOrderPlacedKey) || 0);
+    const now = Date.now();
+    if (now - lastPlaced < 5000) {
+      console.warn('Order duplicate submission blocked within 5 seconds cooldown');
+      return;
+    }
+    localStorage.setItem(lastOrderPlacedKey, String(now));
+  } catch (_) {}
+
   const finalAddress = customerInfo?.address || order.customerAddress || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || '';
 
   const pricingCalculated = calculateOrderPricing(
@@ -1254,8 +1272,6 @@ export const saveOrderToFirestore = async (
           note: order.paymentMethod ? `Placed with ${order.paymentMethod}` : 'Order registered in fulfillment pipeline'
         }
       ];
-
-  const effectiveUserId = uid || order.userId || 'guest';
 
   const orderData: Order = {
     ...order,

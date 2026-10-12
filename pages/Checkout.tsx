@@ -15,6 +15,7 @@ import {
 import { openRazorpayCheckout } from '../utils/razorpay';
 import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
 import { FullScreenCircleLoader } from '../components/CircleLoader';
+import { validateOrderRateLimit } from '../utils/authSecurity';
 
 const upiLogoIcon = 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg';
 
@@ -414,6 +415,25 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       deliveryFee: 0,
       total: total
     };
+
+    // Rate Limit & Security Inspection: Limit orders per window & sanitize payload
+    const rateCheck = await validateOrderRateLimit({
+      userId: uid,
+      customerEmail: user?.email || undefined,
+      customerPhone,
+      customerName,
+      items: cart || [],
+      total
+    });
+
+    if (!rateCheck.allowed) {
+      const rateErrMsg = rateCheck.error || 'Too many orders placed. Please wait a few moments before trying again.';
+      setPaymentError(rateErrMsg);
+      setCustomizationToast(rateErrMsg);
+      setTimeout(() => setCustomizationToast(null), 5000);
+      setIsProcessing(false);
+      return;
+    }
 
     if (paymentOption === 'razorpay') {
       try {

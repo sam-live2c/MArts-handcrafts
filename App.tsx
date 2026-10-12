@@ -289,10 +289,8 @@ const App: React.FC = () => {
           console.warn('Notice: Firestore data sync operated in offline cache mode:', e);
         }
       } else {
-        const cached = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
-        if (cached) {
-          try { setUser(JSON.parse(cached)); } catch {}
-        }
+        // User is explicitly signed out of Firebase Auth - do not resurrect cached profiles
+        setUser(null);
       }
     });
 
@@ -377,9 +375,45 @@ const App: React.FC = () => {
     } catch (e) {
       console.warn('Signout warning:', e);
     }
+
+    // Complete purge of all user identity cache keys across prefixes
+    try {
+      localStorage.removeItem('marts_user_profile');
+      localStorage.removeItem('melody_user_profile');
+      localStorage.removeItem('agronic_user_profile');
+      localStorage.removeItem('marts_user_address');
+      localStorage.removeItem('melody_user_address');
+      localStorage.removeItem('agronic_user_address');
+      localStorage.removeItem('marts_default_address');
+      localStorage.removeItem('melody_default_address');
+      localStorage.removeItem('agronic_default_address');
+      localStorage.removeItem('marts_cart');
+      localStorage.removeItem('melody_cart');
+      localStorage.removeItem('marts_wishlist');
+      localStorage.removeItem('melody_wishlist');
+      sessionStorage.removeItem('marts_pending_login_view');
+      sessionStorage.removeItem('marts_pending_login_email');
+      sessionStorage.removeItem('marts_pending_signup_step');
+      sessionStorage.removeItem('marts_pending_signup_name');
+      sessionStorage.removeItem('marts_pending_signup_email');
+      sessionStorage.removeItem('marts_pending_signup_pass');
+      sessionStorage.removeItem('marts_otp_token');
+    } catch (_) {}
+
     setUser(null);
     setCart([]);
     setWishlist([]);
+
+    // Broadcast user sign-out event so other components update synchronously
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: null }));
+    }
+
+    setNotification({
+      show: true,
+      message: 'Logged out successfully',
+      type: 'success'
+    });
   };
 
   const handleAddOrder = async (order: Order) => {
