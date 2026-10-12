@@ -6,17 +6,24 @@ import {
   signInWithEmailAndPassword, 
   signInWithPopup, 
   GoogleAuthProvider,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  createUserWithEmailAndPassword,
+  updatePassword
 } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, ArrowLeft, Mail, AlertCircle, 
-  CheckCircle2, RefreshCw, KeyRound, Lock, Eye, EyeOff, X,
-  FlaskConical, Zap, Sparkles
+  CheckCircle2, RefreshCw, Eye, EyeOff, X
 } from 'lucide-react';
 import Logo from '../components/Logo';
-import { fetchUserAddresses } from '../services/dbService';
+import { 
+  fetchUserAddresses, 
+  fetchUserOrders, 
+  findUserAccountByEmail, 
+  restoreUserAccountByEmail 
+} from '../services/dbService';
 import { resendService } from '../services/resendService';
+import { hashPassword } from '../utils/auth';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -175,56 +182,96 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
-      const fbUid = userCredential.user.uid;
-      const userDocRef = doc(db, 'users', fbUid);
-      const userDocSnap = await getDoc(userDocRef);
+      const pwdHash = await hashPassword(password);
+      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
 
-      let loggedInUser: User;
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        loggedInUser = {
-          name: data.name || userCredential.user.displayName || cleanEmail.split('@')[0],
-          displayName: data.displayName || data.name || cleanEmail.split('@')[0],
+      let firebaseUser: any = null;
+      let fbUid: string | null = null;
+      let authSuccess = false;
+
+      // 1. Attempt Firebase Auth sign-in
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, cleanEmail, password);
+        firebaseUser = userCredential.user;
+        fbUid = firebaseUser.uid;
+        authSuccess = true;
+      } catch (authErr: any) {
+        // Firebase Auth direct attempt failed or operation not allowed
+      }
+
+      if (authSuccess && firebaseUser && fbUid) {
+        // Retrieve full profile from Firestore
+        const userDocRef = doc(db, 'users', fbUid);
+        const emailDocRef = doc(db, 'users', emailDocId);
+        const [userDocSnap, emailDocSnap] = await Promise.all([
+          getDoc(userDocRef).catch(() => null),
+          getDoc(emailDocRef).catch(() => null)
+        ]);
+
+        const data = (userDocSnap && userDocSnap.exists() ? userDocSnap.data() : null) || 
+                     (emailDocSnap && emailDocSnap.exists() ? emailDocSnap.data() : null) || {};
+
+        const orders = await fetchUserOrders(fbUid).catch(() => []);
+
+        const loggedInUser: User = {
+          name: data.name || data.displayName || firebaseUser.displayName || cleanEmail.split('@')[0],
+          displayName: data.displayName || data.name || firebaseUser.displayName || cleanEmail.split('@')[0],
           businessName: data.businessName || '',
           phone: data.phone || data.phoneNumber || '',
+          phoneNumber: data.phoneNumber || data.phone || '',
           email: cleanEmail,
           address: data.address || '',
-          orders: data.orders || [],
+          deliveryAddress: data.deliveryAddress,
+          shippingAddress: data.shippingAddress,
+          orders: orders.length > 0 ? orders : (Array.isArray(data.orders) ? data.orders : []),
           role: data.role || 'customer'
         };
-      } else {
-        loggedInUser = {
-          name: userCredential.user.displayName || cleanEmail.split('@')[0],
-          displayName: cleanEmail.split('@')[0],
-          email: cleanEmail,
-          phone: '',
-          address: '',
-          orders: [],
-          role: 'customer'
-        };
-        await setDoc(userDocRef, loggedInUser, { merge: true }).catch(() => {});
+
+        // Sync password hash in Firestore
+        await setDoc(userDocRef, { ...loggedInUser, passwordHash: pwdHash, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+        await setDoc(emailDocRef, { ...loggedInUser, passwordHash: pwdHash, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+
+        localStorage.setItem('melody_user_profile', JSON.stringify(loggedInUser));
+        localStorage.setItem('marts_user_profile', JSON.stringify(loggedInUser));
+        await handlePostAuthRedirect(fbUid, loggedInUser);
+        return;
       }
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(loggedInUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(loggedInUser));
-      await handlePostAuthRedirect(fbUid, loggedInUser);
-    } catch (err: any) {
-      let msg = 'Invalid email or password. Please try again.';
-      if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        msg = 'Incorrect email or password. Please check your credentials or reset password.';
-      } else if (err.code === 'auth/invalid-email') {
-        msg = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/too-many-requests') {
-        msg = 'Too many attempts. Please wait a moment or reset your password.';
-      } else if (err.message) {
-        msg = err.message;
+      // 2. Check Firestore account for email and verify password hash
+      const accountCheck = await findUserAccountByEmail(cleanEmail);
+      if (accountCheck.exists && accountCheck.data) {
+        const storedHash = accountCheck.data.passwordHash;
+
+        if (storedHash) {
+          if (storedHash === pwdHash) {
+            // Password matches verified hash!
+            // Sync with Firebase Auth in background if possible
+            createUserWithEmailAndPassword(auth, cleanEmail, password)
+              .catch(() => signInWithEmailAndPassword(auth, cleanEmail, password).catch(() => {}));
+
+            const restored = await restoreUserAccountByEmail(cleanEmail, pwdHash);
+            localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+            localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+            await handlePostAuthRedirect(restored.docId, restored.user);
+            return;
+          } else {
+            setErrorMessage('Incorrect password. Please try again or click "Forgot password?" to reset.');
+            return;
+          }
+        } else {
+          setErrorMessage('No password has been set for this account yet. Please sign in with email verification code below or reset your password.');
+          return;
+        }
       }
-      setErrorMessage(msg);
+
+      setErrorMessage('No account found with this email. Please check your credentials or sign up.');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to sign in. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   // ================= 2. OTP FLOW (POWERED BY RESEND) =================
   const handleRequestOtp = async (e: React.FormEvent) => {
@@ -287,36 +334,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         return;
       }
 
-      const uid = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      const newUser: User = {
-        name: cleanEmail.split('@')[0],
-        displayName: cleanEmail.split('@')[0],
-        email: cleanEmail,
-        phone: '',
-        address: '',
-        orders: [],
-        role: 'customer'
-      };
-
-      try {
-        const userDocRef = doc(db, 'users', uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          newUser.name = data.name || newUser.name;
-          newUser.displayName = data.displayName || newUser.displayName;
-          newUser.address = data.address || '';
-          newUser.orders = data.orders || [];
-          newUser.phone = data.phone || '';
-          newUser.role = data.role || 'customer';
-        } else {
-          await setDoc(userDocRef, newUser, { merge: true }).catch(() => {});
-        }
-      } catch (_) {}
-
-      localStorage.setItem('melody_user_profile', JSON.stringify(newUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(newUser));
-      await handlePostAuthRedirect(uid, newUser);
+      // Restore full authentic profile, orders, and saved addresses
+      const restored = await restoreUserAccountByEmail(cleanEmail);
+      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+      await handlePostAuthRedirect(restored.docId, restored.user);
     } catch {
       setErrorMessage('An error occurred during verification. Please try again.');
     } finally {
@@ -427,43 +449,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     setIsLoading(true);
     const cleanEmail = email.trim().toLowerCase();
-    const uid = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
 
     try {
-      const userDocRef = doc(db, 'users', uid);
-      await setDoc(userDocRef, {
-        email: cleanEmail,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(() => {});
+      const newPwdHash = await hashPassword(newPassword);
+      const restored = await restoreUserAccountByEmail(cleanEmail, newPwdHash);
 
-      const updatedProfile: User = {
-        name: cleanEmail.split('@')[0],
-        displayName: cleanEmail.split('@')[0],
-        email: cleanEmail,
-        phone: '',
-        address: '',
-        orders: [],
-        role: 'customer'
-      };
-
-      try {
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          updatedProfile.name = data.name || updatedProfile.name;
-          updatedProfile.displayName = data.displayName || updatedProfile.displayName;
-          updatedProfile.phone = data.phone || '';
-          updatedProfile.address = data.address || '';
-          updatedProfile.orders = data.orders || [];
-          updatedProfile.role = data.role || 'customer';
-        }
-      } catch (_) {}
-
-      localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
-      localStorage.setItem('marts_user_profile', JSON.stringify(updatedProfile));
+      // Attempt to update Firebase Auth if active, or register credential
+      if (auth.currentUser) {
+        updatePassword(auth.currentUser, newPassword).catch(() => {});
+      } else {
+        createUserWithEmailAndPassword(auth, cleanEmail, newPassword)
+          .catch(() => signInWithEmailAndPassword(auth, cleanEmail, newPassword).catch(() => {}));
+      }
 
       showToast('Password reset successfully!');
-      await handlePostAuthRedirect(uid, updatedProfile);
+      await handlePostAuthRedirect(restored.docId, restored.user);
     } catch {
       setErrorMessage('Failed to update password. Please try again.');
     } finally {
@@ -519,64 +519,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     } finally {
       setIsGoogleLoading(false);
     }
-  };
-
-  // ================= 4. EMBEDDED TEST EMAIL LOGIN & QA TESTING =================
-  const handleInstantTestLogin = async (targetEmail: string = 'officialcloaktail@gmail.com') => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const cleanEmail = targetEmail.trim().toLowerCase();
-      const uid = 'marts_test_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      
-      const isCloakTail = cleanEmail === 'officialcloaktail@gmail.com';
-      const testUser: User = {
-        name: isCloakTail ? 'CloakTail (QA Tester)' : 'MArts Test Customer',
-        displayName: isCloakTail ? 'CloakTail (QA Tester)' : 'MArts Test Customer',
-        email: cleanEmail,
-        phone: '+91 9876543210',
-        address: 'Artisan Workshop #42, Handcraft Enclave, Civil Lines, Jaipur, Rajasthan - 302006',
-        orders: [],
-        role: 'customer'
-      };
-
-      try {
-        const userDocRef = doc(db, 'users', uid);
-        const userDocSnap = await getDoc(userDocRef);
-        if (userDocSnap.exists()) {
-          const data = userDocSnap.data();
-          testUser.name = data.name || testUser.name;
-          testUser.displayName = data.displayName || testUser.displayName;
-          testUser.phone = data.phone || testUser.phone;
-          testUser.address = data.address || testUser.address;
-          testUser.orders = data.orders || [];
-          testUser.role = data.role || 'customer';
-        } else {
-          await setDoc(userDocRef, testUser, { merge: true }).catch(() => {});
-        }
-      } catch (_) {}
-
-      localStorage.setItem('melody_user_profile', JSON.stringify(testUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(testUser));
-      showToast(`Logged in as ${cleanEmail} (Test Account)`);
-      await handlePostAuthRedirect(uid, testUser);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to authenticate test account');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handlePrefillTestEmail = (targetEmail: string = 'officialcloaktail@gmail.com') => {
-    setEmail(targetEmail);
-    setErrorMessage(null);
-    showToast(`Test email ${targetEmail} selected`);
-  };
-
-  const handleAutofillTestOtp = () => {
-    setOtpCode('123456');
-    setErrorMessage(null);
-    showToast('Autofilled Test OTP: 123456');
   };
 
   return (
@@ -845,18 +787,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     </p>
                   )}
                 </div>
-
-                {/* Quick Test Helper for Dev/QA testing */}
-                <div className="flex items-center justify-center mb-2">
-                  <button
-                    type="button"
-                    onClick={handleAutofillTestOtp}
-                    className="text-[11px] font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200 border border-amber-200/90 px-3 py-1 rounded-full transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                  >
-                    <Zap size={11} className="text-amber-700" />
-                    <span>Autofill Test Code (123456)</span>
-                  </button>
-                </div>
               </div>
 
               <button
@@ -1007,18 +937,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 )}
               </div>
 
-              {/* Quick Test Helper for Dev/QA testing */}
-              <div className="flex items-center justify-center mb-1">
-                <button
-                  type="button"
-                  onClick={handleAutofillTestOtp}
-                  className="text-[11px] font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200 border border-amber-200/90 px-3 py-1 rounded-full transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
-                >
-                  <Zap size={11} className="text-amber-700" />
-                  <span>Autofill Test Code (123456)</span>
-                </button>
-              </div>
-
               <button
                 type="button"
                 disabled={isLoading || otpCode.length < 6}
@@ -1150,91 +1068,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </form>
           )}
 
-        </div>
-
-        {/* EMBEDDED TEST EMAIL LOGIN & QA CONSOLE */}
-        <div className="mt-4 bg-[#FAF6F0] border border-[#E8DCCF] rounded-2xl p-4 shadow-2xs animate-in fade-in duration-200">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="p-1 rounded-md bg-[#C85A32]/10 text-[#C85A32]">
-                <FlaskConical size={14} />
-              </span>
-              <span className="text-xs font-bold text-[#4E392D] uppercase tracking-wider">
-                Embedded Test Login
-              </span>
-            </div>
-            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
-              <span>Test Ready</span>
-            </span>
-          </div>
-
-          <p className="text-xs text-[#735A4C] mb-3 leading-relaxed">
-            Use 1-click login for instant customer testing, or prefill to test real live Resend OTP delivery.
-          </p>
-
-          <div className="space-y-2.5">
-            {/* Primary Test Account */}
-            <div className="bg-white p-3 rounded-xl border border-[#EADBCC] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-[#2B221B] truncate flex items-center gap-1.5">
-                  <span className="truncate">officialcloaktail@gmail.com</span>
-                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-medium shrink-0">Live Email</span>
-                </div>
-                <div className="text-[11px] text-[#8C6D58] mt-0.5">
-                  Universal Test OTP: <span className="font-mono font-bold text-[#C85A32]">123456</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handlePrefillTestEmail('officialcloaktail@gmail.com')}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-[#EADBCC] bg-[#FAF8F5] hover:bg-[#F2ECE4] text-[#4E392D] font-medium transition-colors cursor-pointer"
-                >
-                  Prefill
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInstantTestLogin('officialcloaktail@gmail.com')}
-                  disabled={isLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-[#C85A32] hover:bg-[#A04724] text-white font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
-                >
-                  <Zap size={12} />
-                  <span>1-Click Login</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Secondary Test Account */}
-            <div className="bg-white p-3 rounded-xl border border-[#EADBCC] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <div className="min-w-0">
-                <div className="text-xs font-bold text-[#2B221B] truncate">
-                  test@martsindia.in
-                </div>
-                <div className="text-[11px] text-[#8C6D58] mt-0.5">
-                  Demo Domain Customer • Instant profile &amp; address
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handlePrefillTestEmail('test@martsindia.in')}
-                  className="text-xs px-2.5 py-1.5 rounded-lg border border-[#EADBCC] bg-[#FAF8F5] hover:bg-[#F2ECE4] text-[#4E392D] font-medium transition-colors cursor-pointer"
-                >
-                  Prefill
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInstantTestLogin('test@martsindia.in')}
-                  disabled={isLoading}
-                  className="text-xs px-3 py-1.5 rounded-lg bg-[#4E392D] hover:bg-[#2B221B] text-white font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
-                >
-                  <Zap size={12} />
-                  <span>1-Click Login</span>
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 

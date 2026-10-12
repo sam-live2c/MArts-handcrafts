@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { User } from '../types';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, Eye, EyeOff, ShieldCheck, Mail, CheckCircle2, AlertCircle, X, RefreshCw
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { resendService } from '../services/resendService';
+import { hashPassword } from '../utils/auth';
+import { findUserAccountByEmail, restoreUserAccountByEmail } from '../services/dbService';
 
 interface SignupProps {
   onSignup: (user: User) => void;
@@ -266,42 +268,59 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
         return;
       }
 
-      // Code is verified! Proceed with Firebase Auth registration
+      // Code is verified! Proceed with registration or seamless existing account recovery
+      const cleanEmail = trimmedEmail.trim().toLowerCase();
+      const pwdHash = await hashPassword(password);
+
+      // Check if user already exists in Firestore or Firebase
+      const existingCheck = await findUserAccountByEmail(cleanEmail);
+      let isExistingAccount = existingCheck.exists;
+
       let firebaseUser: any = null;
       try {
-        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+        const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
         firebaseUser = userCredential.user;
-        await updateProfile(firebaseUser, { displayName: fullName.trim() });
+        await updateProfile(firebaseUser, { displayName: fullName.trim() }).catch(() => {});
       } catch (authErr: any) {
         if (authErr.code === 'auth/email-already-in-use') {
-          setOtpError('An account with this email already exists. Please sign in instead.');
-          setIsVerifyingOtp(false);
-          return;
+          // User already has an account but is signing up accidentally.
+          // Since they just verified the OTP code sent to their email, they own this account.
+          // Let them log in with NO interference, restoring all their orders and profile data!
+          isExistingAccount = true;
+          try {
+            const signInCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+            firebaseUser = signInCred.user;
+          } catch (_) {
+            // Password might differ from their previous password.
+            // Email is already verified via OTP, so we restore and update below.
+          }
         } else if (authErr.code !== 'auth/operation-not-allowed') {
           console.warn('Firebase Auth note:', authErr);
         }
       }
 
-      const uid = firebaseUser?.uid || 'marts_user_' + trimmedEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      const userProfile: User = {
-        name: fullName.trim(),
-        displayName: fullName.trim(),
-        email: trimmedEmail,
-        phone: '',
-        address: '',
-        orders: [],
-        role: 'customer'
-      };
+      // Restore user account with all orders, phone, address, and apply new password hash
+      const restored = await restoreUserAccountByEmail(cleanEmail, pwdHash, fullName.trim());
 
-      try {
-        await setDoc(doc(db, 'users', uid), userProfile, { merge: true });
-      } catch (firestoreErr) {
-        console.warn('Firestore profile save note:', firestoreErr);
+      // If firebase user exists, link to their UID document as well
+      if (firebaseUser?.uid) {
+        await setDoc(doc(db, 'users', firebaseUser.uid), {
+          ...restored.user,
+          passwordHash: pwdHash,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(() => {});
       }
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
-      localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
-      handlePostAuthRedirect(userProfile);
+      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+
+      if (isExistingAccount) {
+        showToast('Welcome back! Logged in to your existing account.');
+      } else {
+        showToast('Account created successfully!');
+      }
+
+      handlePostAuthRedirect(restored.user);
     } catch (err: any) {
       setOtpError(err.message || 'Verification failed. Please try again.');
     } finally {

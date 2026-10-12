@@ -303,6 +303,230 @@ export const fetchUserProfile = async (uid: string): Promise<User | null> => {
   }
 };
 
+/**
+ * Find user account in Firestore by email address (deterministic ID)
+ */
+export const findUserAccountByEmail = async (email: string): Promise<{
+  exists: boolean;
+  docId: string;
+  data?: any;
+  user: User | null;
+}> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const docId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'users', docId)), 3000);
+    if (snap.exists()) {
+      const data = snap.data();
+      const deliveryAddr = (data.deliveryAddress || data.shippingAddress) as StoreDeliveryAddress | undefined;
+      let addressStr = data.address || '';
+      if (!addressStr && deliveryAddr) {
+        if (typeof deliveryAddr === 'string') {
+          addressStr = deliveryAddr;
+        } else {
+          addressStr = [
+            deliveryAddr.street,
+            deliveryAddr.apartment,
+            deliveryAddr.landmark,
+            deliveryAddr.city,
+            deliveryAddr.state,
+            deliveryAddr.postalCode || deliveryAddr.pin
+          ].filter(Boolean).join(', ');
+        }
+      }
+
+      const userProfile: User = {
+        name: data.displayName || data.name || cleanEmail.split('@')[0],
+        displayName: data.displayName || data.name || cleanEmail.split('@')[0],
+        businessName: data.businessName || '',
+        phone: data.phoneNumber || data.phone || '',
+        phoneNumber: data.phoneNumber || data.phone || '',
+        email: cleanEmail,
+        avatar: data.avatar || data.photoURL || undefined,
+        address: addressStr,
+        deliveryAddress: deliveryAddr,
+        shippingAddress: data.shippingAddress || deliveryAddr,
+        orders: Array.isArray(data.orders) ? data.orders : [],
+        role: data.role || 'customer'
+      };
+
+      return {
+        exists: true,
+        docId,
+        data,
+        user: userProfile
+      };
+    }
+  } catch (err) {
+    console.warn('findUserAccountByEmail notice:', err);
+  }
+
+  return {
+    exists: false,
+    docId,
+    user: null
+  };
+};
+
+/**
+ * Restore an existing user's account by email.
+ * Recovers genuine orders from Firestore (both user subcollections and global orders),
+ * restores delivery addresses, updates password hash if a new password is provided,
+ * and syncs to local storage so the user experiences zero disruption.
+ */
+export const restoreUserAccountByEmail = async (
+  email: string,
+  newPasswordHash?: string,
+  providedName?: string
+): Promise<{ user: User; docId: string }> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const docId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+  // Check if profile exists
+  let existingData: any = {};
+  try {
+    const snap = await withTimeout(getDoc(doc(db, 'users', docId)), 3000);
+    if (snap.exists()) {
+      existingData = snap.data() || {};
+    }
+  } catch (_) {}
+
+  // Gather existing orders from all sources
+  const ordersMap = new Map<string, Order>();
+
+  // 1. Orders from profile data array
+  if (Array.isArray(existingData.orders)) {
+    existingData.orders.forEach((o: Order) => {
+      if (o && o.id) ordersMap.set(o.id, o);
+    });
+  }
+
+  // 2. Orders from subcollection users/{docId}/orders
+  try {
+    const userOrdersSnap = await withTimeout(getDocs(collection(db, 'users', docId, 'orders')), 3000);
+    userOrdersSnap.forEach(d => {
+      const o = d.data() as Order;
+      if (o && o.id) ordersMap.set(o.id, o);
+    });
+  } catch (_) {}
+
+  // 3. Orders from global orders matching customerEmail or userId
+  try {
+    const qEmail = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
+    const globalEmailSnap = await withTimeout(getDocs(qEmail), 3000);
+    globalEmailSnap.forEach(d => {
+      const o = d.data() as Order;
+      if (o && o.id) {
+        const prev = ordersMap.get(o.id);
+        if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
+          ordersMap.set(o.id, { ...prev, ...o });
+        }
+      }
+    });
+  } catch (_) {}
+
+  try {
+    const qUser = query(collection(db, 'orders'), where('userId', '==', docId));
+    const globalUserSnap = await withTimeout(getDocs(qUser), 3000);
+    globalUserSnap.forEach(d => {
+      const o = d.data() as Order;
+      if (o && o.id) {
+        const prev = ordersMap.get(o.id);
+        if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
+          ordersMap.set(o.id, { ...prev, ...o });
+        }
+      }
+    });
+  } catch (_) {}
+
+  // 4. Also check local storage cached orders for this email/docId
+  try {
+    const cachedOrdersStr = localStorage.getItem(`marts_orders_${docId}`) || localStorage.getItem('marts_orders');
+    if (cachedOrdersStr) {
+      const parsed: Order[] = JSON.parse(cachedOrdersStr);
+      if (Array.isArray(parsed)) {
+        parsed.forEach(o => {
+          if (o && o.id && (o.customerEmail === cleanEmail || o.userId === docId)) {
+            if (!ordersMap.has(o.id)) ordersMap.set(o.id, o);
+          }
+        });
+      }
+    }
+  } catch (_) {}
+
+  const restoredOrders = Array.from(ordersMap.values()).sort((a, b) => {
+    const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
+    const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+    if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+    return (b.id || '').localeCompare(a.id || '');
+  });
+
+  const deliveryAddr = existingData.deliveryAddress || existingData.shippingAddress;
+  let addressStr = existingData.address || '';
+  if (!addressStr && deliveryAddr) {
+    if (typeof deliveryAddr === 'string') {
+      addressStr = deliveryAddr;
+    } else {
+      addressStr = [
+        deliveryAddr.street,
+        deliveryAddr.apartment,
+        deliveryAddr.landmark,
+        deliveryAddr.city,
+        deliveryAddr.state,
+        deliveryAddr.postalCode || deliveryAddr.pin
+      ].filter(Boolean).join(', ');
+    }
+  }
+
+  const finalName = providedName?.trim() || existingData.displayName || existingData.name || cleanEmail.split('@')[0];
+
+  const restoredProfile: User = {
+    name: finalName,
+    displayName: finalName,
+    businessName: existingData.businessName || '',
+    phone: existingData.phoneNumber || existingData.phone || '',
+    phoneNumber: existingData.phoneNumber || existingData.phone || '',
+    email: cleanEmail,
+    avatar: existingData.avatar || existingData.photoURL || undefined,
+    address: addressStr,
+    deliveryAddress: deliveryAddr,
+    shippingAddress: existingData.shippingAddress || deliveryAddr,
+    orders: restoredOrders,
+    role: existingData.role || 'customer'
+  };
+
+  // Write back merged profile to Firestore
+  const updatePayload: Record<string, any> = {
+    ...restoredProfile,
+    updatedAt: new Date().toISOString()
+  };
+  if (newPasswordHash) {
+    updatePayload.passwordHash = newPasswordHash;
+  }
+
+  try {
+    await withTimeout(setDoc(doc(db, 'users', docId), updatePayload, { merge: true }), 3000);
+  } catch (err) {
+    console.warn('Notice: offline write during account restoration:', err);
+  }
+
+  // Update localStorage immediately
+  try {
+    localStorage.setItem('marts_user_profile', JSON.stringify(restoredProfile));
+    localStorage.setItem('melody_user_profile', JSON.stringify(restoredProfile));
+    if (restoredOrders.length > 0) {
+      localStorage.setItem(`marts_orders_${docId}`, JSON.stringify(restoredOrders));
+      localStorage.setItem(`melody_orders_${docId}`, JSON.stringify(restoredOrders));
+    }
+    if (addressStr) {
+      localStorage.setItem('marts_user_address', addressStr);
+      localStorage.setItem('melody_user_address', addressStr);
+    }
+  } catch (_) {}
+
+  return { user: restoredProfile, docId };
+};
+
 export const saveUserProfile = async (uid: string, profileData: Partial<User> & { gender?: string }): Promise<User> => {
   const cached = localStorage.getItem('melody_user_profile');
   let current: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
