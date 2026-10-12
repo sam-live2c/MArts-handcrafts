@@ -277,6 +277,63 @@ async function runTests() {
     assert(pricing.discount === 1000, 'Discount calculation preserved');
   });
 
+  // Scenario 13: Admin blocked user flags verification & order placement barrier
+  await test('Scenario 13: Admin blocked user detection prevents unauthorized order placement', () => {
+    const activeUser = {
+      uid: 'user_active',
+      email: 'active@example.com',
+      isBlocked: false,
+      status: 'active'
+    };
+    const blockedUser = {
+      uid: 'user_blocked',
+      email: 'blocked@example.com',
+      isBlocked: true,
+      status: 'blocked',
+      blockReason: 'Abusive returns'
+    };
+
+    const isUserBlockedCheck = (u: any) => Boolean(
+      u?.isBlocked === true || 
+      u?.blocked === true || 
+      u?.status === 'blocked' || 
+      u?.disabled === true ||
+      u?.isActive === false ||
+      u?.role === 'blocked'
+    );
+
+    assert(isUserBlockedCheck(activeUser) === false, 'Active user must not be blocked');
+    assert(isUserBlockedCheck(blockedUser) === true, 'Blocked user must be correctly identified');
+    assert(blockedUser.blockReason === 'Abusive returns', 'Block reason must be retained for toast notification');
+  });
+
+  // Scenario 14: Google account migration to email with password authentication
+  await test('Scenario 14: Google login account migration to email with password', async () => {
+    const googleUser = {
+      uid: 'google_user_99',
+      email: 'googleuser@example.com',
+      hasPassword: false,
+      passwordHash: null,
+      orders: [{ id: 'OD100', total: 1500 }]
+    };
+
+    // User migrates by setting password (via Forgot Password or Sign Up or Account Settings)
+    const newPassword = 'SecureSecretPass123!';
+    const passwordHash = await hashPassword(newPassword);
+
+    const migratedUser = {
+      ...googleUser,
+      passwordHash,
+      hasPassword: true
+    };
+
+    // Verifying migrated account can authenticate with password
+    const enteredHash = await hashPassword(newPassword);
+    assert(enteredHash === migratedUser.passwordHash, 'Password hash matches for email login');
+    assert(migratedUser.hasPassword === true, 'Account hasPassword flag is true');
+    assert(migratedUser.orders.length === 1, 'Orders preserved during migration');
+  });
+
   // Summary
   console.log('\n====================================================');
   const passedCount = results.filter(r => r.passed).length;

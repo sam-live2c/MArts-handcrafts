@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { CartItem, User, CustomizationFile, ItemCustomization } from '../types';
-import { X, Info, Plus, Minus, ArrowLeft, ArrowDown, Package, ShieldCheck, Upload } from 'lucide-react';
+import { X, Info, Plus, Minus, ArrowLeft, ArrowDown, Package, ShieldCheck, Upload, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
-import { fetchUserAddresses } from '../services/dbService';
+import { fetchUserAddresses, checkUserBlockedStatus } from '../services/dbService';
 import { CustomizationModal } from '../components/CustomizationModal';
 import { safeStorage, sanitizeCustomizationsForCache } from '../utils/storage';
 import { CartSkeleton } from '../components/Skeleton';
@@ -108,11 +108,30 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
     loadAddress();
   }, [user]);
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!user) {
       navigate('/login?redirect=checkout');
       return;
     }
+
+    // Check if user is blocked by admin from admin panel
+    if (user.isBlocked || user.blocked || user.status === 'blocked' || user.disabled) {
+      const msg = user.blockReason || 'Your account has been blocked by the admin. You cannot place orders.';
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: msg, type: 'blocked' }
+      }));
+      return;
+    }
+
+    const liveBlockCheck = await checkUserBlockedStatus(auth.currentUser?.uid || user.uid, user.email);
+    if (liveBlockCheck.isBlocked) {
+      const msg = liveBlockCheck.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: msg, type: 'blocked' }
+      }));
+      return;
+    }
+
     const savedAddr = addressInfo.formatted || user?.address;
     if (!savedAddr || savedAddr.trim() === '') {
       navigate('/address?redirect=checkout');

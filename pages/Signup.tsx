@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { User } from '../types';
 import { auth, db } from '../firebase';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, Eye, EyeOff, ShieldCheck, Mail, CheckCircle2, AlertCircle, X, RefreshCw
@@ -10,7 +10,13 @@ import {
 import Logo from '../components/Logo';
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
-import { findUserAccountByEmail, restoreUserAccountByEmail, reconcileCanonicalUserData } from '../services/dbService';
+import { 
+  findUserAccountByEmail, 
+  restoreUserAccountByEmail, 
+  reconcileCanonicalUserData,
+  checkUserBlockedStatus,
+  setUserPassword 
+} from '../services/dbService';
 import { setPendingGoogleCredential } from '../services/authLinkingService';
 import { safeStorage, sanitizeUserForCache } from '../utils/storage';
 
@@ -60,6 +66,9 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   });
   const [email, setEmail] = useState(() => {
     try {
+      const urlEmail = new URLSearchParams(window.location.search).get('email') || 
+        (window.location.hash.includes('?') ? new URLSearchParams(window.location.hash.split('?')[1]).get('email') : null);
+      if (urlEmail) return decodeURIComponent(urlEmail);
       return sessionStorage.getItem('marts_pending_signup_email') || '';
     } catch {
       return '';
@@ -106,6 +115,13 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTarget = searchParams.get('redirect');
+
+  useEffect(() => {
+    const paramEmail = searchParams.get('email');
+    if (paramEmail && !email) {
+      setEmail(decodeURIComponent(paramEmail).trim());
+    }
+  }, [searchParams]);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
@@ -200,6 +216,19 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
     setOtpError(null);
 
     try {
+      // Check if user is blocked by admin from admin panel
+      const blockCheck = await checkUserBlockedStatus(null, trimmedEmail);
+      if (blockCheck.isBlocked) {
+        const blockMsg = blockCheck.reason || 'Your account has been blocked by the admin. Please contact support.';
+        setFieldErrors({ email: blockMsg });
+        showToast(blockMsg, 'error');
+        window.dispatchEvent(new CustomEvent('marts_show_toast', {
+          detail: { message: blockMsg, type: 'blocked' }
+        }));
+        setIsLoading(false);
+        return;
+      }
+
       // Send OTP via Resend email API using martsindia.in domain
       const res = await resendService.sendOtp(trimmedEmail, 'signup');
 
@@ -284,6 +313,25 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       const existingCheck = await findUserAccountByEmail(cleanEmail);
       let isExistingAccount = existingCheck.exists;
 
+      // Check if account has been blocked by admin
+      if (existingCheck.exists && (
+        existingCheck.data?.isBlocked || 
+        existingCheck.data?.blocked || 
+        existingCheck.data?.status === 'blocked' || 
+        existingCheck.data?.disabled ||
+        existingCheck.data?.isActive === false ||
+        existingCheck.data?.role === 'blocked'
+      )) {
+        const blockMsg = existingCheck.data?.blockReason || 'Your account has been blocked by the admin. Please contact support.';
+        setOtpError(blockMsg);
+        showToast(blockMsg, 'error');
+        window.dispatchEvent(new CustomEvent('marts_show_toast', {
+          detail: { message: blockMsg, type: 'blocked' }
+        }));
+        setIsVerifyingOtp(false);
+        return;
+      }
+
       let firebaseUser: any = null;
       try {
         const userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
@@ -309,12 +357,14 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
 
       // Restore user account with all orders, phone, address, and apply new password hash
       const restored = await restoreUserAccountByEmail(cleanEmail, pwdHash, fullName.trim());
+      await setUserPassword(firebaseUser?.uid || restored.docId, cleanEmail, pwdHash);
 
       // If firebase user exists, link to their UID document as well
       if (firebaseUser?.uid) {
         await setDoc(doc(db, 'users', firebaseUser.uid), {
           ...restored.user,
           passwordHash: pwdHash,
+          hasPassword: true,
           updatedAt: new Date().toISOString()
         }, { merge: true }).catch(() => {});
       }
@@ -350,6 +400,20 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       const result = await signInWithPopup(auth, provider);
       const fbUser = result.user;
       const cleanEmail = (fbUser.email || '').trim().toLowerCase();
+
+      // Check if account has been blocked by admin from admin panel
+      const blockCheck = await checkUserBlockedStatus(fbUser.uid, cleanEmail);
+      if (blockCheck.isBlocked) {
+        await signOut(auth);
+        const blockMsg = blockCheck.reason || 'Your account has been blocked by the admin. Please contact support.';
+        setFieldErrors({ email: blockMsg });
+        showToast(blockMsg, 'error');
+        window.dispatchEvent(new CustomEvent('marts_show_toast', {
+          detail: { message: blockMsg, type: 'blocked' }
+        }));
+        setIsGoogleLoading(false);
+        return;
+      }
 
       // Clear any legacy un-scoped address keys from previous browser sessions
       try {

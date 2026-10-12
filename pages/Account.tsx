@@ -4,11 +4,14 @@ import { handleGoBack } from '../utils/navigation';
 import Logo from '../components/Logo';
 import { 
   MapPin, LogOut, Headphones, ArrowLeft, ShieldCheck, RefreshCw, 
-  FileText, ChevronRight, Package, Heart, Truck 
+  FileText, ChevronRight, Package, Heart, Truck, Lock, Key, 
+  CheckCircle2, AlertCircle, X, ShieldAlert, Loader2
 } from 'lucide-react';
 import { User } from '../types';
 import { auth } from '../firebase';
-import { fetchUserAddresses } from '../services/dbService';
+import { updatePassword } from 'firebase/auth';
+import { fetchUserAddresses, setUserPassword } from '../services/dbService';
+import { hashPassword } from '../utils/auth';
 
 interface AccountProps {
   user: User | null;
@@ -20,6 +23,14 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
   const [displayAddress, setDisplayAddress] = useState<string>(() => {
     return user?.address || '';
   });
+
+  // Set Password for Email Login Modal State
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [pwdInput, setPwdInput] = useState('');
+  const [confirmPwdInput, setConfirmPwdInput] = useState('');
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSuccess, setPwdSuccess] = useState('');
+  const [isSavingPwd, setIsSavingPwd] = useState(false);
 
   const gridOptions = [
     { id: 'addresses', label: 'Addresses', icon: <MapPin className="text-[#C85A32]" size={22} />, path: '/address' },
@@ -68,6 +79,56 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
       window.removeEventListener('melody_user_updated', handleUpdate);
     };
   }, [user]);
+
+  const handleSavePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+    setPwdSuccess('');
+
+    if (!pwdInput) {
+      setPwdError('Please enter a password');
+      return;
+    }
+    if (pwdInput.length < 6) {
+      setPwdError('Password must be at least 6 characters long');
+      return;
+    }
+    if (pwdInput !== confirmPwdInput) {
+      setPwdError('Passwords do not match');
+      return;
+    }
+
+    setIsSavingPwd(true);
+    try {
+      const email = user?.email || auth.currentUser?.email || '';
+      const uid = auth.currentUser?.uid || user?.uid || '';
+      if (!email || !uid) {
+        throw new Error('Unable to identify authenticated user account.');
+      }
+
+      const pwdHash = await hashPassword(pwdInput);
+      await setUserPassword(uid, email, pwdHash);
+
+      if (auth.currentUser) {
+        await updatePassword(auth.currentUser, pwdInput).catch(() => {});
+      }
+
+      setPwdSuccess('Password saved! You can now log in using your email and password.');
+      setPwdInput('');
+      setConfirmPwdInput('');
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: 'Password set! You can now log in via email and password.', type: 'success' }
+      }));
+      setTimeout(() => {
+        setIsPasswordModalOpen(false);
+        setPwdSuccess('');
+      }, 1800);
+    } catch (err: any) {
+      setPwdError(err.message || 'Failed to save password. Please try again.');
+    } finally {
+      setIsSavingPwd(false);
+    }
+  };
 
   if (!user) {
     return (
@@ -189,6 +250,17 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
             </div>
           </div>
 
+          {/* Blocked User Notice */}
+          {(user.isBlocked || user.blocked || user.status === 'blocked' || user.disabled) && (
+            <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-800 animate-in fade-in">
+              <ShieldAlert size={20} className="text-red-600 shrink-0" />
+              <div className="text-xs">
+                <p className="font-bold text-red-900">Account Blocked</p>
+                <p className="text-red-700 mt-0.5">{user.blockReason || 'Your account has been blocked by the administrator. Ordering is currently disabled.'}</p>
+              </div>
+            </div>
+          )}
+
           <div className="w-full space-y-4">
             {/* Addresses & Orders & Wishlist */}
             <div className="flex flex-col gap-4">
@@ -208,6 +280,34 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
 
             {/* Options list */}
             <div className="pt-2 border-t border-gray-100 mt-2">
+              {/* Account Password for Email Login */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPwdError('');
+                  setPwdSuccess('');
+                  setPwdInput('');
+                  setConfirmPwdInput('');
+                  setIsPasswordModalOpen(true);
+                }}
+                className="w-full text-left flex items-center justify-between py-4 hover:bg-gray-50 transition-colors -mx-4 px-4 sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12 cursor-pointer group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-gray-500 w-5 flex justify-center">
+                    <Lock size={19} className="text-[#C85A32]" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-800 group-hover:text-[#C85A32] transition-colors">
+                      {user.hasPassword ? 'Change Password' : 'Set Password for Email Login'}
+                    </span>
+                    <p className="text-[11px] text-gray-400">
+                      {user.hasPassword ? 'Update your password for email sign-in' : 'Enable email & password sign-in for this Google account'}
+                    </p>
+                  </div>
+                </div>
+                <ChevronRight size={18} className="text-gray-400" />
+              </button>
+
               {optionList.map(option => (
                 <Link
                   key={option.id}
@@ -240,6 +340,104 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Set Password Modal for Google Accounts or Password Updates */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-[300] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-xl border border-gray-100 relative animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={() => setIsPasswordModalOpen(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100 transition-colors cursor-pointer"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-2">
+              <div className="w-9 h-9 rounded-full bg-[#FAF0E6] flex items-center justify-center text-[#C85A32]">
+                <Key size={18} />
+              </div>
+              <h2 className="text-lg font-bold text-gray-900">
+                {user.hasPassword ? 'Update Password' : 'Set Password for Email Login'}
+              </h2>
+            </div>
+
+            <p className="text-xs text-gray-500 mb-4 leading-relaxed">
+              {user.hasPassword
+                ? 'Enter a new password for your account email.'
+                : `Set a password for ${user.email || 'your account'} so you can also sign in directly using your email and password.`}
+            </p>
+
+            <form onSubmit={handleSavePassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wide">
+                  New Password *
+                </label>
+                <input
+                  type="password"
+                  value={pwdInput}
+                  onChange={(e) => setPwdInput(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-[#C85A32] outline-none"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1 uppercase tracking-wide">
+                  Confirm New Password *
+                </label>
+                <input
+                  type="password"
+                  value={confirmPwdInput}
+                  onChange={(e) => setConfirmPwdInput(e.target.value)}
+                  placeholder="Re-enter new password"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-[#C85A32] outline-none"
+                />
+              </div>
+
+              {pwdError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{pwdError}</span>
+                </div>
+              )}
+
+              {pwdSuccess && (
+                <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-700">
+                  <CheckCircle2 size={14} className="shrink-0" />
+                  <span>{pwdSuccess}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(false)}
+                  className="flex-1 py-2.5 border border-gray-200 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPwd}
+                  className="flex-1 py-2.5 bg-[#C85A32] hover:bg-[#A04724] text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-75"
+                >
+                  {isSavingPwd ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Password</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

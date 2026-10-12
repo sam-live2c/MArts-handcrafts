@@ -18,7 +18,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+const portArgIdx = process.argv.indexOf('--port');
+const portFromArgs = portArgIdx !== -1 && process.argv[portArgIdx + 1] ? Number(process.argv[portArgIdx + 1]) : null;
+const PORT = portFromArgs || Number(process.env.PORT) || 3000;
 
 // Trust proxy for accurate client IP rate limiting behind reverse proxies
 app.set('trust proxy', 1);

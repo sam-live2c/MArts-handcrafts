@@ -685,4 +685,71 @@ export const grantAdminRole = async (targetUid: string, email: string): Promise<
   }
 };
 
+/**
+ * Updates a user's block status in the shared Firestore database
+ * Used by admin panel to block or unblock accounts
+ */
+export const setUserBlockStatusAdmin = async (
+  targetUid: string,
+  isBlocked: boolean,
+  reason?: string,
+  email?: string
+): Promise<void> => {
+  try {
+    const now = Date.now();
+    const updatePayload: Record<string, any> = {
+      isBlocked,
+      blocked: isBlocked,
+      status: isBlocked ? 'blocked' : 'active',
+      disabled: isBlocked,
+      blockReason: isBlocked ? (reason || 'Blocked by admin') : null,
+      updatedAt: now
+    };
+
+    const promises: Promise<any>[] = [];
+    if (targetUid) {
+      promises.push(setDoc(doc(db, 'users', targetUid), updatePayload, { merge: true }));
+    }
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      promises.push(setDoc(doc(db, 'users', emailDocId), updatePayload, { merge: true }).catch(() => {}));
+    }
+
+    await Promise.all(promises);
+  } catch (error: any) {
+    console.error(`Failed to update block status for user ${targetUid}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Checks if a user is blocked
+ */
+export const fetchUserBlockStatus = async (
+  uid: string
+): Promise<{ isBlocked: boolean; reason?: string }> => {
+  try {
+    const userDoc = await getDoc(doc(db, 'users', uid));
+    if (userDoc.exists()) {
+      const d = userDoc.data();
+      const isBlocked = Boolean(
+        d.isBlocked === true || 
+        d.blocked === true || 
+        d.status === 'blocked' || 
+        d.disabled === true || 
+        d.isActive === false
+      );
+      return {
+        isBlocked,
+        reason: d.blockReason || d.reason || undefined
+      };
+    }
+    return { isBlocked: false };
+  } catch (e) {
+    console.warn('Error fetching user block status:', e);
+    return { isBlocked: false };
+  }
+};
+
 export { firebaseConfig };

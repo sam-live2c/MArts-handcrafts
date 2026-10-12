@@ -284,6 +284,125 @@ export async function getAssociatedUserIdsForEmail(
   return Array.from(ids);
 }
 
+/**
+ * Verifies whether a user account is disabled or blocked by an admin from the admin panel
+ */
+export const checkUserBlockedStatus = async (
+  uid?: string | null,
+  email?: string | null
+): Promise<{ isBlocked: boolean; reason?: string }> => {
+  try {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const candidateIds = new Set<string>();
+
+    if (uid && uid !== 'guest') candidateIds.add(uid);
+    if (cleanEmail) {
+      candidateIds.add(cleanEmail);
+      candidateIds.add('marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_'));
+    }
+
+    // Check direct user documents in Firestore
+    for (const candId of Array.from(candidateIds)) {
+      try {
+        const uSnap = await withTimeout(getDoc(doc(db, 'users', candId)), 2000).catch(() => null);
+        if (uSnap && uSnap.exists()) {
+          const d = uSnap.data();
+          if (
+            d.isBlocked === true || 
+            d.blocked === true || 
+            d.status === 'blocked' || 
+            d.disabled === true || 
+            d.isActive === false ||
+            d.role === 'blocked' ||
+            d.userStatus === 'blocked'
+          ) {
+            return {
+              isBlocked: true,
+              reason: d.blockReason || d.reason || 'Your account has been blocked by the admin. You cannot place orders.'
+            };
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Check if query returns any blocked records for this email
+    if (cleanEmail) {
+      try {
+        const qSnap = await withTimeout(
+          getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail))),
+          2000
+        ).catch(() => null);
+
+        if (qSnap && !qSnap.empty) {
+          for (const docSnap of qSnap.docs) {
+            const d = docSnap.data();
+            if (
+              d.isBlocked === true || 
+              d.blocked === true || 
+              d.status === 'blocked' || 
+              d.disabled === true || 
+              d.isActive === false ||
+              d.role === 'blocked' ||
+              d.userStatus === 'blocked'
+            ) {
+              return {
+                isBlocked: true,
+                reason: d.blockReason || d.reason || 'Your account has been blocked by the admin. You cannot place orders.'
+              };
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    return { isBlocked: false };
+  } catch (err) {
+    console.warn('Block status verification notice:', err);
+    return { isBlocked: false };
+  }
+};
+
+/**
+ * Enables a user who authenticated via Google or without a password to set an email password
+ * so their account can be logged into via email and password!
+ */
+export const setUserPassword = async (
+  uid: string,
+  email: string,
+  passwordHash: string
+): Promise<void> => {
+  const cleanEmail = email.trim().toLowerCase();
+  const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+  const now = Date.now();
+
+  const updates = {
+    passwordHash,
+    hasPassword: true,
+    updatedAt: now
+  };
+
+  const syncPromises: Promise<any>[] = [];
+  if (uid && uid !== 'guest') {
+    syncPromises.push(setDoc(doc(db, 'users', uid), updates, { merge: true }).catch(() => {}));
+  }
+  if (emailDocId) {
+    syncPromises.push(setDoc(doc(db, 'users', emailDocId), updates, { merge: true }).catch(() => {}));
+  }
+
+  await Promise.all(syncPromises);
+
+  // Update cached profile
+  try {
+    const cachedStr = safeStorage.getItem(`marts_user_profile_${uid}`) || safeStorage.getItem('marts_user_profile');
+    if (cachedStr) {
+      const parsed = JSON.parse(cachedStr);
+      parsed.hasPassword = true;
+      safeStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(parsed));
+      safeStorage.setItem('marts_user_profile', JSON.stringify(parsed));
+    }
+  } catch (_) {}
+};
+
 // ================= USER PROFILE & ACCOUNT DETAILS =================
 export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Promise<User | null> => {
   // Strictly validate local cache belongs to this exact user email/uid
@@ -380,7 +499,14 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
           if (timeA && timeB && timeA !== timeB) return timeB - timeA;
           return String(b?.id || '').localeCompare(String(a?.id || ''));
         }),
-        role: mergedData.role || 'customer'
+        role: mergedData.role || 'customer',
+        isBlocked: Boolean(mergedData.isBlocked || mergedData.blocked || mergedData.status === 'blocked' || mergedData.disabled || mergedData.isActive === false),
+        blocked: Boolean(mergedData.isBlocked || mergedData.blocked || mergedData.status === 'blocked' || mergedData.disabled || mergedData.isActive === false),
+        status: mergedData.status || (mergedData.isBlocked || mergedData.blocked || mergedData.disabled ? 'blocked' : 'active'),
+        disabled: Boolean(mergedData.disabled || mergedData.isBlocked || mergedData.blocked),
+        blockReason: mergedData.blockReason || mergedData.reason || undefined,
+        hasPassword: Boolean(mergedData.passwordHash),
+        linkedProviders: mergedData.linkedProviders || []
       };
 
       safeStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(sanitizeUserForCache(userProfile)));
@@ -476,7 +602,14 @@ export const findUserAccountByEmail = async (email: string): Promise<{
         deliveryAddress: deliveryAddr,
         shippingAddress: data.shippingAddress || deliveryAddr,
         orders: Array.isArray(data.orders) ? data.orders : [],
-        role: data.role || 'customer'
+        role: data.role || 'customer',
+        isBlocked: Boolean(data.isBlocked || data.blocked || data.status === 'blocked' || data.disabled || data.isActive === false || data.role === 'blocked'),
+        blocked: Boolean(data.isBlocked || data.blocked || data.status === 'blocked' || data.disabled || data.isActive === false || data.role === 'blocked'),
+        status: data.status || ((data.isBlocked || data.blocked || data.disabled || data.isActive === false) ? 'blocked' : 'active'),
+        disabled: Boolean(data.disabled || data.isBlocked || data.blocked),
+        blockReason: data.blockReason || data.reason || undefined,
+        hasPassword: Boolean(data.passwordHash),
+        linkedProviders: data.linkedProviders || []
       };
 
       return {
@@ -729,7 +862,14 @@ export const restoreUserAccountByEmail = async (
     deliveryAddress: deliveryAddr,
     shippingAddress: existingData.shippingAddress || deliveryAddr,
     orders: restoredOrders,
-    role: existingData.role || 'customer'
+    role: existingData.role || 'customer',
+    isBlocked: Boolean(existingData.isBlocked || existingData.blocked || existingData.status === 'blocked' || existingData.disabled || existingData.isActive === false || existingData.role === 'blocked'),
+    blocked: Boolean(existingData.isBlocked || existingData.blocked || existingData.status === 'blocked' || existingData.disabled || existingData.isActive === false || existingData.role === 'blocked'),
+    status: existingData.status || ((existingData.isBlocked || existingData.blocked || existingData.disabled || existingData.isActive === false) ? 'blocked' : 'active'),
+    disabled: Boolean(existingData.disabled || existingData.isBlocked || existingData.blocked),
+    blockReason: existingData.blockReason || existingData.reason || undefined,
+    hasPassword: Boolean(existingData.passwordHash || (newPasswordHash ? true : false)),
+    linkedProviders: existingData.linkedProviders || []
   };
 
   // Strictly user-scoped lightweight cache only (Cloud Firestore holds full orders & details)
@@ -1007,7 +1147,15 @@ export const subscribeToUserProfile = (
         address: addressStr,
         deliveryAddress: deliveryAddr,
         shippingAddress: (data.shippingAddress || deliveryAddr) as StoreDeliveryAddress | undefined,
-        orders: data.orders || []
+        orders: data.orders || [],
+        role: data.role || 'customer',
+        isBlocked: Boolean(data.isBlocked || data.blocked || data.status === 'blocked' || data.disabled || data.isActive === false),
+        blocked: Boolean(data.isBlocked || data.blocked || data.status === 'blocked' || data.disabled || data.isActive === false),
+        status: data.status || (data.isBlocked || data.blocked || data.disabled ? 'blocked' : 'active'),
+        disabled: Boolean(data.disabled || data.isBlocked || data.blocked),
+        blockReason: data.blockReason || data.reason || undefined,
+        hasPassword: Boolean(data.passwordHash),
+        linkedProviders: data.linkedProviders || []
       };
       try {
         safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
@@ -1839,6 +1987,15 @@ export const saveOrderToFirestore = async (
   }
 
   const effectiveUserId = uid || order.userId || 'guest';
+  const effectiveEmail = customerInfo?.email || order.customerEmail;
+
+  // Verify user is not blocked by admin from placing orders
+  const blockedCheck = await checkUserBlockedStatus(effectiveUserId, effectiveEmail);
+  if (blockedCheck.isBlocked) {
+    const blockMsg = blockedCheck.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+    console.warn(`[Security Guard] Order placement blocked for user ${effectiveUserId} (${effectiveEmail}): ${blockMsg}`);
+    throw new Error(blockMsg);
+  }
 
   const finalAddress = customerInfo?.address || order.customerAddress || '';
 

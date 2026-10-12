@@ -115,6 +115,13 @@ export interface User {
   shippingAddress?: StoreDeliveryAddress;
   orders: Order[];
   role?: 'customer' | 'admin' | string;
+  isBlocked?: boolean;
+  blocked?: boolean;
+  status?: 'active' | 'blocked' | string;
+  disabled?: boolean;
+  blockReason?: string;
+  hasPassword?: boolean;
+  linkedProviders?: string[];
 }
 
 export interface OrderPricing {

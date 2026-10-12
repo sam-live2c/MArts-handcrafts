@@ -107,8 +107,8 @@ service cloud.firestore {
       // User creation during signup
       allow create: if true;
 
-      // User profile update
-      allow update: if (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role']))) || isEmailOwner() || isAdmin() || !isSignedIn();
+      // User profile update (regular user cannot unblock themselves or escalate role)
+      allow update: if isAdmin() || (isOwner(userId) && (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'isBlocked', 'blocked', 'status', 'disabled']))) || (isEmailOwner() && (!incoming().diff(existing()).affectedKeys().hasAny(['role', 'isBlocked', 'blocked', 'status', 'disabled']))) || !isSignedIn();
 
       // Only admins can delete user records
       allow delete: if isAdmin();

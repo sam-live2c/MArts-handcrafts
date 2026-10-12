@@ -52,6 +52,22 @@
           "type": "array",
           "description": "Cached order summary list for the user"
         },
+        "isBlocked": {
+          "type": "boolean",
+          "description": "Whether user is blocked by admin from placing orders"
+        },
+        "blocked": {
+          "type": "boolean",
+          "description": "Alternate flag for user blocked status"
+        },
+        "status": {
+          "type": "string",
+          "description": "User account status (active or blocked)"
+        },
+        "disabled": {
+          "type": "boolean",
+          "description": "Whether user account ordering is disabled by admin"
+        },
         "updatedAt": {
           "type": "number",
           "description": "Timestamp of the last profile or address update"

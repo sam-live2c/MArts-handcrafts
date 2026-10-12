@@ -24,7 +24,7 @@ const AddressPage = lazy(() => import('./pages/AddressPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const About = lazy(() => import('./pages/About'));
 import { CartItem, User, Order, Product, CarouselBanner } from './types';
-import { Heart, X, ChevronRight, Check, ShoppingCart, CheckCircle2 } from 'lucide-react';
+import { Heart, X, ChevronRight, Check, ShoppingCart, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -40,7 +40,8 @@ import {
   subscribeToLiveProducts,
   subscribeToCarouselBanners,
   saveOrderToFirestore,
-  reconcileCanonicalUserData
+  reconcileCanonicalUserData,
+  checkUserBlockedStatus
 } from './services/dbService';
 import { sanitizeProductRatings } from './utils/productRating';
 import { safeStorage, sanitizeUserForCache } from './utils/storage';
@@ -55,7 +56,7 @@ const GlobalToastNotification: React.FC<{
   notification: {
     show: boolean;
     message: string;
-    type: 'cart' | 'wishlist' | 'success';
+    type: 'cart' | 'wishlist' | 'success' | 'error' | 'blocked';
     item?: CartItem | Product | null;
   } | null;
   onClose: () => void;
@@ -72,16 +73,20 @@ const GlobalToastNotification: React.FC<{
         isProductPage ? 'bottom-20 sm:bottom-8' : 'bottom-6 sm:bottom-8'
       } left-1/2 -translate-x-1/2 z-[250] w-auto max-w-[94vw] sm:max-w-md pointer-events-auto animate-in slide-in-from-bottom-4 fade-in duration-200`}
     >
-      <div className="bg-white text-gray-900 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-200/90 flex items-center gap-2.5 sm:gap-3 select-none">
+      <div className={`bg-white text-gray-900 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border ${notification.type === 'blocked' ? 'border-red-300 ring-2 ring-red-100' : 'border-gray-200/90'} flex items-center gap-2.5 sm:gap-3 select-none`}>
         {notification.type === 'wishlist' ? (
           <Heart size={18} className="text-rose-500 fill-rose-500 shrink-0" />
         ) : notification.type === 'success' ? (
           <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+        ) : notification.type === 'blocked' ? (
+          <ShieldAlert size={19} className="text-red-600 shrink-0" />
+        ) : notification.type === 'error' ? (
+          <AlertCircle size={18} className="text-amber-600 shrink-0" />
         ) : (
           <ShoppingCart size={18} className="text-[#C85A32] shrink-0" />
         )}
 
-        <div className="text-xs sm:text-sm font-semibold text-gray-800 truncate max-w-[220px] xs:max-w-[260px] sm:max-w-sm flex-1 min-w-0">
+        <div className={`text-xs sm:text-sm font-semibold ${notification.type === 'blocked' ? 'text-red-900 line-clamp-2 leading-snug' : 'text-gray-800 truncate'} max-w-[240px] xs:max-w-[280px] sm:max-w-sm flex-1 min-w-0`}>
           {notification.message}
         </div>
 
@@ -126,7 +131,7 @@ const App: React.FC = () => {
   const [notification, setNotification] = useState<{
     show: boolean;
     message: string;
-    type: 'cart' | 'wishlist';
+    type: 'cart' | 'wishlist' | 'success' | 'error' | 'blocked';
     item?: CartItem | Product | null;
   } | null>(null);
 
@@ -228,6 +233,13 @@ const App: React.FC = () => {
           fetchUserProfile(firebaseUser.uid, cleanEmail).then((profile) => {
             if (profile) {
               setUser(profile);
+              if (profile.isBlocked) {
+                setNotification({
+                  show: true,
+                  message: profile.blockReason || 'Your account has been blocked by the admin. You cannot place orders.',
+                  type: 'blocked'
+                });
+              }
             } else {
               const newProfile: User = {
                 name: firebaseUser.displayName || 'Customer',
@@ -246,7 +258,10 @@ const App: React.FC = () => {
 
           // Real-time listener for universal profile updates across websites/tabs
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          unsubSnapshot = onSnapshot(userDocRef, (snap) => {
+          const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null;
+          const unsubs: (() => void)[] = [];
+
+          const handleUserDataSnapshot = (snap: any) => {
             if (snap.exists()) {
               const data = snap.data();
               const deliveryAddr = data.deliveryAddress || data.shippingAddress;
@@ -289,6 +304,15 @@ const App: React.FC = () => {
                   return String(b?.id || '').localeCompare(String(a?.id || ''));
                 });
 
+                const isBlocked = Boolean(
+                  data.isBlocked || 
+                  data.blocked || 
+                  data.status === 'blocked' || 
+                  data.disabled || 
+                  data.isActive === false ||
+                  data.role === 'blocked' ||
+                  data.userStatus === 'blocked'
+                );
                 const updated: User = {
                   name: data.displayName || data.name || prev?.name || firebaseUser.displayName || 'Customer',
                   displayName: data.displayName || data.name || prev?.displayName || firebaseUser.displayName || 'Customer',
@@ -299,8 +323,23 @@ const App: React.FC = () => {
                   address: typeof addressStr === 'string' ? addressStr : '',
                   deliveryAddress: deliveryAddr,
                   shippingAddress: data.shippingAddress || deliveryAddr,
-                  orders: bestOrders
+                  orders: bestOrders,
+                  role: data.role || prev?.role || 'customer',
+                  isBlocked,
+                  blocked: isBlocked,
+                  status: data.status || (isBlocked ? 'blocked' : 'active'),
+                  disabled: isBlocked,
+                  blockReason: data.blockReason || data.reason || undefined,
+                  hasPassword: Boolean(data.passwordHash),
+                  linkedProviders: data.linkedProviders || []
                 };
+                if (isBlocked && !prev?.isBlocked) {
+                  setNotification({
+                    show: true,
+                    message: data.blockReason || 'Your account has been blocked by the admin. You cannot place orders.',
+                    type: 'blocked'
+                  });
+                }
                 try {
                   safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updated)));
                   if (updated.address) {
@@ -310,9 +349,18 @@ const App: React.FC = () => {
                 return updated;
               });
             }
-          }, (err) => {
-            console.warn('Realtime user profile snapshot notice:', err);
-          });
+          };
+
+          unsubs.push(onSnapshot(userDocRef, handleUserDataSnapshot, (err) => console.warn('User UID snapshot notice:', err)));
+          if (emailDocId && emailDocId !== firebaseUser.uid) {
+            unsubs.push(onSnapshot(doc(db, 'users', emailDocId), handleUserDataSnapshot, (err) => console.warn('User email doc snapshot notice:', err)));
+          }
+
+          unsubSnapshot = () => {
+            unsubs.forEach(u => {
+              try { u(); } catch (_) {}
+            });
+          };
 
           // Fetch Cart, Wishlist, Orders directly from Cloud Firestore
           const [dbCart, dbWishlist, dbOrders] = await Promise.all([
@@ -440,10 +488,20 @@ const App: React.FC = () => {
     }
   }, [wishlist, user?.email]);
 
-  const showToast = (message: string, type: 'cart' | 'wishlist' | 'success' = 'cart', item?: CartItem | Product | null) => {
+  const showToast = (message: string, type: 'cart' | 'wishlist' | 'success' | 'error' | 'blocked' = 'cart', item?: CartItem | Product | null) => {
     setNotification({ show: true, message, type, item });
-    setTimeout(() => setNotification(null), 3500);
+    setTimeout(() => setNotification(null), 4000);
   };
+
+  useEffect(() => {
+    const handleCustomToast = (e: any) => {
+      if (e.detail?.message) {
+        showToast(e.detail.message, e.detail.type || 'success', e.detail.item);
+      }
+    };
+    window.addEventListener('marts_show_toast', handleCustomToast);
+    return () => window.removeEventListener('marts_show_toast', handleCustomToast);
+  }, []);
 
   const addToCart = (item: CartItem, silent?: boolean) => {
     setCart(prev => {

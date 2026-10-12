@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CartItem, User, Order } from '../types';
-import { Lock, ArrowLeft, Check, ChevronDown, ChevronUp, Star, CreditCard, Banknote, Calendar, Building, Gift, HelpCircle, ArrowDown, Plus, Minus, ShieldCheck, CheckCircle2, AlertCircle, Smartphone, X, Upload, FileText, Copy, Truck, Package } from 'lucide-react';
+import { Lock, ArrowLeft, Check, ChevronDown, ChevronUp, Star, CreditCard, Banknote, Calendar, Building, Gift, HelpCircle, ArrowDown, Plus, Minus, ShieldCheck, CheckCircle2, AlertCircle, Smartphone, X, Upload, FileText, Copy, Truck, Package, ShieldAlert } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
@@ -11,7 +11,8 @@ import {
   uploadCustomizationMedia,
   saveCustomerDeliveryAddress,
   StoreDeliveryAddress,
-  checkDailyOrderLimit
+  checkDailyOrderLimit,
+  checkUserBlockedStatus
 } from '../services/dbService';
 import { openRazorpayCheckout } from '../utils/razorpay';
 import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
@@ -76,6 +77,29 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     };
     fetchTodayQuota();
   }, [user]);
+
+  const isUserBlocked = Boolean(user?.isBlocked || user?.blocked || user?.status === 'blocked' || user?.disabled);
+  const [dbBlocked, setDbBlocked] = useState<boolean>(isUserBlocked);
+  const [blockReason, setBlockReason] = useState<string>(user?.blockReason || '');
+
+  useEffect(() => {
+    const checkBlock = async () => {
+      const uid = auth.currentUser?.uid || user?.uid;
+      const res = await checkUserBlockedStatus(uid, user?.email);
+      if (res.isBlocked) {
+        setDbBlocked(true);
+        if (res.reason) setBlockReason(res.reason);
+        const msg = res.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+        setPaymentError(msg);
+        window.dispatchEvent(new CustomEvent('marts_show_toast', {
+          detail: { message: msg, type: 'blocked' }
+        }));
+      } else {
+        setDbBlocked(isUserBlocked);
+      }
+    };
+    checkBlock();
+  }, [user?.email, user?.isBlocked, isUserBlocked]);
 
   useEffect(() => {
     if (paymentError) {
@@ -331,6 +355,30 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     setIsProcessing(true);
     const currentUser = auth.currentUser;
     const uid = currentUser ? currentUser.uid : 'guest';
+
+    // Strict Admin Account Block Check: Show toast and reject
+    if (isUserBlocked || dbBlocked) {
+      const blockedMsg = blockReason || user?.blockReason || 'Your account has been blocked by the admin. You cannot place orders.';
+      setPaymentError(blockedMsg);
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: blockedMsg, type: 'blocked' }
+      }));
+      setIsProcessing(false);
+      return;
+    }
+
+    const liveBlockCheck = await checkUserBlockedStatus(uid, user?.email || undefined);
+    if (liveBlockCheck.isBlocked) {
+      setDbBlocked(true);
+      if (liveBlockCheck.reason) setBlockReason(liveBlockCheck.reason);
+      const blockedMsg = liveBlockCheck.reason || 'Your account has been blocked by the admin. You cannot place orders.';
+      setPaymentError(blockedMsg);
+      window.dispatchEvent(new CustomEvent('marts_show_toast', {
+        detail: { message: blockedMsg, type: 'blocked' }
+      }));
+      setIsProcessing(false);
+      return;
+    }
 
     // Production delivery address validation with robust Indian phone normalization
     const customerName = (activeAddress.name || user?.name || user?.displayName || '').trim();
@@ -943,6 +991,17 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                        <span className="text-2xl font-extrabold text-[#C85A32]">₹{total.toLocaleString()}</span>
                     </div>
 
+                    {/* Blocked Account Alert Banner */}
+                    {(isUserBlocked || dbBlocked) && (
+                      <div className="my-3 p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-800 animate-in fade-in">
+                        <ShieldAlert size={22} className="text-red-600 shrink-0" />
+                        <div className="text-xs flex-1">
+                          <p className="font-bold text-red-900 text-sm">Account Blocked by Administrator</p>
+                          <p className="text-red-700 mt-0.5">{blockReason || user?.blockReason || 'Your account has been blocked from placing orders. Please contact customer support.'}</p>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Payment Options Section - flush, clean dividers */}
                     <div className="py-3 border-b border-gray-100 space-y-4">
                        <label 
@@ -1034,10 +1093,19 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                            <button 
                              type="button"
                              onClick={handlePlaceOrder} 
-                             disabled={isProcessing} 
-                             className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[240px] shadow-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                             disabled={isProcessing || isUserBlocked || dbBlocked} 
+                             className={`${
+                               isUserBlocked || dbBlocked
+                                 ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                                 : 'bg-[#C85A32] hover:bg-[#A04724] cursor-pointer'
+                             } text-white font-bold px-8 h-12 rounded-xl text-[16px] w-[260px] shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-75`}
                            >
-                              {isProcessing ? (
+                              {isUserBlocked || dbBlocked ? (
+                                <span className="flex items-center gap-2">
+                                  <ShieldAlert size={16} />
+                                  <span>Account Blocked</span>
+                                </span>
+                              ) : isProcessing ? (
                                 <span className="flex items-center justify-center gap-2 whitespace-nowrap">
                                   <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1077,10 +1145,19 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                  {step === 3 && (
                    <button 
                      onClick={handlePlaceOrder} 
-                     disabled={isProcessing} 
-                     className="bg-[#C85A32] hover:bg-[#A04724] text-white font-bold px-4 h-11 rounded-xl text-[15px] w-[170px] shadow-md transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-75"
+                     disabled={isProcessing || isUserBlocked || dbBlocked} 
+                     className={`${
+                       isUserBlocked || dbBlocked
+                         ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                         : 'bg-[#C85A32] hover:bg-[#A04724] cursor-pointer'
+                     } text-white font-bold px-4 h-11 rounded-xl text-[14px] w-[180px] shadow-md transition-colors flex items-center justify-center gap-2 disabled:opacity-75`}
                    >
-                      {isProcessing ? (
+                      {isUserBlocked || dbBlocked ? (
+                        <span className="flex items-center gap-1.5 text-xs font-bold">
+                          <ShieldAlert size={15} />
+                          <span>Account Blocked</span>
+                        </span>
+                      ) : isProcessing ? (
                         <span className="flex items-center justify-center gap-2 whitespace-nowrap">
                           <svg className="animate-spin h-4 w-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
