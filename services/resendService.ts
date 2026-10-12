@@ -7,6 +7,7 @@ export interface SendOtpResult {
   success: boolean;
   delivered?: boolean;
   resendId?: string;
+  token?: string;
   domainRestricted?: boolean;
   registeredOwnerEmail?: string;
   otp?: string;
@@ -34,13 +35,32 @@ export const resendService = {
         body: JSON.stringify({ email, type })
       });
 
-      const data = await response.json();
+      let data: any;
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('[resendService.sendOtp non-JSON response]', response.status, text.slice(0, 150));
+        return {
+          success: false,
+          error: response.status === 404
+            ? 'Backend API route not found (404). Please ensure serverless routes are deployed.'
+            : `Server returned an unexpected response (Status ${response.status}). Please try again.`
+        };
+      }
 
       if (!response.ok && !data.domainRestricted) {
         return {
           success: false,
           error: data.error || 'Failed to send verification code. Please try again.'
         };
+      }
+
+      // Store verification token for stateless serverless verification
+      if (data.token) {
+        try {
+          sessionStorage.setItem('marts_otp_token', data.token);
+        } catch (_) {}
       }
 
       return data;
@@ -58,15 +78,30 @@ export const resendService = {
    */
   async verifyOtp(email: string, otp: string): Promise<VerifyOtpResult> {
     try {
+      let token: string | null = null;
+      try {
+        token = sessionStorage.getItem('marts_otp_token');
+      } catch (_) {}
+
       const response = await fetch('/api/verify-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ email, otp })
+        body: JSON.stringify({ email, otp, token })
       });
 
-      const data = await response.json();
+      let data: any;
+      const text = await response.text();
+      try {
+        data = JSON.parse(text);
+      } catch {
+        console.error('[resendService.verifyOtp non-JSON response]', response.status, text.slice(0, 150));
+        return {
+          success: false,
+          error: `Server returned an unexpected response (Status ${response.status}). Please try again.`
+        };
+      }
 
       if (!response.ok) {
         return {
@@ -74,6 +109,11 @@ export const resendService = {
           error: data.error || 'Invalid verification code.'
         };
       }
+
+      // Clean up token after successful verification
+      try {
+        sessionStorage.removeItem('marts_otp_token');
+      } catch (_) {}
 
       return {
         success: true,
@@ -94,7 +134,8 @@ export const resendService = {
   async checkStatus(): Promise<{ status: string; resendConfigured: boolean; fromEmail?: string }> {
     try {
       const response = await fetch('/api/resend-status');
-      return await response.json();
+      const text = await response.text();
+      return JSON.parse(text);
     } catch {
       return { status: 'error', resendConfigured: false };
     }

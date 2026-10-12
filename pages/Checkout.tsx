@@ -56,21 +56,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   // 1: Address, 2: Summary, 3: Payment
   const [step, setStep] = useState(2);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState<Order | null>(() => {
-    try {
-      const saved = sessionStorage.getItem('marts_last_placed_order');
-      if (saved) return JSON.parse(saved);
-    } catch (_) {}
-    return null;
-  });
-  const [isOrderPlaced, setIsOrderPlaced] = useState<boolean>(() => {
-    try {
-      return Boolean(sessionStorage.getItem('marts_last_placed_order'));
-    } catch (_) {
-      return false;
-    }
-  });
-  const [copiedOrderId, setCopiedOrderId] = useState(false);
   const [paymentOption, setPaymentOption] = useState<'razorpay' | 'cod'>('razorpay');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [customizationToast, setCustomizationToast] = useState<string | null>(null);
@@ -516,12 +501,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           updatedAt: Date.now()
         };
 
-        try {
-          sessionStorage.setItem('marts_last_placed_order', JSON.stringify(newOrder));
-        } catch (_) {}
-
-        setPlacedOrder(newOrder);
-        setIsOrderPlaced(true);
         setIsProcessing(false);
         try {
           await onOrderSuccess(newOrder);
@@ -529,6 +508,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           console.warn('Order success handler warning:', e);
         }
         clearCart();
+        navigate('/orders', { replace: true });
       } catch (err: unknown) {
         setIsProcessing(false);
         if (err instanceof Error && err.message === 'PAYMENT_CANCELLED') {
@@ -599,12 +579,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           updatedAt: Date.now()
         };
 
-        try {
-          sessionStorage.setItem('marts_last_placed_order', JSON.stringify(newOrder));
-        } catch (_) {}
-
-        setPlacedOrder(newOrder);
-        setIsOrderPlaced(true);
         setIsProcessing(false);
         try {
           await onOrderSuccess(newOrder);
@@ -612,6 +586,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           console.warn('Order success handler warning:', e);
         }
         clearCart();
+        navigate('/orders', { replace: true });
       } catch (err: unknown) {
         setIsProcessing(false);
         setPaymentError(err instanceof Error ? err.message : 'Could not authorize Cash on Delivery order.');
@@ -621,159 +596,17 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   };
 
   useEffect(() => {
-    if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
+    if (cart.length === 0 && !isProcessing) {
       const timer = setTimeout(() => {
-        if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
+        if (cart.length === 0 && !isProcessing) {
           navigate('/cart', { replace: true });
         }
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [cart.length, navigate, isOrderPlaced, placedOrder]);
+  }, [cart.length, navigate, isProcessing]);
 
-  // Production-grade Order Confirmation Screen
-  if (isOrderPlaced && placedOrder) {
-    const isCod = placedOrder.paymentMethod === 'Cash on Delivery';
-    return (
-      <div className="w-full bg-[#FAF8F5] min-h-screen py-6 sm:py-10 px-4 sm:px-6 lg:px-8 text-[#2B221B] animate-in fade-in duration-200">
-        <div className="max-w-2xl mx-auto space-y-6">
-          {/* Main Success Banner Card */}
-          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EADBCC] shadow-sm text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shadow-xs">
-              <Check size={34} strokeWidth={2.8} />
-            </div>
-
-            <div>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[#C85A32] block mb-1">
-                Order Confirmed & Authorized
-              </span>
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B]">
-                Thank You for Your Order!
-              </h1>
-              <p className="text-xs sm:text-sm text-[#735A4C] mt-1.5 max-w-md mx-auto leading-relaxed">
-                Your order has been registered in our artisan fulfillment queue. We are preparing your handcrafted pottery and sculptures with utmost care.
-              </p>
-            </div>
-
-            {/* Order ID Pill with Copy */}
-            <div className="inline-flex items-center gap-2 bg-[#FAF5EF] border border-[#EADBCC] px-4 py-2 rounded-full text-xs sm:text-sm">
-              <span className="text-[#735A4C]">Order ID:</span>
-              <span className="font-mono font-bold text-[#2B221B]">#{placedOrder.id}</span>
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(placedOrder.id);
-                  setCopiedOrderId(true);
-                  setTimeout(() => setCopiedOrderId(false), 2000);
-                }}
-                className="ml-1 text-[#C85A32] hover:text-[#9C4320] transition-colors p-1 rounded-md"
-                title="Copy Order ID"
-                aria-label="Copy Order ID"
-              >
-                {copiedOrderId ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-              </button>
-            </div>
-
-            {/* Payment & Security Badge */}
-            <div className="pt-2">
-              {isCod ? (
-                <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold px-3.5 py-1.5 rounded-full">
-                  <Banknote size={15} className="text-amber-700 shrink-0" />
-                  <span>Cash on Delivery • Pay ₹{Number(placedOrder.total).toLocaleString()} upon package arrival</span>
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold px-3.5 py-1.5 rounded-full">
-                  <ShieldCheck size={15} className="text-emerald-700 shrink-0" />
-                  <span>Online Payment Verified via Razorpay • Ref: {placedOrder.paymentId || 'Settled'}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Primary Action Buttons */}
-            <div className="pt-4 flex flex-col sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  try { sessionStorage.removeItem('marts_last_placed_order'); } catch (_) {}
-                  navigate('/orders');
-                }}
-                className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold rounded-xl text-sm transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Package size={17} />
-                <span>View in My Orders</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  try { sessionStorage.removeItem('marts_last_placed_order'); } catch (_) {}
-                  navigate('/products');
-                }}
-                className="flex-1 h-12 bg-[#FAF5EF] hover:bg-[#F2E8DE] border border-[#EADBCC] text-[#2B221B] font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>Continue Shopping</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Delivery & Items Summary Card */}
-          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EADBCC] shadow-sm space-y-5">
-            <div className="flex items-center justify-between border-b border-[#EADBCC]/80 pb-3">
-              <div className="flex items-center gap-2 text-[#2B221B] font-bold text-sm">
-                <Truck size={18} className="text-[#C85A32]" />
-                <span>Delivery Address</span>
-              </div>
-              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
-                Insured Timber Crate
-              </span>
-            </div>
-
-            <div className="text-xs sm:text-sm text-[#4E392D] space-y-1">
-              <p className="font-bold text-[#2B221B]">{placedOrder.customerName}</p>
-              <p>{placedOrder.customerAddress}</p>
-              <p className="text-[#735A4C]">Phone: <strong className="text-[#2B221B] font-medium">{placedOrder.customerPhone}</strong></p>
-            </div>
-
-            {/* Ordered Items Preview */}
-            <div className="border-t border-[#EADBCC]/80 pt-4 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C3F1E]">
-                Ordered Items ({placedOrder.items.length})
-              </h4>
-              <div className="space-y-3 divide-y divide-[#EADBCC]/50">
-                {placedOrder.items.map((item, idx) => (
-                  <div key={idx} className="pt-3 first:pt-0 flex items-center justify-between gap-3 text-xs sm:text-sm">
-                    <div className="flex items-center gap-3 min-w-0">
-                      {item.image && (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-12 h-12 object-contain bg-[#FAF5EF] border border-[#EADBCC]/60 rounded-xl shrink-0 p-1"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-semibold text-[#2B221B] truncate">{item.name}</p>
-                        <p className="text-[11px] text-[#735A4C]">Qty: {item.quantity || 1}</p>
-                      </div>
-                    </div>
-                    <span className="font-bold text-[#2B221B] shrink-0">
-                      ₹{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Total Paid / Payable */}
-            <div className="border-t border-[#EADBCC] pt-3.5 flex items-center justify-between text-sm sm:text-base font-bold text-[#2B221B]">
-              <span>{isCod ? 'Payable on Delivery' : 'Total Paid'}</span>
-              <span className="text-lg text-[#C85A32]">₹{Number(placedOrder.total).toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
+  if (cart.length === 0) {
     return (
       <div className="w-full bg-[#FAF8F5] min-h-[70vh] flex flex-col items-center justify-center p-6 text-center select-none">
         <Package size={52} className="text-[#C85A32]/40 mb-3" />

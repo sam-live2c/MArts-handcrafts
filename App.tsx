@@ -24,7 +24,7 @@ const AddressPage = lazy(() => import('./pages/AddressPage'));
 const PolicyPage = lazy(() => import('./pages/PolicyPage'));
 const About = lazy(() => import('./pages/About'));
 import { CartItem, User, Order, Product, CarouselBanner } from './types';
-import { Heart, X, ChevronRight, Check, ShoppingCart } from 'lucide-react';
+import { Heart, X, ChevronRight, Check, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
@@ -52,7 +52,7 @@ const GlobalToastNotification: React.FC<{
   notification: {
     show: boolean;
     message: string;
-    type: 'cart' | 'wishlist';
+    type: 'cart' | 'wishlist' | 'success';
     item?: CartItem | Product | null;
   } | null;
   onClose: () => void;
@@ -72,6 +72,8 @@ const GlobalToastNotification: React.FC<{
       <div className="bg-white text-gray-900 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-200/90 flex items-center gap-2.5 sm:gap-3 select-none">
         {notification.type === 'wishlist' ? (
           <Heart size={18} className="text-rose-500 fill-rose-500 shrink-0" />
+        ) : notification.type === 'success' ? (
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
         ) : (
           <ShoppingCart size={18} className="text-[#C85A32] shrink-0" />
         )}
@@ -336,7 +338,7 @@ const App: React.FC = () => {
     }
   }, [wishlist]);
 
-  const showToast = (message: string, type: 'cart' | 'wishlist' = 'cart', item?: CartItem | Product | null) => {
+  const showToast = (message: string, type: 'cart' | 'wishlist' | 'success' = 'cart', item?: CartItem | Product | null) => {
     setNotification({ show: true, message, type, item });
     setTimeout(() => setNotification(null), 3500);
   };
@@ -429,6 +431,8 @@ const App: React.FC = () => {
           console.warn('Notice: user doc orders update offline:', e);
         });
       }
+
+      showToast('Order placed successfully!', 'success');
     } catch (err) {
       console.warn('Error in handleAddOrder:', err);
     }
