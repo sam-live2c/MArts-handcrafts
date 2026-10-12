@@ -25,8 +25,9 @@ import {
   Heart
 } from "lucide-react";
 import { CartItem, User, Review, Order, Product } from "../types";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { fetchUserOrders } from "../services/dbService";
 import Logo from "../components/Logo";
 import RunningTruckIcon from "../components/RunningTruckIcon";
 import { ProductDetailSkeleton } from "../components/Skeleton";
@@ -184,64 +185,85 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     }
   };
 
-  // Extract all user orders from user profile & localStorage caches
+  const [liveOrders, setLiveOrders] = useState<Order[]>([]);
+
+  // Fetch live orders for authenticated user to ensure fresh delivery status
+  useEffect(() => {
+    const uid = user?.id || (user as any)?.uid || auth.currentUser?.uid;
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    if (uid) {
+      fetchUserOrders(uid, cleanEmail).then((res) => {
+        if (Array.isArray(res) && res.length > 0) {
+          setLiveOrders(res);
+        }
+      }).catch(() => {});
+    }
+  }, [user]);
+
+  // Extract all user orders from user profile, live orders, and localStorage caches
   const userOrders: Order[] = useMemo(() => {
     const list: Order[] = [];
     if (user && Array.isArray(user.orders)) {
       list.push(...user.orders);
     }
-    try {
-      const cached = localStorage.getItem("melody_orders");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((po: Order) => {
-            if (!list.some((o) => o.id === po.id)) {
-              list.push(po);
-            }
-          });
+    if (liveOrders.length > 0) {
+      liveOrders.forEach((lo) => {
+        const idx = list.findIndex((o) => o.id === lo.id);
+        if (idx >= 0) {
+          list[idx] = lo;
+        } else {
+          list.push(lo);
         }
-      }
-      if (user?.email) {
-        const userCache = localStorage.getItem(`melody_orders_${user.email}`);
-        if (userCache) {
-          const parsed = JSON.parse(userCache);
+      });
+    }
+
+    const uid = user?.id || (user as any)?.uid || auth.currentUser?.uid;
+    const sources = [
+      'marts_orders',
+      'melody_orders',
+      uid ? `marts_orders_${uid}` : null,
+      uid ? `melody_orders_${uid}` : null,
+      user?.email ? `marts_orders_${user.email}` : null,
+      user?.email ? `melody_orders_${user.email}` : null,
+      user?.phone ? `marts_orders_${user.phone}` : null,
+      user?.phone ? `melody_orders_${user.phone}` : null,
+    ].filter(Boolean) as string[];
+
+    for (const key of sources) {
+      try {
+        const cached = localStorage.getItem(key);
+        if (cached) {
+          const parsed = JSON.parse(cached);
           if (Array.isArray(parsed)) {
             parsed.forEach((po: Order) => {
-              if (!list.some((o) => o.id === po.id)) {
-                list.push(po);
+              if (po && po.id) {
+                const idx = list.findIndex((o) => o.id === po.id);
+                if (idx >= 0) {
+                  if ((po.updatedAt || 0) > (list[idx].updatedAt || 0)) {
+                    list[idx] = po;
+                  }
+                } else {
+                  list.push(po);
+                }
               }
             });
           }
         }
+      } catch (err) {
+        console.error("Order read error:", err);
       }
-      if (user?.phone) {
-        const phoneCache = localStorage.getItem(`melody_orders_${user.phone}`);
-        if (phoneCache) {
-          const parsed = JSON.parse(phoneCache);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((po: Order) => {
-              if (!list.some((o) => o.id === po.id)) {
-                list.push(po);
-              }
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.error("Order read error:", err);
     }
     return list;
-  }, [user]);
+  }, [user, liveOrders]);
 
-  // Identify purchase: search purchase history records for this product's ID
+  // Identify purchase: only users who purchased this specific product and whose delivery status is delivered can write reviews
   const matchingPurchase = useMemo(() => {
     return (
       userOrders.find(
         (order) =>
           Boolean(order?.id) &&
-          order.status !== "Cancelled" &&
-          order.status !== "Failed" &&
+          (String(order.status || '').trim().toLowerCase() === 'delivered' ||
+           String(order.tracking?.currentStatus || '').trim().toLowerCase() === 'delivered') &&
           Array.isArray(order.items) &&
           order.items.some(
             (item: any) =>
