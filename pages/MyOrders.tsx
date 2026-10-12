@@ -10,7 +10,7 @@ import { User, Order, CartItem } from '../types';
 import Header from '../components/Header';
 import { auth, db } from '../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { fetchUserOrders } from '../services/dbService';
+import { fetchUserOrders, getAssociatedUserIdsForEmail } from '../services/dbService';
 import { safeStorage } from '../utils/storage';
 import { OrderHistorySkeleton } from '../components/Skeleton';
 
@@ -237,11 +237,37 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
               console.warn('Canonical orders subcollection listener notice:', err);
             });
           } catch (err) {
-            console.warn('Canonical orders subcollection setup notice:', err);
+            console.warn('Canonical orders setup notice:', err);
           }
         }
+
+        // Also listen to all candidate user documents and subcollections for this email
+        getAssociatedUserIdsForEmail(cleanEmail, uid).then(associatedUids => {
+          for (const candId of associatedUids) {
+            if (candId !== uid && candId !== emailDocId) {
+              try {
+                const candOrdersRef = collection(db, 'users', candId, 'orders');
+                const unsub = onSnapshot(candOrdersRef, (snapshot) => {
+                  snapshot.forEach(docSnap => {
+                    const ord = docSnap.data() as Order;
+                    if (ord && ord.id) {
+                      const existing = masterOrdersMap.get(String(ord.id));
+                      if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                        masterOrdersMap.set(String(ord.id), { ...existing, ...ord });
+                      }
+                    }
+                  });
+                  syncAndDispatchOrders();
+                }, () => {});
+                activeCandidateUnsubs.push(unsub);
+              } catch (_) {}
+            }
+          }
+        }).catch(() => {});
       }
     };
+
+    let activeCandidateUnsubs: (() => void)[] = [];
 
     const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
     const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
@@ -276,6 +302,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         unsubCanonicalOrders();
         unsubCanonicalOrders = null;
       }
+      activeCandidateUnsubs.forEach(u => u());
+      activeCandidateUnsubs = [];
 
       const activeCleanEmail = (user?.email || currentUser?.email || '').trim().toLowerCase();
       const activeEmailDocId = activeCleanEmail ? 'marts_user_' + activeCleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
@@ -300,6 +328,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       if (unsubGlobalOrders) unsubGlobalOrders();
       if (unsubEmailOrders) unsubEmailOrders();
       if (unsubCanonicalOrders) unsubCanonicalOrders();
+      activeCandidateUnsubs.forEach(u => u());
+      activeCandidateUnsubs = [];
       unsubscribeAuth();
     };
   }, [user?.email, (user as any)?.uid]);

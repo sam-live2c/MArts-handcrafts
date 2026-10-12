@@ -316,8 +316,8 @@ const App: React.FC = () => {
 
           // Fetch Cart, Wishlist, Orders directly from Cloud Firestore
           const [dbCart, dbWishlist, dbOrders] = await Promise.all([
-            fetchUserCart(firebaseUser.uid),
-            fetchUserWishlist(firebaseUser.uid),
+            fetchUserCart(firebaseUser.uid, cleanEmail),
+            fetchUserWishlist(firebaseUser.uid, cleanEmail),
             fetchUserOrders(firebaseUser.uid, cleanEmail)
           ]);
 
@@ -364,8 +364,8 @@ const App: React.FC = () => {
               if (cachedUid) {
                 // Fetch cart, wishlist, orders for this authenticated user in background
                 Promise.all([
-                  fetchUserCart(cachedUid),
-                  fetchUserWishlist(cachedUid),
+                  fetchUserCart(cachedUid, cleanCachedEmail),
+                  fetchUserWishlist(cachedUid, cleanCachedEmail),
                   fetchUserOrders(cachedUid, cleanCachedEmail)
                 ]).then(([dbCart, dbWishlist, dbOrders]) => {
                   if (Array.isArray(dbCart) && dbCart.length > 0) setCart(dbCart);
@@ -421,22 +421,24 @@ const App: React.FC = () => {
     try {
       safeStorage.setItem('marts_cart', JSON.stringify(cart));
     } catch {}
-    const currentUser = auth.currentUser;
-    if (currentUser && cart.length >= 0) {
-      syncUserCartToFirestore(currentUser.uid, cart).catch(e => console.warn('Cart sync notice:', e));
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : 'guest');
+    if (currentUid && currentUid !== 'guest' && cart.length >= 0) {
+      syncUserCartToFirestore(currentUid, cart, cleanEmail).catch(e => console.warn('Cart sync notice:', e));
     }
-  }, [cart]);
+  }, [cart, user?.email]);
 
   // Sync Wishlist with local cache & Firestore when updated
   useEffect(() => {
     try {
       safeStorage.setItem('marts_wishlist', JSON.stringify(wishlist));
     } catch {}
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      syncUserWishlistToFirestore(currentUser.uid, wishlist).catch(e => console.warn('Wishlist sync notice:', e));
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : 'guest');
+    if (currentUid && currentUid !== 'guest') {
+      syncUserWishlistToFirestore(currentUid, wishlist, cleanEmail).catch(e => console.warn('Wishlist sync notice:', e));
     }
-  }, [wishlist]);
+  }, [wishlist, user?.email]);
 
   const showToast = (message: string, type: 'cart' | 'wishlist' | 'success' = 'cart', item?: CartItem | Product | null) => {
     setNotification({ show: true, message, type, item });

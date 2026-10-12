@@ -225,6 +225,65 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 3000): Promise<T>
   }
 };
 
+/**
+ * Resolves all candidate document IDs associated with a given email address.
+ * An email may be linked to:
+ * 1. A Google Auth UID (document in users where data.email == cleanEmail)
+ * 2. An email-prefixed doc ID ('marts_user_' + sanitizedEmail)
+ * 3. A raw email doc ID (e.g. users/prople.org@gmail.com)
+ * 4. The currently authenticated or active session UID
+ * By aggregating all candidate IDs, data (orders, addresses, profile) is 100% unified
+ * regardless of whether the user signed in with Google or Email/Password or Email OTP.
+ */
+export async function getAssociatedUserIdsForEmail(
+  email?: string | null,
+  currentUid?: string | null
+): Promise<string[]> {
+  const ids = new Set<string>();
+  if (currentUid && currentUid !== 'guest') {
+    ids.add(currentUid);
+  }
+
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (!cleanEmail) {
+    return Array.from(ids);
+  }
+
+  // 1. Raw email doc ID
+  ids.add(cleanEmail);
+
+  // 2. Deterministic sanitized doc ID
+  const sanitizedId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+  ids.add(sanitizedId);
+
+  // 3. Query users collection for any documents where email == cleanEmail (discovers Google Auth UID)
+  try {
+    const qSnap = await withTimeout(
+      getDocs(query(collection(db, 'users'), where('email', '==', cleanEmail))),
+      2500
+    ).catch(() => null);
+
+    if (qSnap && !qSnap.empty) {
+      qSnap.forEach((docSnap) => {
+        if (docSnap.id) ids.add(docSnap.id);
+      });
+    }
+  } catch (_) {}
+
+  // 4. Also check if local storage has stored linked or reconciled user IDs
+  try {
+    const cachedStr = safeStorage.getItem(`marts_user_profile_${currentUid}`) || safeStorage.getItem('marts_user_profile');
+    if (cachedStr) {
+      const parsed = JSON.parse(cachedStr);
+      if (parsed.uid) ids.add(parsed.uid);
+      if (parsed.reconciledFrom) ids.add(parsed.reconciledFrom);
+      if (parsed.reconciledTo) ids.add(parsed.reconciledTo);
+    }
+  } catch (_) {}
+
+  return Array.from(ids);
+}
+
 // ================= USER PROFILE & ACCOUNT DETAILS =================
 export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Promise<User | null> => {
   // Strictly validate local cache belongs to this exact user email/uid
@@ -241,26 +300,32 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
   } catch (_) {}
 
   try {
-    const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
 
-    // Fetch user doc and email doc from Cloud Firestore
-    const fetchPromises: Promise<any>[] = [
-      withTimeout(getDoc(doc(db, 'users', uid)), 2500).catch(() => null)
-    ];
-    if (emailDocId && emailDocId !== uid) {
-      fetchPromises.push(withTimeout(getDoc(doc(db, 'users', emailDocId)), 2500).catch(() => null));
-    }
+    // Fetch candidate user docs from Cloud Firestore
+    const fetchPromises: Promise<any>[] = associatedUids.map(candId =>
+      withTimeout(getDoc(doc(db, 'users', candId)), 2500).catch(() => null)
+    );
 
-    const [userDocSnap, emailSnap] = await Promise.all(fetchPromises);
+    const docSnaps = await Promise.all(fetchPromises);
+    const validSnaps = docSnaps.filter(s => s && s.exists());
 
-    if (userDocSnap && userDocSnap.exists()) {
-      const data = userDocSnap.data();
-      const userEmail = (data.email || cleanEmail || '').trim().toLowerCase();
-      const emailDocData = (emailSnap && emailSnap.exists()) ? emailSnap.data() : {};
+    if (validSnaps.length > 0) {
+      // Find the primary document (prefer uid doc if exists, else first existing doc)
+      const primarySnap = validSnaps.find(s => s.id === uid) || validSnaps[0];
+      const data = primarySnap.data();
 
-      const deliveryAddr = (data.deliveryAddress || data.shippingAddress || emailDocData.deliveryAddress || emailDocData.shippingAddress) as StoreDeliveryAddress | undefined;
-      let addressStr = (typeof data.address === 'string' ? data.address : '') || (typeof emailDocData.address === 'string' ? emailDocData.address : '') || '';
-      
+      // Collect data merged from all candidate docs (e.g. Google doc might have avatar/name, email doc might have address)
+      let mergedData: Record<string, any> = {};
+      for (const s of validSnaps) {
+        mergedData = { ...s.data(), ...mergedData };
+      }
+      mergedData = { ...mergedData, ...data }; // primary overrides
+
+      const userEmail = (mergedData.email || cleanEmail || '').trim().toLowerCase();
+      const deliveryAddr = (mergedData.deliveryAddress || mergedData.shippingAddress) as StoreDeliveryAddress | undefined;
+      let addressStr = (typeof mergedData.address === 'string' ? mergedData.address : '') || '';
+
       if (!addressStr && deliveryAddr) {
         if (typeof deliveryAddr === 'string') {
           addressStr = deliveryAddr;
@@ -276,38 +341,46 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
         }
       }
 
-      // Check cached orders strictly scoped to this uid
-      const cachedOrders = (Array.isArray(cachedUser?.orders) && cachedUser.orders.length > 0)
-        ? cachedUser.orders
-        : (() => {
-            try {
-              const o = safeStorage.getItem(`marts_orders_${uid}`);
-              return o ? JSON.parse(o) : [];
-            } catch { return []; }
-          })();
+      // Check cached orders strictly scoped to candidate UIDs
+      const ordMap = new Map<string, Order>();
+      for (const candId of associatedUids) {
+        try {
+          const raw = safeStorage.getItem(`marts_orders_${candId}`);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) arr.forEach((o: Order) => { if (o && o.id) ordMap.set(String(o.id), o); });
+          }
+        } catch (_) {}
+      }
+      // Add orders stored in any candidate document's orders array
+      for (const s of validSnaps) {
+        const sData = s.data();
+        if (Array.isArray(sData.orders)) {
+          sData.orders.forEach((o: Order) => { if (o && o.id) ordMap.set(String(o.id), o); });
+        }
+      }
 
-      const initialOrders = Array.isArray(data.orders) && data.orders.length > 0
-        ? data.orders
-        : (Array.isArray(emailDocData.orders) && emailDocData.orders.length > 0
-            ? emailDocData.orders
-            : cachedOrders);
-
-      // Refresh orders in background from Cloud Firebase
+      // Refresh full unified orders in background from Cloud Firebase
       fetchUserOrders(uid, userEmail).catch(() => {});
 
       const userProfile: User = {
-        name: data.displayName || data.name || emailDocData.displayName || emailDocData.name || cachedUser?.name || 'Customer',
-        displayName: data.displayName || data.name || emailDocData.displayName || emailDocData.name || cachedUser?.displayName || 'Customer',
-        businessName: data.businessName || emailDocData.businessName || '',
-        phone: String(data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phone || ''),
-        phoneNumber: String(data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phoneNumber || ''),
-        email: userEmail || data.email || cachedUser?.email || '',
-        avatar: data.avatar || data.photoURL || emailDocData.avatar || cachedUser?.avatar || undefined,
-        address: addressStr || '', // Never inherit from another user's cache
+        name: mergedData.displayName || mergedData.name || cachedUser?.name || 'Customer',
+        displayName: mergedData.displayName || mergedData.name || cachedUser?.displayName || 'Customer',
+        businessName: mergedData.businessName || '',
+        phone: String(mergedData.phoneNumber || mergedData.phone || cachedUser?.phone || ''),
+        phoneNumber: String(mergedData.phoneNumber || mergedData.phone || cachedUser?.phoneNumber || ''),
+        email: userEmail || cachedUser?.email || '',
+        avatar: mergedData.avatar || mergedData.photoURL || cachedUser?.avatar || undefined,
+        address: addressStr || '',
         deliveryAddress: deliveryAddr,
-        shippingAddress: data.shippingAddress || deliveryAddr,
-        orders: Array.isArray(initialOrders) ? initialOrders : [],
-        role: data.role || emailDocData.role || 'customer'
+        shippingAddress: mergedData.shippingAddress || deliveryAddr,
+        orders: Array.from(ordMap.values()).sort((a, b) => {
+          const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+          const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+          return String(b?.id || '').localeCompare(String(a?.id || ''));
+        }),
+        role: mergedData.role || 'customer'
       };
 
       safeStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(sanitizeUserForCache(userProfile)));
@@ -316,7 +389,7 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
       return userProfile;
     }
 
-    // If users/{uid} does not exist, but we have cleanEmail, restore from existing email account!
+    // If no candidate user docs exist yet, but we have cleanEmail, restore from existing email account!
     if (cleanEmail) {
       const restored = await restoreUserAccountByEmail(cleanEmail, undefined, undefined, uid);
       return restored.user;
@@ -471,180 +544,132 @@ export const restoreUserAccountByEmail = async (
     }
   } catch (_) {}
 
-  // 2. Parallel fetch from Firestore with snappy timeout (1500ms max)
+  // 2. Resolve all associated candidate user IDs (Google UIDs, email doc IDs, etc.)
+  const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, targetUid);
+
   let remoteData: any = {};
   const ordersMap = new Map<string, Order>();
   const addressesMap = new Map<string, AddressItem>();
 
-  // Include cached orders immediately - only strictly user-scoped
-  const localOrdersSources = [
-    `marts_orders_${targetUid}`,
-    `marts_orders_${docId}`
-  ];
-  for (const key of localOrdersSources) {
-    try {
-      const raw = safeStorage.getItem(key);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) {
-          arr.forEach((o: Order) => {
-            if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === targetUid || o.userId === docId)) {
-              ordersMap.set(o.id, o);
-            }
-          });
+  // Include cached orders immediately across all associated keys
+  for (const candId of associatedUids) {
+    const candidateKeys = [
+      `marts_orders_${candId}`,
+      'marts_orders',
+      `marts_orders_${cleanEmail}`
+    ];
+    for (const key of candidateKeys) {
+      try {
+        const raw = safeStorage.getItem(key);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            arr.forEach((o: Order) => {
+              if (o && o.id) {
+                ordersMap.set(String(o.id), o);
+              }
+            });
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
-  // Include cached addresses immediately - strictly user-scoped keys only
-  const localAddressSources = [
-    `marts_addresses_${targetUid}`,
-    `marts_addresses_${docId}`
-  ];
-  for (const key of localAddressSources) {
-    try {
-      const raw = safeStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((a: AddressItem) => {
-            if (a && a.id) addressesMap.set(a.id, a);
-          });
-        } else if (parsed && parsed.id) {
-          addressesMap.set(parsed.id, parsed);
+  // Include cached addresses immediately across all candidate keys
+  for (const candId of associatedUids) {
+    const localAddressSources = [
+      `marts_addresses_${candId}`,
+      `marts_default_address_${candId}`
+    ];
+    for (const key of localAddressSources) {
+      try {
+        const raw = safeStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((a: AddressItem) => {
+              if (a && a.id) addressesMap.set(a.id, a);
+            });
+          } else if (parsed && parsed.id) {
+            addressesMap.set(parsed.id, parsed);
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
   }
 
-  // Fire parallel queries for Firestore
+  // Fire parallel queries for Firestore across all candidate UIDs
   const queries: Promise<any>[] = [
-    // 0: deterministic email document
-    getDoc(doc(db, 'users', docId)).catch(() => null),
-    // 1: customer orders in global collection
-    getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null),
-    // 2: addresses under docId
-    getDocs(collection(db, 'users', docId, 'addresses')).catch(() => null),
-    // 3: orders under docId
-    getDocs(collection(db, 'users', docId, 'orders')).catch(() => null)
+    // global customer orders by email
+    getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null)
   ];
 
-  if (firebaseUid && firebaseUid !== docId) {
-    queries.push(
-      // 4: firebaseUid user doc
-      getDoc(doc(db, 'users', firebaseUid)).catch(() => null),
-      // 5: global orders by userId == firebaseUid
-      getDocs(query(collection(db, 'orders'), where('userId', '==', firebaseUid))).catch(() => null),
-      // 6: addresses under firebaseUid
-      getDocs(collection(db, 'users', firebaseUid, 'addresses')).catch(() => null),
-      // 7: orders under firebaseUid
-      getDocs(collection(db, 'users', firebaseUid, 'orders')).catch(() => null)
-    );
+  for (const candId of associatedUids) {
+    queries.push(getDoc(doc(db, 'users', candId)).catch(() => null));
+    queries.push(getDocs(collection(db, 'users', candId, 'addresses')).catch(() => null));
+    queries.push(getDocs(collection(db, 'users', candId, 'orders')).catch(() => null));
+    queries.push(getDocs(query(collection(db, 'orders'), where('userId', '==', candId))).catch(() => null));
   }
 
   try {
-    const results = await withTimeout(Promise.allSettled(queries), 1500);
+    const results = await withTimeout(Promise.allSettled(queries), 3500);
 
-    // Process docId
-    const res0 = results[0];
-    if (res0.status === 'fulfilled' && res0.value && typeof res0.value.exists === 'function' && res0.value.exists()) {
-      remoteData = { ...remoteData, ...res0.value.data() };
-    }
-    // Process global customer orders
-    const res1 = results[1];
-    if (res1.status === 'fulfilled' && res1.value && typeof res1.value.forEach === 'function') {
-      res1.value.forEach((d: any) => {
-        const o = d.data() as Order;
-        if (o && o.id) {
-          const prev = ordersMap.get(o.id);
-          if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
-            ordersMap.set(o.id, { ...prev, ...o });
-          }
-        }
-      });
-    }
-    // Process addresses subcollection under docId
-    const res2 = results[2];
-    if (res2.status === 'fulfilled' && res2.value && typeof res2.value.forEach === 'function') {
-      res2.value.forEach((d: any) => {
-        const data = d.data();
-        if (d.id !== 'default') {
-          const item: AddressItem = {
-            id: data.id || d.id,
-            name: data.recipientName || data.name || '',
-            phone: data.phone || data.phoneNumber || '',
-            email: cleanEmail,
-            pincode: data.postalCode || data.pin || data.pincode || '',
-            houseNo: data.street || data.houseNo || '',
-            area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
-            city: data.city || '',
-            state: data.state || '',
-            type: data.type || 'HOME',
-            isDefault: data.isDefault === true
-          };
-          addressesMap.set(item.id, item);
-        }
-      });
-    }
-    // Process orders subcollection under docId
-    const res3 = results[3];
-    if (res3.status === 'fulfilled' && res3.value && typeof res3.value.forEach === 'function') {
-      res3.value.forEach((d: any) => {
-        const o = d.data() as Order;
-        if (o && o.id) ordersMap.set(o.id, o);
-      });
-    }
+    for (const res of results) {
+      if (res.status === 'fulfilled' && res.value) {
+        const val = res.value;
+        if (typeof val.forEach === 'function') {
+          val.forEach((docSnap: any) => {
+            const data = docSnap.data();
+            if (!data) return;
 
-    if (firebaseUid && firebaseUid !== docId) {
-      // Process firebaseUid user doc
-      const res4 = results[4];
-      if (res4 && res4.status === 'fulfilled' && res4.value && typeof res4.value.exists === 'function' && res4.value.exists()) {
-        remoteData = { ...res4.value.data(), ...remoteData };
-      }
-      // Process firebaseUid global orders
-      const res5 = results[5];
-      if (res5 && res5.status === 'fulfilled' && res5.value && typeof res5.value.forEach === 'function') {
-        res5.value.forEach((d: any) => {
-          const o = d.data() as Order;
-          if (o && o.id) {
-            const prev = ordersMap.get(o.id);
-            if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
-              ordersMap.set(o.id, { ...prev, ...o });
+            // Address doc
+            if (data.pincode || data.postalCode || data.pin || data.houseNo || data.street) {
+              if (docSnap.id !== 'default') {
+                const item: AddressItem = {
+                  id: data.id || docSnap.id,
+                  name: data.recipientName || data.name || '',
+                  phone: data.phone || data.phoneNumber || '',
+                  email: cleanEmail,
+                  pincode: data.postalCode || data.pin || data.pincode || '',
+                  houseNo: data.street || data.houseNo || '',
+                  area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
+                  city: data.city || '',
+                  state: data.state || '',
+                  type: data.type || 'HOME',
+                  isDefault: data.isDefault === true
+                };
+                addressesMap.set(item.id, item);
+              }
+            } else if (data.items || data.pricing || data.total !== undefined || docSnap.ref.parent.id === 'orders') {
+              // Order doc
+              const o = data as Order;
+              const orderId = String(o.id || docSnap.id);
+              if (orderId) {
+                const prev = ordersMap.get(orderId);
+                if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
+                  ordersMap.set(orderId, { ...prev, ...o, id: orderId });
+                }
+              }
+            }
+          });
+        } else if (typeof val.data === 'function') {
+          // User document snapshot
+          const dData = val.data();
+          if (dData) {
+            remoteData = { ...dData, ...remoteData };
+            if (Array.isArray(dData.orders)) {
+              dData.orders.forEach((o: Order) => {
+                if (o && o.id) {
+                  const orderId = String(o.id);
+                  const prev = ordersMap.get(orderId);
+                  if (!prev || (o.updatedAt || 0) >= (prev.updatedAt || 0)) {
+                    ordersMap.set(orderId, { ...prev, ...o });
+                  }
+                }
+              });
             }
           }
-        });
-      }
-      // Process firebaseUid addresses
-      const res6 = results[6];
-      if (res6 && res6.status === 'fulfilled' && res6.value && typeof res6.value.forEach === 'function') {
-        res6.value.forEach((d: any) => {
-          const data = d.data();
-          if (d.id !== 'default') {
-            const item: AddressItem = {
-              id: data.id || d.id,
-              name: data.recipientName || data.name || '',
-              phone: data.phone || data.phoneNumber || '',
-              email: cleanEmail,
-              pincode: data.postalCode || data.pin || data.pincode || '',
-              houseNo: data.street || data.houseNo || '',
-              area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
-              city: data.city || '',
-              state: data.state || '',
-              type: data.type || 'HOME',
-              isDefault: data.isDefault === true
-            };
-            addressesMap.set(item.id, item);
-          }
-        });
-      }
-      // Process firebaseUid orders subcollection
-      const res7 = results[7];
-      if (res7 && res7.status === 'fulfilled' && res7.value && typeof res7.value.forEach === 'function') {
-        res7.value.forEach((d: any) => {
-          const o = d.data() as Order;
-          if (o && o.id) ordersMap.set(o.id, o);
-        });
+        }
       }
     }
   } catch (_) {
@@ -656,7 +681,7 @@ export const restoreUserAccountByEmail = async (
   // Orders in existingData.orders
   if (Array.isArray(existingData.orders)) {
     existingData.orders.forEach((o: Order) => {
-      if (o && o.id && !ordersMap.has(o.id)) ordersMap.set(o.id, o);
+      if (o && o.id && !ordersMap.has(String(o.id))) ordersMap.set(String(o.id), o);
     });
   }
 
@@ -664,7 +689,7 @@ export const restoreUserAccountByEmail = async (
     const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
     const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
     if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-    return (b.id || '').localeCompare(a.id || '');
+    return String(b.id || '').localeCompare(String(a.id || ''));
   });
 
   const dedupedAddresses = deduplicateAddresses(Array.from(addressesMap.values()));
@@ -1054,19 +1079,57 @@ export const subscribeToLiveProducts = (
 };
 
 // ================= CART ITEM LISTS =================
-export const fetchUserCart = async (uid: string): Promise<CartItem[]> => {
+export const fetchUserCart = async (uid: string, fallbackEmail?: string): Promise<CartItem[]> => {
+  const cleanEmail = (fallbackEmail || (() => {
+    try {
+      const cached = safeStorage.getItem('marts_user_profile');
+      if (cached) return JSON.parse(cached).email;
+    } catch (_) {}
+    return '';
+  })()).trim().toLowerCase();
+
   try {
-    const cartColRef = collection(db, 'users', uid, 'cart');
-    const snapshot = await withTimeout(getDocs(cartColRef));
-    const items: CartItem[] = [];
-    snapshot.forEach(docSnap => {
-      const item = docSnap.data() as CartItem;
-      if (item && item.id) {
-        items.push(item);
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
+    const itemsMap = new Map<string, CartItem>();
+
+    // 0. Check local caches for all associated UIDs
+    for (const candId of associatedUids) {
+      const cached = safeStorage.getItem(`marts_cart_${candId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((item: CartItem) => {
+              if (item && item.id) itemsMap.set(item.id, item);
+            });
+          }
+        } catch (_) {}
       }
-    });
+    }
+
+    // Query Firestore cart collections for all candidate UIDs
+    const cartPromises = associatedUids.map(candId =>
+      withTimeout(getDocs(collection(db, 'users', candId, 'cart')), 2500).catch(() => null)
+    );
+
+    const snapshots = await Promise.all(cartPromises);
+    for (const snap of snapshots) {
+      if (snap && typeof snap.forEach === 'function') {
+        snap.forEach(docSnap => {
+          const item = docSnap.data() as CartItem;
+          if (item && item.id && !itemsMap.has(item.id)) {
+            itemsMap.set(item.id, item);
+          }
+        });
+      }
+    }
+
+    const items = Array.from(itemsMap.values());
     if (items.length > 0) {
-      safeStorage.setItem(`marts_cart_${uid}`, JSON.stringify(items));
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_cart_${candId}`, JSON.stringify(items));
+      }
+      safeStorage.setItem('marts_cart', JSON.stringify(items));
     }
     return items;
   } catch (err) {
@@ -1084,25 +1147,40 @@ export const fetchUserCart = async (uid: string): Promise<CartItem[]> => {
   }
 };
 
-export const syncUserCartToFirestore = async (uid: string, cartItems: CartItem[]): Promise<void> => {
-  safeStorage.setItem(`marts_cart_${uid}`, JSON.stringify(cartItems));
-  safeStorage.setItem('marts_cart', JSON.stringify(cartItems));
-  try {
-    const cartColRef = collection(db, 'users', uid, 'cart');
-    const snapshot = await withTimeout(getDocs(cartColRef), 2000);
-    
-    // Delete existing cart items in batch
-    const batch = writeBatch(db);
-    snapshot.forEach(docSnap => {
-      batch.delete(docSnap.ref);
-    });
+export const syncUserCartToFirestore = async (uid: string, cartItems: CartItem[], fallbackEmail?: string): Promise<void> => {
+  const cleanEmail = (fallbackEmail || (() => {
+    try {
+      const cached = safeStorage.getItem('marts_user_profile');
+      if (cached) return JSON.parse(cached).email;
+    } catch (_) {}
+    return '';
+  })()).trim().toLowerCase();
 
-    // Write new items
-    for (const item of cartItems) {
-      const itemRef = doc(db, 'users', uid, 'cart', item.id);
-      batch.set(itemRef, item);
+  try {
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
+    for (const candId of associatedUids) {
+      safeStorage.setItem(`marts_cart_${candId}`, JSON.stringify(cartItems));
     }
-    await withTimeout(batch.commit(), 2000);
+    safeStorage.setItem('marts_cart', JSON.stringify(cartItems));
+
+    // Sync to all candidate user cart subcollections
+    for (const candId of associatedUids) {
+      if (!candId || candId === 'guest') continue;
+      const cartColRef = collection(db, 'users', candId, 'cart');
+      const snapshot = await withTimeout(getDocs(cartColRef), 2000).catch(() => null);
+
+      const batch = writeBatch(db);
+      if (snapshot) {
+        snapshot.forEach(docSnap => {
+          batch.delete(docSnap.ref);
+        });
+      }
+      for (const item of cartItems) {
+        const itemRef = doc(db, 'users', candId, 'cart', item.id);
+        batch.set(itemRef, item);
+      }
+      await withTimeout(batch.commit(), 2000).catch(() => {});
+    }
   } catch (err) {
     console.warn('Firestore offline when syncing cart, saved to local storage.');
   }
@@ -1110,112 +1188,110 @@ export const syncUserCartToFirestore = async (uid: string, cartItems: CartItem[]
 
 // ================= ADDRESSES =================
 export const fetchUserAddresses = async (uid: string, fallbackEmail?: string): Promise<AddressItem[]> => {
+  const cleanEmail = (fallbackEmail || (() => {
+    try {
+      const cached = safeStorage.getItem('marts_user_profile');
+      if (cached) return JSON.parse(cached).email;
+    } catch (_) {}
+    return '';
+  })()).trim().toLowerCase();
+
   try {
-    const addrColRef = collection(db, 'users', uid, 'addresses');
-    const snapshot = await withTimeout(getDocs(addrColRef), 3000);
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
     const rawAddresses: AddressItem[] = [];
     let hasLegacyDefaultDoc = false;
 
-    snapshot.forEach(docSnap => {
-      const data = docSnap.data();
-      if (docSnap.id === 'default') {
-        hasLegacyDefaultDoc = true;
+    // Check cached addresses across all associated UIDs
+    for (const candId of associatedUids) {
+      const cached = safeStorage.getItem(`marts_addresses_${candId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) rawAddresses.push(...parsed);
+        } catch (_) {}
       }
-      const item: AddressItem = {
-        id: data.id || docSnap.id,
-        name: data.recipientName || data.name || '',
-        phone: data.phone || data.phoneNumber || '',
-        email: data.email || '',
-        pincode: data.postalCode || data.pin || data.pincode || '',
-        houseNo: data.street || data.houseNo || '',
-        area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
-        city: data.city || '',
-        state: data.state || '',
-        type: data.type || 'HOME',
-        isDefault: data.isDefault === true || docSnap.id === 'default'
-      };
-      rawAddresses.push(item);
-    });
-
-    // If addresses subcollection was completely empty, check user doc for deliveryAddress/shippingAddress
-    if (rawAddresses.length === 0) {
-      try {
-        const userDoc = await withTimeout(getDoc(doc(db, 'users', uid)), 1500);
-        if (userDoc.exists()) {
-          const uData = userDoc.data();
-          const dAddr = (uData.deliveryAddress || uData.shippingAddress) as StoreDeliveryAddress | undefined;
-          if (dAddr && typeof dAddr === 'object' && (dAddr.street || dAddr.postalCode)) {
-            const defaultItem: AddressItem = {
-              id: 'addr_default',
-              name: dAddr.recipientName || uData.displayName || uData.name || 'Customer',
-              phone: dAddr.phone || uData.phoneNumber || uData.phone || '',
-              email: uData.email || '',
-              pincode: dAddr.postalCode || dAddr.pin || '',
-              houseNo: dAddr.street || '',
-              area: [dAddr.apartment, dAddr.landmark].filter(Boolean).join(', '),
-              city: dAddr.city || '',
-              state: dAddr.state || '',
-              type: 'HOME',
-              isDefault: true
-            };
-            rawAddresses.push(defaultItem);
-          }
-        }
-      } catch (e) {}
     }
 
-    // If still empty, check canonical email document users/marts_user_{cleanEmail}
-    const cleanEmail = (fallbackEmail || (() => {
-      try {
-        const cached = safeStorage.getItem('marts_user_profile');
-        if (cached) return JSON.parse(cached).email;
-      } catch (_) {}
-      return '';
-    })()).trim().toLowerCase();
+    // Query addresses subcollections across all candidate UIDs
+    const addrPromises = associatedUids.map(candId =>
+      withTimeout(getDocs(collection(db, 'users', candId, 'addresses')), 2500).catch(() => null)
+    );
+    // Also fetch user docs to check deliveryAddress/shippingAddress field
+    const userDocPromises = associatedUids.map(candId =>
+      withTimeout(getDoc(doc(db, 'users', candId)), 2000).catch(() => null)
+    );
 
-    if (rawAddresses.length === 0 && cleanEmail) {
-      const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      if (emailDocId !== uid) {
-        try {
-          const emailAddrSnap = await withTimeout(getDocs(collection(db, 'users', emailDocId, 'addresses')), 2500);
-          emailAddrSnap.forEach(d => {
-            const data = d.data();
-            if (d.id !== 'default') {
-              const item: AddressItem = {
-                id: data.id || d.id,
-                name: data.recipientName || data.name || '',
-                phone: data.phone || data.phoneNumber || '',
-                email: cleanEmail,
-                pincode: data.postalCode || data.pin || data.pincode || '',
-                houseNo: data.street || data.houseNo || '',
-                area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
-                city: data.city || '',
-                state: data.state || '',
-                type: data.type || 'HOME',
-                isDefault: data.isDefault === true
-              };
-              rawAddresses.push(item);
-              // Clone to current uid addresses subcollection
-              setDoc(doc(db, 'users', uid, 'addresses', item.id), item, { merge: true }).catch(() => {});
-            }
-          });
-        } catch (_) {}
+    const [addrSnaps, userDocSnaps] = await Promise.all([
+      Promise.all(addrPromises),
+      Promise.all(userDocPromises)
+    ]);
+
+    for (const snapshot of addrSnaps) {
+      if (snapshot && typeof snapshot.forEach === 'function') {
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          if (docSnap.id === 'default') {
+            hasLegacyDefaultDoc = true;
+          }
+          const item: AddressItem = {
+            id: data.id || docSnap.id,
+            name: data.recipientName || data.name || '',
+            phone: data.phone || data.phoneNumber || '',
+            email: cleanEmail || data.email || '',
+            pincode: data.postalCode || data.pin || data.pincode || '',
+            houseNo: data.street || data.houseNo || '',
+            area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
+            city: data.city || '',
+            state: data.state || '',
+            type: data.type || 'HOME',
+            isDefault: data.isDefault === true || docSnap.id === 'default'
+          };
+          rawAddresses.push(item);
+        });
+      }
+    }
+
+    // If addresses subcollections were empty, extract from user documents deliveryAddress
+    for (const userDoc of userDocSnaps) {
+      if (userDoc && userDoc.exists()) {
+        const uData = userDoc.data();
+        const dAddr = (uData.deliveryAddress || uData.shippingAddress) as StoreDeliveryAddress | undefined;
+        if (dAddr && typeof dAddr === 'object' && (dAddr.street || dAddr.postalCode)) {
+          const defaultItem: AddressItem = {
+            id: 'addr_default',
+            name: dAddr.recipientName || uData.displayName || uData.name || 'Customer',
+            phone: dAddr.phone || uData.phoneNumber || uData.phone || '',
+            email: cleanEmail || uData.email || '',
+            pincode: dAddr.postalCode || dAddr.pin || '',
+            houseNo: dAddr.street || '',
+            area: [dAddr.apartment, dAddr.landmark].filter(Boolean).join(', '),
+            city: dAddr.city || '',
+            state: dAddr.state || '',
+            type: 'HOME',
+            isDefault: true
+          };
+          rawAddresses.push(defaultItem);
+        }
       }
     }
 
     // Clean up legacy 'default' or 'addr_default' doc if other real addresses exist
     if (hasLegacyDefaultDoc && rawAddresses.some(a => a.id !== 'default')) {
-      try {
-        deleteDoc(doc(db, 'users', uid, 'addresses', 'default')).catch(() => {});
-      } catch (_) {}
+      for (const candId of associatedUids) {
+        try {
+          deleteDoc(doc(db, 'users', candId, 'addresses', 'default')).catch(() => {});
+        } catch (_) {}
+      }
     }
 
     const uniqueAddresses = deduplicateAddresses(rawAddresses);
 
     if (uniqueAddresses.length > 0) {
-      safeStorage.setItem(`marts_addresses_${uid}`, JSON.stringify(uniqueAddresses));
-      const def = uniqueAddresses.find(a => a.isDefault) || uniqueAddresses[0];
-      safeStorage.setItem(`marts_default_address_${uid}`, JSON.stringify(def));
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_addresses_${candId}`, JSON.stringify(uniqueAddresses));
+        const def = uniqueAddresses.find(a => a.isDefault) || uniqueAddresses[0];
+        safeStorage.setItem(`marts_default_address_${candId}`, JSON.stringify(def));
+      }
     }
     return uniqueAddresses;
   } catch (err) {
@@ -1562,54 +1638,49 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
     return '';
   })()).trim().toLowerCase();
 
-  const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
-
   try {
-    // 0. Include all cached orders immediately across all possible scopes
-    const cachedSources = [
-      `marts_orders_${uid}`,
-      'marts_orders'
-    ];
-    if (cleanEmail) {
-      cachedSources.push(`marts_orders_${cleanEmail}`);
-    }
-    if (emailDocId) {
-      cachedSources.push(`marts_orders_${emailDocId}`);
-    }
+    // Resolve all candidate document IDs associated with this email
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
 
-    for (const key of cachedSources) {
-      try {
-        const raw = safeStorage.getItem(key);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((o: Order) => {
-              if (o && o.id) {
-                ordersMap.set(o.id, o);
-              }
-            });
+    // 0. Include all cached orders immediately across all possible associated candidate scopes
+    for (const candId of associatedUids) {
+      const candidateKeys = [
+        `marts_orders_${candId}`,
+        'marts_orders',
+        `marts_orders_${cleanEmail}`
+      ];
+      for (const key of candidateKeys) {
+        try {
+          const raw = safeStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((o: Order) => {
+                if (o && o.id) {
+                  ordersMap.set(String(o.id), o);
+                }
+              });
+            }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
     }
 
-    // Run all Firestore order queries in parallel with generous 8-second window
-    const orderPromises: Promise<any>[] = [
-      getDocs(collection(db, 'users', uid, 'orders')).catch(() => null),
-      getDocs(query(collection(db, 'orders'), where('userId', '==', uid))).catch(() => null),
-      getDoc(doc(db, 'users', uid)).catch(() => null)
-    ];
+    // Run parallel queries across all candidate user documents, subcollections, and global orders
+    const orderPromises: Promise<any>[] = [];
 
+    // Query subcollections, user docs, and global orders by userId for every candidate ID
+    for (const candId of associatedUids) {
+      orderPromises.push(getDocs(collection(db, 'users', candId, 'orders')).catch(() => null));
+      orderPromises.push(getDoc(doc(db, 'users', candId)).catch(() => null));
+      orderPromises.push(getDocs(query(collection(db, 'orders'), where('userId', '==', candId))).catch(() => null));
+    }
+
+    // Also query global orders by customerEmail
     if (cleanEmail) {
       orderPromises.push(
         getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null)
       );
-      if (emailDocId && emailDocId !== uid) {
-        orderPromises.push(
-          getDocs(collection(db, 'users', emailDocId, 'orders')).catch(() => null),
-          getDoc(doc(db, 'users', emailDocId)).catch(() => null)
-        );
-      }
     }
 
     const settled = await withTimeout(Promise.allSettled(orderPromises), 8000);
@@ -1620,22 +1691,24 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
         if (typeof val.forEach === 'function') {
           val.forEach((docSnap: any) => {
             const o = docSnap.data() as Order;
-            if (o && o.id) {
-              const existing = ordersMap.get(o.id);
+            const orderId = String(o?.id || docSnap.id);
+            if (orderId && o && (o.items || o.pricing || o.total !== undefined || docSnap.ref.parent.id === 'orders')) {
+              const existing = ordersMap.get(orderId);
               if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
-                ordersMap.set(o.id, { ...existing, ...o });
+                ordersMap.set(orderId, { ...existing, ...o, id: orderId });
               }
             }
           });
         } else if (typeof val.data === 'function') {
-          // Document snapshot (users/{uid} or users/{emailDocId})
+          // Document snapshot (users/{candId})
           const dData = val.data();
           if (dData && Array.isArray(dData.orders)) {
             dData.orders.forEach((o: Order) => {
               if (o && o.id) {
-                const existing = ordersMap.get(o.id);
+                const orderId = String(o.id);
+                const existing = ordersMap.get(orderId);
                 if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
-                  ordersMap.set(o.id, { ...existing, ...o });
+                  ordersMap.set(orderId, { ...existing, ...o });
                 }
               }
             });
@@ -1649,18 +1722,42 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
       const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
       if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-      return (b.id || '').localeCompare(a.id || '');
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
     });
 
     if (sorted.length > 0) {
-      safeStorage.setItem(`marts_orders_${uid}`, JSON.stringify(sorted));
+      // Replicate across all candidate caches
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_orders_${candId}`, JSON.stringify(sorted));
+      }
       safeStorage.setItem('marts_orders', JSON.stringify(sorted));
       if (cleanEmail) {
         safeStorage.setItem(`marts_orders_${cleanEmail}`, JSON.stringify(sorted));
       }
-      if (emailDocId) {
-        safeStorage.setItem(`marts_orders_${emailDocId}`, JSON.stringify(sorted));
-      }
+
+      // Background non-blocking sync: propagate orders to candidate user subcollections & global orders
+      (async () => {
+        try {
+          const primaryUid = uid && uid !== 'guest' ? uid : associatedUids[0];
+          for (const ord of sorted) {
+            if (primaryUid) {
+              setDoc(doc(db, 'users', primaryUid, 'orders', ord.id), ord, { merge: true }).catch(() => {});
+            }
+            if (cleanEmail) {
+              const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+              setDoc(doc(db, 'users', emailDocId, 'orders', ord.id), ord, { merge: true }).catch(() => {});
+            }
+            setDoc(doc(db, 'orders', ord.id), {
+              ...ord,
+              customerEmail: ord.customerEmail || cleanEmail
+            }, { merge: true }).catch(() => {});
+          }
+          if (primaryUid) {
+            setDoc(doc(db, 'users', primaryUid), { orders: sorted, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+          }
+        } catch (_) {}
+      })();
+
       return sorted;
     }
 
@@ -1672,7 +1769,7 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
       const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
       if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-      return (b.id || '').localeCompare(a.id || '');
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
     });
   }
 };
@@ -1825,115 +1922,83 @@ export const saveOrderToFirestore = async (
   // Persist asynchronously to Firestore without blocking the frontend response
   (async () => {
     try {
+      const cleanEmail = (orderData.customerEmail || customerInfo?.email || '').trim().toLowerCase();
+      const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, effectiveUserId);
+
+      // 1. Write to global orders collection
       const globalOrderRef = doc(db, 'orders', order.id);
-      await withTimeout(setDoc(globalOrderRef, orderData), 3500).catch(e => {
+      await withTimeout(setDoc(globalOrderRef, { ...orderData, customerEmail: cleanEmail || orderData.customerEmail }), 3500).catch(e => {
         console.warn('Global order setDoc notice:', e);
       });
 
-      if (uid && uid !== 'guest') {
-        const userOrderRef = doc(db, 'users', uid, 'orders', order.id);
-        await withTimeout(setDoc(userOrderRef, orderData), 3500).catch(e => {
-          console.warn('User order subcollection setDoc notice:', e);
-        });
+      // 2. Gather all existing orders across candidate caches and merge with orderData
+      const existingMap = new Map<string, Order>();
+      existingMap.set(orderData.id, orderData);
 
-        // Gather all existing orders across candidate caches and merge with orderData
-        const existingMap = new Map<string, Order>();
-        existingMap.set(orderData.id, orderData);
+      const candidateKeys = ['marts_orders'];
+      if (cleanEmail) {
+        candidateKeys.push(`marts_orders_${cleanEmail}`);
+      }
+      for (const candId of associatedUids) {
+        candidateKeys.push(`marts_orders_${candId}`);
+      }
 
-        const candidateKeys = [
-          `marts_orders_${uid}`,
-          'marts_orders'
-        ];
-        if (orderData.customerEmail) {
-          const cleanEmail = orderData.customerEmail.trim().toLowerCase();
-          candidateKeys.push(`marts_orders_${cleanEmail}`);
-          candidateKeys.push(`marts_orders_marts_user_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`);
-        }
-
-        for (const k of candidateKeys) {
-          try {
-            const raw = safeStorage.getItem(k);
-            if (raw) {
-              const list = JSON.parse(raw);
-              if (Array.isArray(list)) {
-                list.forEach((o: Order) => {
-                  if (o && o.id && !existingMap.has(o.id)) {
-                    existingMap.set(o.id, o);
-                  }
-                });
-              }
-            }
-          } catch (_) {}
-        }
-
-        // Also check if user doc already has existing orders to preserve
+      for (const k of candidateKeys) {
         try {
-          const uDocSnap = await getDoc(doc(db, 'users', uid)).catch(() => null);
-          if (uDocSnap && uDocSnap.exists()) {
-            const uData = uDocSnap.data();
-            if (Array.isArray(uData.orders)) {
-              uData.orders.forEach((o: Order) => {
-                if (o && o.id && !existingMap.has(o.id)) {
-                  existingMap.set(o.id, o);
+          const raw = safeStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach((o: Order) => {
+                if (o && o.id && !existingMap.has(String(o.id))) {
+                  existingMap.set(String(o.id), o);
                 }
               });
             }
           }
         } catch (_) {}
-
-        const allOrdersToSync = Array.from(existingMap.values()).sort((a, b) => {
-          const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
-          const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
-          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-          return (b.id || '').localeCompare(a.id || '');
-        });
-
-        // Cache across all user scopes
-        candidateKeys.forEach(k => {
-          try { safeStorage.setItem(k, JSON.stringify(allOrdersToSync)); } catch (_) {}
-        });
-
-        await withTimeout(setDoc(doc(db, 'users', uid), {
-          orders: allOrdersToSync,
-          updatedAt: new Date().toISOString()
-        }, { merge: true }), 3500).catch(() => {});
       }
 
-      // Also mirror into canonical email user document if email is present
-      if (orderData.customerEmail) {
-        const cleanEmail = orderData.customerEmail.trim().toLowerCase();
-        const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-        if (uid !== emailDocId) {
-          const emailOrderRef = doc(db, 'users', emailDocId, 'orders', order.id);
-          await withTimeout(setDoc(emailOrderRef, orderData), 2500).catch(() => {});
-          
-          // Get current orders on emailDoc to preserve
-          const emailOrdersMap = new Map<string, Order>();
-          emailOrdersMap.set(orderData.id, orderData);
-          try {
-            const eDocSnap = await getDoc(doc(db, 'users', emailDocId)).catch(() => null);
-            if (eDocSnap && eDocSnap.exists()) {
-              const eData = eDocSnap.data();
-              if (Array.isArray(eData.orders)) {
-                eData.orders.forEach((o: Order) => {
-                  if (o && o.id && !emailOrdersMap.has(o.id)) {
-                    emailOrdersMap.set(o.id, o);
-                  }
-                });
-              }
+      // Check candidate user docs to preserve any other orders
+      for (const candId of associatedUids) {
+        try {
+          const uDocSnap = await getDoc(doc(db, 'users', candId)).catch(() => null);
+          if (uDocSnap && uDocSnap.exists()) {
+            const uData = uDocSnap.data();
+            if (Array.isArray(uData.orders)) {
+              uData.orders.forEach((o: Order) => {
+                if (o && o.id && !existingMap.has(String(o.id))) {
+                  existingMap.set(String(o.id), o);
+                }
+              });
             }
-          } catch (_) {}
-          const mergedEmailOrders = Array.from(emailOrdersMap.values()).sort((a, b) => {
-            const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
-            const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
-            if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-            return (b.id || '').localeCompare(a.id || '');
-          });
+          }
+        } catch (_) {}
+      }
 
-          await withTimeout(setDoc(doc(db, 'users', emailDocId), {
-            orders: mergedEmailOrders,
+      const allOrdersToSync = Array.from(existingMap.values()).sort((a, b) => {
+        const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+        const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+        if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+        return String(b?.id || '').localeCompare(String(a?.id || ''));
+      });
+
+      // Cache across all candidate keys
+      for (const k of candidateKeys) {
+        try { safeStorage.setItem(k, JSON.stringify(allOrdersToSync)); } catch (_) {}
+      }
+
+      // Sync order to subcollections and user docs for all associated UIDs
+      for (const candId of associatedUids) {
+        if (candId && candId !== 'guest') {
+          // Write to subcollection
+          const userOrderRef = doc(db, 'users', candId, 'orders', order.id);
+          setDoc(userOrderRef, orderData, { merge: true }).catch(() => {});
+          // Update user doc orders array
+          setDoc(doc(db, 'users', candId), {
+            orders: allOrdersToSync,
             updatedAt: new Date().toISOString()
-          }, { merge: true }), 2500).catch(() => {});
+          }, { merge: true }).catch(() => {});
         }
       }
     } catch (err) {
@@ -2032,33 +2097,94 @@ export const saveRazorpayPaymentToFirestore = async (paymentRecord: PaymentRecor
 };
 
 // ================= WISHLIST =================
-export const fetchUserWishlist = async (uid: string): Promise<string[]> => {
+export const fetchUserWishlist = async (uid: string, fallbackEmail?: string): Promise<string[]> => {
+  const cleanEmail = (fallbackEmail || (() => {
+    try {
+      const cached = safeStorage.getItem('marts_user_profile');
+      if (cached) return JSON.parse(cached).email;
+    } catch (_) {}
+    return '';
+  })()).trim().toLowerCase();
+
+  const itemsSet = new Set<string>();
+
   try {
-    const wishlistDocSnap = await withTimeout(getDoc(doc(db, 'users', uid, 'wishlist', 'items')));
-    if (wishlistDocSnap.exists()) {
-      const list = wishlistDocSnap.data().productIds || [];
-      safeStorage.setItem(`marts_wishlist_${uid}`, JSON.stringify(list));
-      return list;
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
+
+    // 0. Check local caches for all associated candidate IDs
+    for (const candId of associatedUids) {
+      const cached = safeStorage.getItem(`marts_wishlist_${candId}`);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) parsed.forEach((id: string) => itemsSet.add(id));
+        } catch (_) {}
+      }
     }
-    return [];
+    const globalCached = safeStorage.getItem('marts_wishlist');
+    if (globalCached) {
+      try {
+        const parsed = JSON.parse(globalCached);
+        if (Array.isArray(parsed)) parsed.forEach((id: string) => itemsSet.add(id));
+      } catch (_) {}
+    }
+
+    const promises = associatedUids.map(candId =>
+      withTimeout(getDoc(doc(db, 'users', candId, 'wishlist', 'items')), 2500).catch(() => null)
+    );
+    const docSnaps = await Promise.all(promises);
+    for (const snap of docSnaps) {
+      if (snap && snap.exists()) {
+        const list = snap.data().productIds || [];
+        if (Array.isArray(list)) {
+          list.forEach((id: string) => itemsSet.add(id));
+        }
+      }
+    }
+
+    const result = Array.from(itemsSet);
+    if (result.length > 0) {
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_wishlist_${candId}`, JSON.stringify(result));
+      }
+      safeStorage.setItem('marts_wishlist', JSON.stringify(result));
+    }
+    return result;
   } catch (err) {
     console.warn('Firestore offline when fetching wishlist, using local cache.');
     const cached = safeStorage.getItem(`marts_wishlist_${uid}`) || safeStorage.getItem('marts_wishlist');
     if (cached) {
       try { return JSON.parse(cached); } catch (e) {}
     }
-    return [];
+    return Array.from(itemsSet);
   }
 };
 
-export const syncUserWishlistToFirestore = async (uid: string, wishlist: string[]): Promise<void> => {
+export const syncUserWishlistToFirestore = async (uid: string, wishlist: string[], fallbackEmail?: string): Promise<void> => {
+  const cleanEmail = (fallbackEmail || (() => {
+    try {
+      const cached = safeStorage.getItem('marts_user_profile');
+      if (cached) return JSON.parse(cached).email;
+    } catch (_) {}
+    return '';
+  })()).trim().toLowerCase();
+
   safeStorage.setItem(`marts_wishlist_${uid}`, JSON.stringify(wishlist));
   safeStorage.setItem('marts_wishlist', JSON.stringify(wishlist));
+
   try {
-    await withTimeout(setDoc(doc(db, 'users', uid, 'wishlist', 'items'), {
-      productIds: wishlist,
-      updatedAt: Date.now()
-    }), 2000);
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
+    for (const candId of associatedUids) {
+      safeStorage.setItem(`marts_wishlist_${candId}`, JSON.stringify(wishlist));
+    }
+
+    const promises = associatedUids.map(candId =>
+      withTimeout(setDoc(doc(db, 'users', candId, 'wishlist', 'items'), {
+        productIds: wishlist,
+        updatedAt: Date.now()
+      }, { merge: true }), 2000).catch(() => {})
+    );
+    await Promise.allSettled(promises);
   } catch (err) {
     console.warn('Firestore offline when syncing wishlist to local storage.');
   }
