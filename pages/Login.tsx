@@ -27,6 +27,7 @@ import {
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
 import { checkLoginAttemptAllowed, reportLoginAttempt } from '../utils/authSecurity';
+import { safeStorage, sanitizeUserForCache } from '../utils/storage';
 
 interface LoginProps {
   onLogin: (user: User) => void;
@@ -253,8 +254,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           }
         );
 
-        localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
-        localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+        try {
+          safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
+        } catch (_) {}
         await handlePostAuthRedirect(fbUid, restored.user);
         return;
       }
@@ -289,8 +291,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               });
 
             const restored = await restoreUserAccountByEmail(cleanEmail, pwdHash);
-            localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
-            localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+            try {
+              safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
+            } catch (_) {}
             await handlePostAuthRedirect(restored.docId, restored.user);
             return;
           } else {
@@ -402,8 +405,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           console.warn('Account linking notice:', linkErr);
         }
       }
-      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
-      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+      try {
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
+      } catch (_) {}
       await handlePostAuthRedirect(restored.docId, restored.user);
     } catch {
       setErrorMessage('An error occurred during verification. Please try again.');
@@ -595,8 +599,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       };
 
       try {
-        localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(immediateUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(immediateUser)));
       } catch (_) {}
 
       onLogin(immediateUser);
@@ -615,8 +618,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       ).then(unified => {
         if (unified?.user) {
           try {
-            localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(unified.user));
-            localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
+            safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(unified.user)));
           } catch (_) {}
           onLogin(unified.user);
         }

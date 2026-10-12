@@ -651,7 +651,8 @@ export const checkIsAdmin = async (uid: string): Promise<boolean> => {
       currentEmail === 'ventureforge.corp@gmail.com' ||
       currentEmail === 'xsophiya99@gmail.com' ||
       currentEmail === 'sahanurmolla3131@gmail.com' ||
-      currentEmail === 'sahanurmolla2886@gmail.com'
+      currentEmail === 'sahanurmolla2886@gmail.com' ||
+      currentEmail === 'prople.org@gmail.com'
     ) {
       return true;
     }

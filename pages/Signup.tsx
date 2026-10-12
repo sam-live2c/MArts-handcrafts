@@ -11,6 +11,7 @@ import Logo from '../components/Logo';
 import { resendService } from '../services/resendService';
 import { hashPassword } from '../utils/auth';
 import { findUserAccountByEmail, restoreUserAccountByEmail } from '../services/dbService';
+import { safeStorage, sanitizeUserForCache } from '../utils/storage';
 
 interface SignupProps {
   onSignup: (user: User) => void;
@@ -317,8 +318,9 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
         }, { merge: true }).catch(() => {});
       }
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
-      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+      try {
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
+      } catch (_) {}
 
       if (isExistingAccount) {
         showToast('Welcome back! Logged in to your existing account.');
@@ -372,8 +374,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       };
 
       try {
-        localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(immediateUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(immediateUser)));
       } catch (_) {}
 
       onSignup(immediateUser);
@@ -392,8 +393,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       ).then(restored => {
         if (restored?.user) {
           try {
-            localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(restored.user));
-            localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+            safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restored.user)));
           } catch (_) {}
           onSignup(restored.user);
         }

@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { CartItem, User, Order, Product, StoreDeliveryAddress } from '../types';
 import { sanitizeProductRatings } from '../utils/productRating';
+import { safeStorage, sanitizeUserForCache } from '../utils/storage';
 
 export type { StoreDeliveryAddress };
 
@@ -685,27 +686,14 @@ export const restoreUserAccountByEmail = async (
     role: existingData.role || 'customer'
   };
 
-  // Strictly user-scoped cache only
+  // Strictly user-scoped lightweight cache only (Cloud Firestore holds full orders & details)
   try {
-    localStorage.setItem(`marts_user_profile_${targetUid}`, JSON.stringify(restoredProfile));
-    localStorage.setItem('marts_user_profile', JSON.stringify(restoredProfile));
-    if (restoredOrders.length > 0) {
-      localStorage.setItem(`marts_orders_${docId}`, JSON.stringify(restoredOrders));
-      if (firebaseUid) {
-        localStorage.setItem(`marts_orders_${firebaseUid}`, JSON.stringify(restoredOrders));
-      }
-    }
-    if (dedupedAddresses.length > 0) {
-      localStorage.setItem(`marts_addresses_${docId}`, JSON.stringify(dedupedAddresses));
-      if (firebaseUid) {
-        localStorage.setItem(`marts_addresses_${firebaseUid}`, JSON.stringify(dedupedAddresses));
-      }
-      if (defaultAddressItem) {
-        localStorage.setItem(`marts_default_address_${targetUid}`, JSON.stringify(defaultAddressItem));
-      }
+    safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restoredProfile)));
+    if (dedupedAddresses.length > 0 && defaultAddressItem) {
+      safeStorage.setItem(`marts_default_address_${targetUid}`, JSON.stringify(defaultAddressItem));
     }
     if (addressStr) {
-      localStorage.setItem(`marts_user_address_${targetUid}`, addressStr);
+      safeStorage.setItem(`marts_user_address_${targetUid}`, addressStr);
     }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: restoredProfile }));
@@ -835,11 +823,12 @@ export const subscribeToUserProfile = (
         shippingAddress: (data.shippingAddress || deliveryAddr) as StoreDeliveryAddress | undefined,
         orders: data.orders || []
       };
-      localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-      if (updatedUser.address) {
-        localStorage.setItem('melody_user_address', updatedUser.address);
-        localStorage.setItem('agronic_user_address', updatedUser.address);
-      }
+      try {
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
+        if (updatedUser.address) {
+          safeStorage.setItem(`marts_user_address_${uid}`, updatedUser.address);
+        }
+      } catch (_) {}
       onUpdate(updatedUser);
     }
   }, (err) => {
@@ -922,12 +911,12 @@ export const fetchUserCart = async (uid: string): Promise<CartItem[]> => {
       }
     });
     if (items.length > 0) {
-      localStorage.setItem(`melody_cart_${uid}`, JSON.stringify(items));
+      safeStorage.setItem(`marts_cart_${uid}`, JSON.stringify(items));
     }
     return items;
   } catch (err) {
     console.warn('Firestore offline when fetching cart, using local cache.');
-    const cached = localStorage.getItem(`melody_cart_${uid}`) || localStorage.getItem('melody_cart');
+    const cached = safeStorage.getItem(`marts_cart_${uid}`) || safeStorage.getItem('marts_cart');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
@@ -941,8 +930,8 @@ export const fetchUserCart = async (uid: string): Promise<CartItem[]> => {
 };
 
 export const syncUserCartToFirestore = async (uid: string, cartItems: CartItem[]): Promise<void> => {
-  localStorage.setItem(`melody_cart_${uid}`, JSON.stringify(cartItems));
-  localStorage.setItem('melody_cart', JSON.stringify(cartItems));
+  safeStorage.setItem(`marts_cart_${uid}`, JSON.stringify(cartItems));
+  safeStorage.setItem('marts_cart', JSON.stringify(cartItems));
   try {
     const cartColRef = collection(db, 'users', uid, 'cart');
     const snapshot = await withTimeout(getDocs(cartColRef), 2000);
@@ -1614,25 +1603,9 @@ export const saveOrderToFirestore = async (
     updatedAt: Date.now()
   };
 
-  // Always update local cache immediately so the user sees the order with 0 latency
+  // Immediately cache in safeStorage without blowing quota (Cloud Firestore is authoritative)
   try {
-    const localCachedRaw = localStorage.getItem('marts_orders') || localStorage.getItem('melody_orders') || '[]';
-    const localCached: Order[] = JSON.parse(localCachedRaw);
-    const updatedLocal = [orderData, ...localCached.filter(o => o.id !== orderData.id)];
-    localStorage.setItem('marts_orders', JSON.stringify(updatedLocal));
-    localStorage.setItem('melody_orders', JSON.stringify(updatedLocal));
-    if (uid && uid !== 'guest') {
-      localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(updatedLocal));
-      localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedLocal));
-    }
-
-    const cachedProf = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
-    if (cachedProf) {
-      const parsed = JSON.parse(cachedProf);
-      parsed.orders = updatedLocal;
-      localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
-      localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
-    }
+    safeStorage.setItem('marts_last_order_id', orderData.id);
   } catch (_) {}
 
   if (uid && uid !== 'guest') {
@@ -1787,13 +1760,13 @@ export const fetchUserWishlist = async (uid: string): Promise<string[]> => {
     const wishlistDocSnap = await withTimeout(getDoc(doc(db, 'users', uid, 'wishlist', 'items')));
     if (wishlistDocSnap.exists()) {
       const list = wishlistDocSnap.data().productIds || [];
-      localStorage.setItem(`melody_wishlist_${uid}`, JSON.stringify(list));
+      safeStorage.setItem(`marts_wishlist_${uid}`, JSON.stringify(list));
       return list;
     }
     return [];
   } catch (err) {
     console.warn('Firestore offline when fetching wishlist, using local cache.');
-    const cached = localStorage.getItem(`melody_wishlist_${uid}`) || localStorage.getItem('melody_wishlist');
+    const cached = safeStorage.getItem(`marts_wishlist_${uid}`) || safeStorage.getItem('marts_wishlist');
     if (cached) {
       try { return JSON.parse(cached); } catch (e) {}
     }
@@ -1802,8 +1775,8 @@ export const fetchUserWishlist = async (uid: string): Promise<string[]> => {
 };
 
 export const syncUserWishlistToFirestore = async (uid: string, wishlist: string[]): Promise<void> => {
-  localStorage.setItem(`melody_wishlist_${uid}`, JSON.stringify(wishlist));
-  localStorage.setItem('melody_wishlist', JSON.stringify(wishlist));
+  safeStorage.setItem(`marts_wishlist_${uid}`, JSON.stringify(wishlist));
+  safeStorage.setItem('marts_wishlist', JSON.stringify(wishlist));
   try {
     await withTimeout(setDoc(doc(db, 'users', uid, 'wishlist', 'items'), {
       productIds: wishlist,

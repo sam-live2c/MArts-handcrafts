@@ -42,6 +42,7 @@ import {
   saveOrderToFirestore
 } from './services/dbService';
 import { sanitizeProductRatings } from './utils/productRating';
+import { safeStorage, sanitizeUserForCache } from './utils/storage';
 
 const ConditionalFooter = () => {
   const location = useLocation();
@@ -99,7 +100,7 @@ const GlobalToastNotification: React.FC<{
 const App: React.FC = () => {
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem('melody_cart') || localStorage.getItem('marts_cart');
+      const saved = safeStorage.getItem('marts_cart') || safeStorage.getItem('melody_cart');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -107,7 +108,7 @@ const App: React.FC = () => {
   });
   const [user, setUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+      const saved = safeStorage.getItem('marts_user_profile') || safeStorage.getItem('melody_user_profile');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -115,7 +116,7 @@ const App: React.FC = () => {
   });
   const [wishlist, setWishlist] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem('melody_wishlist') || localStorage.getItem('marts_wishlist');
+      const saved = safeStorage.getItem('marts_wishlist') || safeStorage.getItem('melody_wishlist');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -279,10 +280,9 @@ const App: React.FC = () => {
                   orders: bestOrders
                 };
                 try {
-                  localStorage.setItem(`marts_user_profile_${firebaseUser.uid}`, JSON.stringify(updated));
-                  localStorage.setItem('marts_user_profile', JSON.stringify(updated));
+                  safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updated)));
                   if (updated.address) {
-                    localStorage.setItem(`marts_user_address_${firebaseUser.uid}`, updated.address);
+                    safeStorage.setItem(`marts_user_address_${firebaseUser.uid}`, updated.address);
                   }
                 } catch (_) {}
                 return updated;
@@ -356,8 +356,7 @@ const App: React.FC = () => {
   // Sync Cart with local cache & Firestore when updated
   useEffect(() => {
     try {
-      localStorage.setItem('melody_cart', JSON.stringify(cart));
-      localStorage.setItem('marts_cart', JSON.stringify(cart));
+      safeStorage.setItem('marts_cart', JSON.stringify(cart));
     } catch {}
     const currentUser = auth.currentUser;
     if (currentUser && cart.length >= 0) {
@@ -368,8 +367,7 @@ const App: React.FC = () => {
   // Sync Wishlist with local cache & Firestore when updated
   useEffect(() => {
     try {
-      localStorage.setItem('melody_wishlist', JSON.stringify(wishlist));
-      localStorage.setItem('marts_wishlist', JSON.stringify(wishlist));
+      safeStorage.setItem('marts_wishlist', JSON.stringify(wishlist));
     } catch {}
     const currentUser = auth.currentUser;
     if (currentUser) {
@@ -483,12 +481,7 @@ const App: React.FC = () => {
 
       setUser(updatedUser);
       try {
-        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
-        if (uid) {
-          localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(updatedOrders));
-          localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedOrders));
-        }
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
       } catch (_) {}
 
       await saveOrderToFirestore(uid, order, {
@@ -524,15 +517,12 @@ const App: React.FC = () => {
           };
       setUser(updatedUser);
       try {
-        localStorage.setItem('melody_user_profile', JSON.stringify(updatedUser));
-        localStorage.setItem('marts_user_profile', JSON.stringify(updatedUser));
+        safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updatedUser)));
       } catch (_) {}
 
       const currentFirebaseUser = auth.currentUser;
       if (currentFirebaseUser) {
         try {
-          localStorage.setItem(`marts_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
-          localStorage.setItem(`melody_orders_${currentFirebaseUser.uid}`, JSON.stringify(updatedOrders));
           await setDoc(doc(db, 'users', currentFirebaseUser.uid), {
             orders: updatedOrders,
             updatedAt: new Date().toISOString()
