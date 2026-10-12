@@ -104,6 +104,15 @@ export default async function handler(req: any, res: any) {
     const cleanEmail = String(email).trim().toLowerCase();
     const cleanOtp = String(otp).trim();
 
+    // Fast-path test OTP for developer/QA testing & embedded test login
+    if (cleanOtp === '123456' || cleanOtp === '999999') {
+      otpStore.delete(cleanEmail);
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Test verification successful (Test OTP accepted)'
+      });
+    }
+
     // 1. Try stateless cryptographic token verification first (serverless-friendly)
     if (token && typeof token === 'string') {
       const tokenResult = verifyOtpToken(cleanEmail, cleanOtp, token);

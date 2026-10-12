@@ -858,7 +858,7 @@ export const calculateOrderPricing = (
 };
 
 export const createOrderTracking = (
-  status: Order['status'] = 'Confirmed', 
+  status: Order['status'] = 'Processing', 
   createdAt: number = Date.now()
 ) => {
   const current = String(status);
@@ -1016,15 +1016,15 @@ export const saveOrderToFirestore = async (
     total
   };
 
-  const trackingData = order.tracking || createOrderTracking(order.status || 'Confirmed', order.createdAt || Date.now());
+  const trackingData = order.tracking || createOrderTracking(order.status || 'Processing', order.createdAt || Date.now());
 
   const statusHistory = Array.isArray(order.statusHistory) && order.statusHistory.length > 0 
     ? order.statusHistory 
     : [
         {
-          status: order.status || 'Confirmed',
+          status: order.status || 'Processing',
           timestamp: order.createdAt || Date.now(),
-          label: `Order ${order.status || 'Confirmed'}`,
+          label: `Order ${order.status || 'Processing'}`,
           note: order.paymentMethod ? `Placed with ${order.paymentMethod}` : 'Order registered in fulfillment pipeline'
         }
       ];
@@ -1048,7 +1048,7 @@ export const saveOrderToFirestore = async (
     deliveryFee,
     itemCount,
     pricing: pricingData,
-    status: order.status || 'Confirmed',
+    status: order.status || 'Processing',
     tracking: trackingData,
     statusHistory,
     createdAt: order.createdAt || Date.now(),

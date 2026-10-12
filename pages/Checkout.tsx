@@ -14,6 +14,7 @@ import {
 } from '../services/dbService';
 import { openRazorpayCheckout } from '../utils/razorpay';
 import { normalizeIndianPhone, isValidIndianPhone } from '../utils/phone';
+import { FullScreenCircleLoader } from '../components/CircleLoader';
 
 const upiLogoIcon = 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg';
 
@@ -56,6 +57,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   // 1: Address, 2: Summary, 3: Payment
   const [step, setStep] = useState(2);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isOrderPlacedLoading, setIsOrderPlacedLoading] = useState(false);
   const [paymentOption, setPaymentOption] = useState<'razorpay' | 'cod'>('razorpay');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [customizationToast, setCustomizationToast] = useState<string | null>(null);
@@ -470,7 +472,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           deliveryFee: 0,
           itemCount: totalItemsCount,
           pricing: pricingBreakdown,
-          status: 'Confirmed',
+          status: 'Processing',
           paymentId: paymentId,
           paymentMethod: 'Online Payment (UPI/Cards)',
           paymentStatus: 'PAID',
@@ -480,20 +482,20 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           customerAddress: customerDeliveryAddr,
           shippingAddress: storeDeliveryAddr,
           tracking: {
-            currentStatus: 'Confirmed',
+            currentStatus: 'Processing',
             updatedAt: Date.now(),
             steps: [
-              { status: 'Placed', label: 'Order Confirmed & Authorized', completed: true, timestamp: Date.now() },
-              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: false, timestamp: null },
+              { status: 'Placed', label: 'Order Placed & Authorized', completed: true, timestamp: Date.now() },
+              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: true, timestamp: Date.now() },
               { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
               { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
             ]
           },
           statusHistory: [
             {
-              status: 'Confirmed',
+              status: 'Processing',
               timestamp: Date.now(),
-              label: 'Payment Verified & Order Confirmed',
+              label: 'Payment Verified & In Fulfillment',
               note: `Payment reference #${paymentId} confirmed and settled via Razorpay.`
             }
           ],
@@ -501,15 +503,18 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           updatedAt: Date.now()
         };
 
+        setIsOrderPlacedLoading(true);
         setIsProcessing(false);
         try {
           await onOrderSuccess(newOrder);
         } catch (e) {
           console.warn('Order success handler warning:', e);
         }
+        await new Promise(resolve => setTimeout(resolve, 1400));
         clearCart();
         navigate('/orders', { replace: true });
       } catch (err: unknown) {
+        setIsOrderPlacedLoading(false);
         setIsProcessing(false);
         if (err instanceof Error && err.message === 'PAYMENT_CANCELLED') {
           setPaymentError('Payment window was closed or cancelled. You can retry or choose Cash on Delivery.');
@@ -549,7 +554,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           deliveryFee: 0,
           itemCount: totalItemsCount,
           pricing: pricingBreakdown,
-          status: 'Confirmed',
+          status: 'Processing',
           paymentMethod: 'Cash on Delivery',
           paymentStatus: 'PENDING',
           customerName: customerName,
@@ -558,20 +563,20 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           customerAddress: customerDeliveryAddr,
           shippingAddress: storeDeliveryAddr,
           tracking: {
-            currentStatus: 'Confirmed',
+            currentStatus: 'Processing',
             updatedAt: Date.now(),
             steps: [
-              { status: 'Placed', label: 'Order Confirmed & Authorized', completed: true, timestamp: Date.now() },
-              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: false, timestamp: null },
+              { status: 'Placed', label: 'Order Placed & Authorized', completed: true, timestamp: Date.now() },
+              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: true, timestamp: Date.now() },
               { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
               { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
             ]
           },
           statusHistory: [
             {
-              status: 'Confirmed',
+              status: 'Processing',
               timestamp: Date.now(),
-              label: 'Cash on Delivery Authorized',
+              label: 'Cash on Delivery Placed',
               note: `Pay ₹${total.toLocaleString()} on doorstep arrival.`
             }
           ],
@@ -579,15 +584,18 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           updatedAt: Date.now()
         };
 
+        setIsOrderPlacedLoading(true);
         setIsProcessing(false);
         try {
           await onOrderSuccess(newOrder);
         } catch (e) {
           console.warn('Order success handler warning:', e);
         }
+        await new Promise(resolve => setTimeout(resolve, 1400));
         clearCart();
         navigate('/orders', { replace: true });
       } catch (err: unknown) {
+        setIsOrderPlacedLoading(false);
         setIsProcessing(false);
         setPaymentError(err instanceof Error ? err.message : 'Could not authorize Cash on Delivery order.');
         console.error('COD Order Error:', err);
@@ -627,6 +635,9 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
 
   return (
     <div className="w-full bg-gray-50 min-h-screen font-sans relative">
+      {isOrderPlacedLoading && (
+        <FullScreenCircleLoader overlay={true} bgClassName="bg-[#FAF8F5]/90 backdrop-blur-xs" />
+      )}
       <div className="w-full bg-white min-h-screen relative flex flex-col max-w-5xl mx-auto shadow-sm pb-16 md:pb-6">
           {/* Header */}
           {step === 3 ? (

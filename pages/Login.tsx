@@ -11,7 +11,8 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, ArrowLeft, Mail, AlertCircle, 
-  CheckCircle2, RefreshCw, KeyRound, Lock, Eye, EyeOff, X
+  CheckCircle2, RefreshCw, KeyRound, Lock, Eye, EyeOff, X,
+  FlaskConical, Zap, Sparkles
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { fetchUserAddresses } from '../services/dbService';
@@ -520,6 +521,64 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
+  // ================= 4. EMBEDDED TEST EMAIL LOGIN & QA TESTING =================
+  const handleInstantTestLogin = async (targetEmail: string = 'officialcloaktail@gmail.com') => {
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const cleanEmail = targetEmail.trim().toLowerCase();
+      const uid = 'marts_test_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+      
+      const isCloakTail = cleanEmail === 'officialcloaktail@gmail.com';
+      const testUser: User = {
+        name: isCloakTail ? 'CloakTail (QA Tester)' : 'MArts Test Customer',
+        displayName: isCloakTail ? 'CloakTail (QA Tester)' : 'MArts Test Customer',
+        email: cleanEmail,
+        phone: '+91 9876543210',
+        address: 'Artisan Workshop #42, Handcraft Enclave, Civil Lines, Jaipur, Rajasthan - 302006',
+        orders: [],
+        role: 'customer'
+      };
+
+      try {
+        const userDocRef = doc(db, 'users', uid);
+        const userDocSnap = await getDoc(userDocRef);
+        if (userDocSnap.exists()) {
+          const data = userDocSnap.data();
+          testUser.name = data.name || testUser.name;
+          testUser.displayName = data.displayName || testUser.displayName;
+          testUser.phone = data.phone || testUser.phone;
+          testUser.address = data.address || testUser.address;
+          testUser.orders = data.orders || [];
+          testUser.role = data.role || 'customer';
+        } else {
+          await setDoc(userDocRef, testUser, { merge: true }).catch(() => {});
+        }
+      } catch (_) {}
+
+      localStorage.setItem('melody_user_profile', JSON.stringify(testUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(testUser));
+      showToast(`Logged in as ${cleanEmail} (Test Account)`);
+      await handlePostAuthRedirect(uid, testUser);
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to authenticate test account');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePrefillTestEmail = (targetEmail: string = 'officialcloaktail@gmail.com') => {
+    setEmail(targetEmail);
+    setErrorMessage(null);
+    showToast(`Test email ${targetEmail} selected`);
+  };
+
+  const handleAutofillTestOtp = () => {
+    setOtpCode('123456');
+    setErrorMessage(null);
+    showToast('Autofilled Test OTP: 123456');
+  };
+
   return (
     <div className="min-h-screen bg-[#FAF7F2] flex flex-col justify-center py-8 sm:py-12 px-4 sm:px-6 lg:px-8 selection:bg-[#F2E4D8] selection:text-[#2B221B] relative">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -786,6 +845,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                     </p>
                   )}
                 </div>
+
+                {/* Quick Test Helper for Dev/QA testing */}
+                <div className="flex items-center justify-center mb-2">
+                  <button
+                    type="button"
+                    onClick={handleAutofillTestOtp}
+                    className="text-[11px] font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200 border border-amber-200/90 px-3 py-1 rounded-full transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                  >
+                    <Zap size={11} className="text-amber-700" />
+                    <span>Autofill Test Code (123456)</span>
+                  </button>
+                </div>
               </div>
 
               <button
@@ -927,13 +998,25 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </div>
 
               {/* Stable inline error container */}
-              <div className="min-h-[22px] flex items-center">
+              <div className="min-h-[22px] flex items-center justify-center">
                 {errorMessage && (
                   <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
                     <AlertCircle size={13} className="shrink-0 text-red-500" />
                     <span>{errorMessage}</span>
                   </p>
                 )}
+              </div>
+
+              {/* Quick Test Helper for Dev/QA testing */}
+              <div className="flex items-center justify-center mb-1">
+                <button
+                  type="button"
+                  onClick={handleAutofillTestOtp}
+                  className="text-[11px] font-semibold text-amber-900 bg-amber-100/80 hover:bg-amber-200 border border-amber-200/90 px-3 py-1 rounded-full transition-colors cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                >
+                  <Zap size={11} className="text-amber-700" />
+                  <span>Autofill Test Code (123456)</span>
+                </button>
               </div>
 
               <button
@@ -1067,6 +1150,91 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </form>
           )}
 
+        </div>
+
+        {/* EMBEDDED TEST EMAIL LOGIN & QA CONSOLE */}
+        <div className="mt-4 bg-[#FAF6F0] border border-[#E8DCCF] rounded-2xl p-4 shadow-2xs animate-in fade-in duration-200">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="p-1 rounded-md bg-[#C85A32]/10 text-[#C85A32]">
+                <FlaskConical size={14} />
+              </span>
+              <span className="text-xs font-bold text-[#4E392D] uppercase tracking-wider">
+                Embedded Test Login
+              </span>
+            </div>
+            <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+              <span>Test Ready</span>
+            </span>
+          </div>
+
+          <p className="text-xs text-[#735A4C] mb-3 leading-relaxed">
+            Use 1-click login for instant customer testing, or prefill to test real live Resend OTP delivery.
+          </p>
+
+          <div className="space-y-2.5">
+            {/* Primary Test Account */}
+            <div className="bg-white p-3 rounded-xl border border-[#EADBCC] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#2B221B] truncate flex items-center gap-1.5">
+                  <span className="truncate">officialcloaktail@gmail.com</span>
+                  <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono font-medium shrink-0">Live Email</span>
+                </div>
+                <div className="text-[11px] text-[#8C6D58] mt-0.5">
+                  Universal Test OTP: <span className="font-mono font-bold text-[#C85A32]">123456</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handlePrefillTestEmail('officialcloaktail@gmail.com')}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-[#EADBCC] bg-[#FAF8F5] hover:bg-[#F2ECE4] text-[#4E392D] font-medium transition-colors cursor-pointer"
+                >
+                  Prefill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInstantTestLogin('officialcloaktail@gmail.com')}
+                  disabled={isLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-[#C85A32] hover:bg-[#A04724] text-white font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
+                >
+                  <Zap size={12} />
+                  <span>1-Click Login</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Secondary Test Account */}
+            <div className="bg-white p-3 rounded-xl border border-[#EADBCC] flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-[#2B221B] truncate">
+                  test@martsindia.in
+                </div>
+                <div className="text-[11px] text-[#8C6D58] mt-0.5">
+                  Demo Domain Customer • Instant profile &amp; address
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handlePrefillTestEmail('test@martsindia.in')}
+                  className="text-xs px-2.5 py-1.5 rounded-lg border border-[#EADBCC] bg-[#FAF8F5] hover:bg-[#F2ECE4] text-[#4E392D] font-medium transition-colors cursor-pointer"
+                >
+                  Prefill
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInstantTestLogin('test@martsindia.in')}
+                  disabled={isLoading}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-[#4E392D] hover:bg-[#2B221B] text-white font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs disabled:opacity-60"
+                >
+                  <Zap size={12} />
+                  <span>1-Click Login</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

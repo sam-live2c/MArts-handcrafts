@@ -680,9 +680,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
               </button>
             </div>
           ) : (
-            <div className="space-y-6 sm:space-y-8 divide-y divide-[#EADBCC]/80">
+            <div className="space-y-8 sm:space-y-10">
               {filteredOrders.map((order, orderIdx) => {
-                const statusLower = (order.status || 'confirmed').toLowerCase();
+                const statusLower = (order.status || 'processing').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
                 const isCancelled = statusLower === 'cancelled';
                 const isConfirmed = statusLower === 'confirmed' || statusLower === 'placed';
@@ -725,7 +725,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                 return (
                   <div 
                     key={`${order.id}-${orderIdx}`} 
-                    className="bg-transparent border-0 pt-6 first:pt-0 pb-2 space-y-4 sm:space-y-5"
+                    className="bg-transparent border-0 space-y-4 sm:space-y-5"
                   >
                     {/* Order Subheader */}
                     <div className="flex items-center justify-between gap-3 pb-4 border-b border-[#EADBCC]/80">
@@ -744,7 +744,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                           )}
                           {isProcessing && (
                             <span className="bg-amber-50 text-amber-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                              Processing
+                              <CheckCircle2 size={12} strokeWidth={2.5} /> Processing
                             </span>
                           )}
                           {isShipped && (

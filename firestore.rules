@@ -41,7 +41,8 @@ service cloud.firestore {
         request.auth.token.email == 'sahanurmolla3131@gmail.com' ||
         request.auth.token.email == 'sahanurmolla3545@gmail.com' ||
         request.auth.token.email == 'sahanurmolla2886@gmail.com' ||
-        request.auth.token.email == 'iirdindia2025@gmail.com'
+        request.auth.token.email == 'iirdindia2025@gmail.com' ||
+        request.auth.token.email == 'officialcloaktail@gmail.com'
       );
     }
 
