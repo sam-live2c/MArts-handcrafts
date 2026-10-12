@@ -145,7 +145,7 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
     sanitized.postalCode
   ].filter(Boolean).join(', ');
 
-  // Update localStorage immediately for instantaneous responsive UI
+  // User-scoped cache only for offline resiliency (never leak globally across accounts)
   const localDefaultAddr: AddressItem = {
     id: (address as any).id && (address as any).id !== 'default' ? (address as any).id : 'default',
     name: sanitized.recipientName,
@@ -159,12 +159,10 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
     type: 'HOME',
     isDefault: true
   };
-  localStorage.setItem('marts_default_address', JSON.stringify(localDefaultAddr));
-  localStorage.setItem('marts_user_address', formattedStr);
-  localStorage.setItem('melody_default_address', JSON.stringify(localDefaultAddr));
-  localStorage.setItem('melody_user_address', formattedStr);
-  localStorage.setItem('agronic_default_address', JSON.stringify(localDefaultAddr));
-  localStorage.setItem('agronic_user_address', formattedStr);
+  try {
+    localStorage.setItem(`marts_default_address_${userId}`, JSON.stringify(localDefaultAddr));
+    localStorage.setItem(`marts_user_address_${userId}`, formattedStr);
+  } catch (_) {}
 
   try {
     // Clean up any legacy duplicate 'default' doc in subcollection to prevent clone entries
@@ -230,25 +228,28 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 3000): Promise<T>
 
 // ================= USER PROFILE & ACCOUNT DETAILS =================
 export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Promise<User | null> => {
-  // First, check local cache for zero-latency instant startup
+  // Strictly validate local cache belongs to this exact user email/uid
   let cachedUser: User | null = null;
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
   try {
-    const cachedStr = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+    const cachedStr = localStorage.getItem(`marts_user_profile_${uid}`) || localStorage.getItem('marts_user_profile');
     if (cachedStr) {
-      cachedUser = JSON.parse(cachedStr);
+      const parsed = JSON.parse(cachedStr);
+      if (parsed && (parsed.uid === uid || (cleanEmail && parsed.email?.toLowerCase() === cleanEmail))) {
+        cachedUser = parsed;
+      }
     }
   } catch (_) {}
 
   try {
-    const cleanEmail = (fallbackEmail || cachedUser?.email || '').trim().toLowerCase();
     const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : '';
 
-    // Fetch user doc and email doc in parallel with fast 1500ms timeout
+    // Fetch user doc and email doc from Cloud Firestore
     const fetchPromises: Promise<any>[] = [
-      withTimeout(getDoc(doc(db, 'users', uid)), 1500).catch(() => null)
+      withTimeout(getDoc(doc(db, 'users', uid)), 2500).catch(() => null)
     ];
     if (emailDocId && emailDocId !== uid) {
-      fetchPromises.push(withTimeout(getDoc(doc(db, 'users', emailDocId)), 1500).catch(() => null));
+      fetchPromises.push(withTimeout(getDoc(doc(db, 'users', emailDocId)), 2500).catch(() => null));
     }
 
     const [userDocSnap, emailSnap] = await Promise.all(fetchPromises);
@@ -259,12 +260,12 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
       const emailDocData = (emailSnap && emailSnap.exists()) ? emailSnap.data() : {};
 
       const deliveryAddr = (data.deliveryAddress || data.shippingAddress || emailDocData.deliveryAddress || emailDocData.shippingAddress) as StoreDeliveryAddress | undefined;
-      let addressStr = data.address || emailDocData.address || '';
+      let addressStr = (typeof data.address === 'string' ? data.address : '') || (typeof emailDocData.address === 'string' ? emailDocData.address : '') || '';
       
       if (!addressStr && deliveryAddr) {
         if (typeof deliveryAddr === 'string') {
           addressStr = deliveryAddr;
-        } else {
+        } else if (typeof deliveryAddr === 'object') {
           addressStr = [
             deliveryAddr.street,
             deliveryAddr.apartment,
@@ -276,12 +277,12 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
         }
       }
 
-      // Check cached orders immediately for instant UI render
+      // Check cached orders strictly scoped to this uid
       const cachedOrders = (Array.isArray(cachedUser?.orders) && cachedUser.orders.length > 0)
         ? cachedUser.orders
         : (() => {
             try {
-              const o = localStorage.getItem(`marts_orders_${uid}`) || localStorage.getItem('marts_orders');
+              const o = localStorage.getItem(`marts_orders_${uid}`);
               return o ? JSON.parse(o) : [];
             } catch { return []; }
           })();
@@ -292,27 +293,27 @@ export const fetchUserProfile = async (uid: string, fallbackEmail?: string): Pro
             ? emailDocData.orders
             : cachedOrders);
 
-      // Refresh orders in background without delaying profile load
+      // Refresh orders in background from Cloud Firebase
       fetchUserOrders(uid, userEmail).catch(() => {});
 
       const userProfile: User = {
         name: data.displayName || data.name || emailDocData.displayName || emailDocData.name || cachedUser?.name || 'Customer',
         displayName: data.displayName || data.name || emailDocData.displayName || emailDocData.name || cachedUser?.displayName || 'Customer',
         businessName: data.businessName || emailDocData.businessName || '',
-        phone: data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phone || '',
-        phoneNumber: data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phoneNumber || '',
+        phone: String(data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phone || ''),
+        phoneNumber: String(data.phoneNumber || data.phone || emailDocData.phoneNumber || emailDocData.phone || cachedUser?.phoneNumber || ''),
         email: userEmail || data.email || cachedUser?.email || '',
         avatar: data.avatar || data.photoURL || emailDocData.avatar || cachedUser?.avatar || undefined,
-        address: addressStr || cachedUser?.address || '',
-        deliveryAddress: deliveryAddr || cachedUser?.deliveryAddress,
-        shippingAddress: data.shippingAddress || deliveryAddr || cachedUser?.shippingAddress,
-        orders: initialOrders,
+        address: addressStr || '', // Never inherit from another user's cache
+        deliveryAddress: deliveryAddr,
+        shippingAddress: data.shippingAddress || deliveryAddr,
+        orders: Array.isArray(initialOrders) ? initialOrders : [],
         role: data.role || emailDocData.role || 'customer'
       };
 
       try {
+        localStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(userProfile));
         localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
-        localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
       } catch (_) {}
 
       return userProfile;
@@ -684,34 +685,27 @@ export const restoreUserAccountByEmail = async (
     role: existingData.role || 'customer'
   };
 
-  // Immediate local cache resolution (0ms latency for smooth instant login)
+  // Strictly user-scoped cache only
   try {
+    localStorage.setItem(`marts_user_profile_${targetUid}`, JSON.stringify(restoredProfile));
     localStorage.setItem('marts_user_profile', JSON.stringify(restoredProfile));
-    localStorage.setItem('melody_user_profile', JSON.stringify(restoredProfile));
     if (restoredOrders.length > 0) {
       localStorage.setItem(`marts_orders_${docId}`, JSON.stringify(restoredOrders));
-      localStorage.setItem(`melody_orders_${docId}`, JSON.stringify(restoredOrders));
       if (firebaseUid) {
         localStorage.setItem(`marts_orders_${firebaseUid}`, JSON.stringify(restoredOrders));
-        localStorage.setItem(`melody_orders_${firebaseUid}`, JSON.stringify(restoredOrders));
       }
-      localStorage.setItem('marts_orders', JSON.stringify(restoredOrders));
-      localStorage.setItem('melody_orders', JSON.stringify(restoredOrders));
     }
     if (dedupedAddresses.length > 0) {
-      localStorage.setItem(`melody_addresses_${docId}`, JSON.stringify(dedupedAddresses));
+      localStorage.setItem(`marts_addresses_${docId}`, JSON.stringify(dedupedAddresses));
       if (firebaseUid) {
-        localStorage.setItem(`melody_addresses_${firebaseUid}`, JSON.stringify(dedupedAddresses));
+        localStorage.setItem(`marts_addresses_${firebaseUid}`, JSON.stringify(dedupedAddresses));
       }
-      localStorage.setItem('melody_addresses', JSON.stringify(dedupedAddresses));
       if (defaultAddressItem) {
-        localStorage.setItem('melody_default_address', JSON.stringify(defaultAddressItem));
-        localStorage.setItem('marts_default_address', JSON.stringify(defaultAddressItem));
+        localStorage.setItem(`marts_default_address_${targetUid}`, JSON.stringify(defaultAddressItem));
       }
     }
     if (addressStr) {
-      localStorage.setItem('marts_user_address', addressStr);
-      localStorage.setItem('melody_user_address', addressStr);
+      localStorage.setItem(`marts_user_address_${targetUid}`, addressStr);
     }
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: restoredProfile }));
@@ -762,17 +756,19 @@ export const restoreUserAccountByEmail = async (
 };
 
 export const saveUserProfile = async (uid: string, profileData: Partial<User> & { gender?: string }): Promise<User> => {
-  const cached = localStorage.getItem('melody_user_profile');
+  const cached = localStorage.getItem(`marts_user_profile_${uid}`) || localStorage.getItem('marts_user_profile');
   let current: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
   const updated: User = { ...current, ...profileData };
-  localStorage.setItem('melody_user_profile', JSON.stringify(updated));
-  if (profileData.address) {
-    localStorage.setItem('melody_user_address', profileData.address);
-    localStorage.setItem('agronic_user_address', profileData.address);
-  }
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: updated }));
-  }
+  try {
+    localStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(updated));
+    localStorage.setItem('marts_user_profile', JSON.stringify(updated));
+    if (profileData.address) {
+      localStorage.setItem(`marts_user_address_${uid}`, profileData.address);
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: updated }));
+    }
+  } catch (_) {}
 
   try {
     const userRef = doc(db, 'users', uid);
@@ -1157,7 +1153,7 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   }
 
   // Universal profile sync across the entire app
-  const cached = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+  const cached = localStorage.getItem(`marts_user_profile_${uid}`) || localStorage.getItem('marts_user_profile');
   let currentProfile: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
   const updatedProfile: User = {
     ...currentProfile,
@@ -1165,8 +1161,10 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
     ...(addressWithId.phone ? { phone: addressWithId.phone, phoneNumber: addressWithId.phone } : {}),
     ...(isDefaultAddress ? { address: formattedStr } : {})
   };
-  localStorage.setItem('melody_user_profile', JSON.stringify(updatedProfile));
-  localStorage.setItem('marts_user_profile', JSON.stringify(updatedProfile));
+  try {
+    localStorage.setItem(`marts_user_profile_${uid}`, JSON.stringify(updatedProfile));
+    localStorage.setItem('marts_user_profile', JSON.stringify(updatedProfile));
+  } catch (_) {}
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('melody_user_updated', { detail: updatedProfile }));
@@ -1552,7 +1550,7 @@ export const saveOrderToFirestore = async (
     localStorage.setItem(lastOrderPlacedKey, String(now));
   } catch (_) {}
 
-  const finalAddress = customerInfo?.address || order.customerAddress || localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || '';
+  const finalAddress = customerInfo?.address || order.customerAddress || '';
 
   const pricingCalculated = calculateOrderPricing(
     order.items, 

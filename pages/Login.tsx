@@ -135,23 +135,19 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     clearPendingStorage();
     onLogin(loggedInUser);
 
-    const hasAddress =
-      (loggedInUser.address && loggedInUser.address.trim().length > 0) ||
-      !!localStorage.getItem('marts_user_address') ||
-      !!localStorage.getItem('marts_default_address') ||
-      !!localStorage.getItem('melody_user_address');
+    const hasAddress = Boolean(loggedInUser.address && loggedInUser.address.trim().length > 0);
 
     if (redirectTarget) {
       if (!hasAddress && redirectTarget === 'checkout') {
-        navigate('/address?redirect=checkout');
+        navigate('/address?redirect=checkout', { replace: true });
       } else {
-        navigate(`/${redirectTarget.replace(/^\//, '')}`);
+        navigate(`/${redirectTarget.replace(/^\//, '')}`, { replace: true });
       }
     } else {
-      navigate('/');
+      navigate('/', { replace: true });
     }
 
-    // Load addresses in background non-blockingly
+    // Load addresses in background from Cloud Firestore
     fetchUserAddresses(uid).catch(() => {});
   };
 
@@ -586,24 +582,26 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         localStorage.removeItem('melody_addresses');
       } catch (_) {}
 
-      // Fast initial profile to make navigation instantaneous with zero blank screen
+      // Fast initial profile strictly using Google authenticated details
       const immediateUser: User = {
         name: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
         displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
         email: cleanEmail,
         avatar: fbUser.photoURL || undefined,
-        phone: fbUser.phoneNumber || '',
-        phoneNumber: fbUser.phoneNumber || '',
-        address: '',
+        phone: String(fbUser.phoneNumber || ''),
+        phoneNumber: String(fbUser.phoneNumber || ''),
+        address: '', // Clean blank address - no preset leakage
         orders: []
       };
 
-      // Set user profile in state & localStorage right away
-      localStorage.setItem('melody_user_profile', JSON.stringify(immediateUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+      try {
+        localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(immediateUser));
+        localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+      } catch (_) {}
+
       onLogin(immediateUser);
 
-      // Restore and unify account records in parallel non-blocking
+      // Restore and unify account records in parallel from Cloud Firebase
       restoreUserAccountByEmail(
         cleanEmail,
         undefined,
@@ -616,8 +614,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         }
       ).then(unified => {
         if (unified?.user) {
-          localStorage.setItem('melody_user_profile', JSON.stringify(unified.user));
-          localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
+          try {
+            localStorage.setItem(`marts_user_profile_${fbUser.uid}`, JSON.stringify(unified.user));
+            localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
+          } catch (_) {}
           onLogin(unified.user);
         }
       }).catch(err => {
@@ -628,9 +628,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       clearPendingStorage();
 
       if (redirectTarget) {
-        navigate(`/${redirectTarget.replace(/^\//, '')}`);
+        navigate(`/${redirectTarget.replace(/^\//, '')}`, { replace: true });
       } else {
-        navigate('/');
+        navigate('/', { replace: true });
       }
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {

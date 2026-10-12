@@ -24,8 +24,8 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
   const [isLoading, setIsLoading] = useState(() => !isCartLoadedCache);
   const [addressInfo, setAddressInfo] = useState<{ name?: string; phone?: string; formatted?: string }>({
     name: user?.name || '',
-    phone: user?.phone || '',
-    formatted: localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address || ''
+    phone: String(user?.phone || ''),
+    formatted: (typeof user?.address === 'string' ? user.address : '')
   });
 
   // Customization state (synchronized with localStorage)
@@ -91,22 +91,19 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
             const formatted = `${def.houseNo}, ${def.area ? def.area + ', ' : ''}${def.city}, ${def.state} - ${def.pincode}`;
             setAddressInfo({
               name: def.name || user?.name || '',
-              phone: def.phone || user?.phone || '',
+              phone: String(def.phone || user?.phone || ''),
               formatted
             });
-            localStorage.setItem('melody_user_address', formatted);
-            localStorage.setItem('agronic_user_address', formatted);
             return;
           }
         } catch (e) {
           console.error('Error loading address for cart:', e);
         }
       }
-      const local = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address');
-      if (local) {
-        setAddressInfo(prev => ({ ...prev, formatted: local }));
-      } else if (user?.address) {
+      if (user?.address && typeof user.address === 'string') {
         setAddressInfo(prev => ({ ...prev, formatted: user.address }));
+      } else {
+        setAddressInfo(prev => ({ ...prev, formatted: '' }));
       }
     };
     loadAddress();
@@ -117,7 +114,7 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
       navigate('/login?redirect=checkout');
       return;
     }
-    const savedAddr = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address;
+    const savedAddr = addressInfo.formatted || user?.address;
     if (!savedAddr || savedAddr.trim() === '') {
       navigate('/address?redirect=checkout');
       return;
@@ -174,11 +171,9 @@ const Cart: React.FC<CartProps> = ({ cart, setCart, user }) => {
                 <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Deliver to:</p>
                 <p className="text-base font-semibold text-gray-900">
                   {addressInfo.name || user?.name || user?.email || 'Delivery Address'}
-                  {addressInfo.phone && (
                     <span className="text-sm font-normal text-gray-600 ml-2">
-                      {addressInfo.phone.startsWith('+') ? addressInfo.phone : `+91 ${addressInfo.phone}`}
+                      {String(addressInfo.phone).startsWith('+') ? addressInfo.phone : `+91 ${addressInfo.phone}`}
                     </span>
-                  )}
                 </p>
                 <p className="text-sm text-gray-600 leading-relaxed mt-0.5 max-w-xl">
                   {addressInfo.formatted || 'Select delivery location'}

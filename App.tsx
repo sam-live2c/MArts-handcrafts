@@ -192,13 +192,28 @@ const App: React.FC = () => {
       }
 
       if (firebaseUser) {
-        // Immediate local cache resolution for zero latency (strictly verified by matching email or uid)
         const cleanEmail = (firebaseUser.email || '').trim().toLowerCase();
+
+        // Immediately purge all legacy un-scoped address keys so preset addresses never leak across accounts
         try {
-          const cachedRaw = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+          const keysToPurge = [
+            'marts_default_address',
+            'melody_default_address',
+            'agronic_default_address',
+            'marts_user_address',
+            'melody_user_address',
+            'agronic_user_address',
+            'melody_addresses'
+          ];
+          keysToPurge.forEach(k => localStorage.removeItem(k));
+        } catch (_) {}
+
+        // Immediate user-scoped cache resolution strictly matching this exact user
+        try {
+          const cachedRaw = localStorage.getItem(`marts_user_profile_${firebaseUser.uid}`) || localStorage.getItem('marts_user_profile');
           if (cachedRaw) {
             const cachedUser = JSON.parse(cachedRaw);
-            if (cachedUser && cachedUser.email && cachedUser.email.trim().toLowerCase() === cleanEmail) {
+            if (cachedUser && (cachedUser.uid === firebaseUser.uid || (cleanEmail && cachedUser.email?.toLowerCase() === cleanEmail))) {
               setUser(cachedUser);
             }
           }
@@ -208,15 +223,14 @@ const App: React.FC = () => {
           fetchUserProfile(firebaseUser.uid, cleanEmail).then((profile) => {
             if (profile) {
               setUser(profile);
-            } else if (cleanEmail) {
-              restoreUserAccountByEmail(cleanEmail, undefined, firebaseUser.displayName || undefined, firebaseUser.uid)
-                .then(restored => setUser(restored.user))
-                .catch(() => {});
             } else {
               const newProfile: User = {
-                name: firebaseUser.displayName || 'User',
-                phone: firebaseUser.phoneNumber || '',
+                name: firebaseUser.displayName || 'Customer',
+                displayName: firebaseUser.displayName || 'Customer',
+                phone: String(firebaseUser.phoneNumber || ''),
+                phoneNumber: String(firebaseUser.phoneNumber || ''),
                 email: firebaseUser.email || '',
+                avatar: firebaseUser.photoURL || undefined,
                 address: '',
                 orders: []
               };
@@ -231,7 +245,7 @@ const App: React.FC = () => {
             if (snap.exists()) {
               const data = snap.data();
               const deliveryAddr = data.deliveryAddress || data.shippingAddress;
-              let addressStr = data.address || '';
+              let addressStr = typeof data.address === 'string' ? data.address : '';
               if (!addressStr && deliveryAddr) {
                 if (typeof deliveryAddr === 'string') {
                   addressStr = deliveryAddr;
@@ -248,24 +262,25 @@ const App: React.FC = () => {
               }
 
               setUser(prev => {
-                const currentOrders = prev?.orders && Array.isArray(prev.orders) ? prev.orders : [];
+                const currentOrders = Array.isArray(prev?.orders) ? prev.orders : [];
                 const incomingOrders = Array.isArray(data.orders) ? data.orders : [];
                 const bestOrders = incomingOrders.length > currentOrders.length ? incomingOrders : (currentOrders.length > 0 ? currentOrders : incomingOrders);
 
                 const updated: User = {
-                  name: data.displayName || data.name || prev?.name || firebaseUser.displayName || 'User',
-                  displayName: data.displayName || data.name || prev?.displayName || firebaseUser.displayName || 'User',
-                  phone: data.phoneNumber || data.phone || prev?.phone || firebaseUser.phoneNumber || '',
-                  phoneNumber: data.phoneNumber || data.phone || prev?.phoneNumber || firebaseUser.phoneNumber || '',
+                  name: data.displayName || data.name || prev?.name || firebaseUser.displayName || 'Customer',
+                  displayName: data.displayName || data.name || prev?.displayName || firebaseUser.displayName || 'Customer',
+                  phone: String(data.phoneNumber || data.phone || prev?.phone || firebaseUser.phoneNumber || ''),
+                  phoneNumber: String(data.phoneNumber || data.phone || prev?.phoneNumber || firebaseUser.phoneNumber || ''),
                   email: data.email || prev?.email || firebaseUser.email || '',
-                  address: addressStr !== undefined && addressStr !== '' ? addressStr : (prev?.address || ''),
+                  avatar: data.avatar || data.photoURL || prev?.avatar || firebaseUser.photoURL || undefined,
+                  address: typeof addressStr === 'string' ? addressStr : '',
                   deliveryAddress: deliveryAddr,
                   shippingAddress: data.shippingAddress || deliveryAddr,
                   orders: bestOrders
                 };
                 try {
+                  localStorage.setItem(`marts_user_profile_${firebaseUser.uid}`, JSON.stringify(updated));
                   localStorage.setItem('marts_user_profile', JSON.stringify(updated));
-                  localStorage.setItem('melody_user_profile', JSON.stringify(updated));
                   if (updated.address) {
                     localStorage.setItem(`marts_user_address_${firebaseUser.uid}`, updated.address);
                   }
@@ -277,33 +292,34 @@ const App: React.FC = () => {
             console.warn('Realtime user profile snapshot notice:', err);
           });
 
-          // Fetch Cart, Wishlist, Orders
+          // Fetch Cart, Wishlist, Orders directly from Cloud Firestore
           const [dbCart, dbWishlist, dbOrders] = await Promise.all([
             fetchUserCart(firebaseUser.uid),
             fetchUserWishlist(firebaseUser.uid),
             fetchUserOrders(firebaseUser.uid, cleanEmail)
           ]);
 
-          if (dbCart && dbCart.length > 0) setCart(dbCart);
-          if (dbWishlist && dbWishlist.length > 0) setWishlist(dbWishlist);
-          if (dbOrders && dbOrders.length > 0) {
+          if (Array.isArray(dbCart) && dbCart.length > 0) setCart(dbCart);
+          if (Array.isArray(dbWishlist) && dbWishlist.length > 0) setWishlist(dbWishlist);
+          if (Array.isArray(dbOrders) && dbOrders.length > 0) {
             setUser(prev => {
               const base: User = prev || {
-                name: firebaseUser.displayName || 'User',
-                phone: firebaseUser.phoneNumber || '',
+                name: firebaseUser.displayName || 'Customer',
+                phone: String(firebaseUser.phoneNumber || ''),
                 email: firebaseUser.email || '',
                 address: '',
                 orders: []
               };
+              const baseOrders = Array.isArray(base?.orders) ? base.orders : [];
               const merged = (Array.isArray(dbOrders) ? dbOrders : []).filter(o => o && o.id);
-              (base.orders || []).forEach(o => {
+              baseOrders.forEach(o => {
                 if (o && o.id && !merged.some(m => m && m.id === o.id)) {
                   merged.push(o);
                 }
               });
               merged.sort((a, b) => {
-                const timeA = typeof a?.createdAt === 'number' ? a.createdAt : (a?.date ? new Date(a.date).getTime() : 0) || 0;
-                const timeB = typeof b?.createdAt === 'number' ? b.createdAt : (b?.date ? new Date(b.date).getTime() : 0) || 0;
+                const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+                const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
                 if (timeA && timeB && timeA !== timeB) return timeB - timeA;
                 return String(b?.id || '').localeCompare(String(a?.id || ''));
               });
