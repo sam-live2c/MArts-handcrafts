@@ -39,6 +39,7 @@ service cloud.firestore {
         request.auth.token.email == 'ventureforge.corp@gmail.com' ||
         request.auth.token.email == 'xsophiya99@gmail.com' ||
         request.auth.token.email == 'sahanurmolla3131@gmail.com' ||
+        request.auth.token.email == 'sahanurmolla3545@gmail.com' ||
         request.auth.token.email == 'sahanurmolla2886@gmail.com' ||
         request.auth.token.email == 'iirdindia2025@gmail.com'
       );

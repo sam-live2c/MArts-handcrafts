@@ -12,12 +12,13 @@ interface State {
   error: Error | null;
 }
 
-// Support environments without explicit @types/react class definitions
+// Support environments where React is imported without ambient component generics
 const ComponentBase: any = React.Component;
 
 export class ErrorBoundary extends ComponentBase {
   public state: State;
   public props: Props;
+  public setState: (state: Partial<State> | ((prevState: State) => Partial<State>)) => void;
 
   constructor(props: Props) {
     super(props);

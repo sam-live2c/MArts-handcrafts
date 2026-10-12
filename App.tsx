@@ -253,9 +253,15 @@ const App: React.FC = () => {
           if (dbWishlist.length > 0) setWishlist(dbWishlist);
           if (dbOrders.length > 0) {
             setUser(prev => {
-              if (!prev) return null;
+              const base: User = prev || {
+                name: firebaseUser.displayName || 'User',
+                phone: firebaseUser.phoneNumber || '',
+                email: firebaseUser.email || '',
+                address: '',
+                orders: []
+              };
               const merged = [...dbOrders];
-              (prev.orders || []).forEach(o => {
+              (base.orders || []).forEach(o => {
                 if (!merged.some(m => m.id === o.id)) {
                   merged.push(o);
                 }
@@ -266,7 +272,7 @@ const App: React.FC = () => {
                 if (timeA && timeB && timeA !== timeB) return timeB - timeA;
                 return (b.id || '').localeCompare(a.id || '');
               });
-              return { ...prev, orders: merged };
+              return { ...base, orders: merged };
             });
           }
         } catch (e) {

@@ -422,7 +422,16 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           items: cart.map(item => ({
             ...item,
-            customization: customizations[item.id] || null
+            customization: customizations[item.id] ? {
+              confirmed: customizations[item.id].confirmed,
+              files: (customizations[item.id].files || []).map(f => ({
+                id: f.id,
+                name: f.name,
+                size: f.size,
+                type: f.type,
+                previewUrl: f.storageUrl || f.previewUrl || ''
+              }))
+            } : null
           })),
           total: total,
           mrp: originalTotal,
@@ -541,7 +550,16 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
             date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
             items: (cart || []).map(item => ({
               ...item,
-              customization: customizations[item.id] || null
+              customization: customizations[item.id] ? {
+                confirmed: customizations[item.id].confirmed,
+                files: (customizations[item.id].files || []).map(f => ({
+                  id: f.id,
+                  name: f.name,
+                  size: f.size,
+                  type: f.type,
+                  previewUrl: f.storageUrl || f.previewUrl || ''
+                }))
+              } : null
             })),
             total: total,
             mrp: originalTotal,

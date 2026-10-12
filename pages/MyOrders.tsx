@@ -204,6 +204,8 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     };
   }, []);
 
+  const processedStateRef = React.useRef<string | null>(null);
+
   useEffect(() => {
     const state = location.state as {
       paymentStatus?: 'success' | 'failed';
@@ -214,26 +216,32 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
       error?: string;
     } | null;
 
-    if (state?.paymentStatus === 'success') {
+    if (!state?.paymentStatus) return;
+
+    const stateKey = `${state.paymentStatus}_${state.orderId || ''}_${state.paymentId || ''}`;
+    if (processedStateRef.current === stateKey) return;
+    processedStateRef.current = stateKey;
+
+    if (state.paymentStatus === 'success') {
       setToast({
         type: 'success',
         title: 'Order Placed Successfully',
         message: state.orderId ? `Order #${state.orderId} registered in fulfillment pipeline` : (state.message || 'Your order has been placed successfully'),
       });
-      window.history.replaceState({}, document.title);
+      navigate(location.pathname, { replace: true, state: null });
       const timer = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(timer);
-    } else if (state?.paymentStatus === 'failed') {
+    } else if (state.paymentStatus === 'failed') {
       setToast({
         type: 'failed',
         title: 'Payment Failed',
         message: state.error || state.message || 'Your payment could not be processed',
       });
-      window.history.replaceState({}, document.title);
+      navigate(location.pathname, { replace: true, state: null });
       const timer = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(timer);
     }
-  }, [location.state]);
+  }, [location.state, location.pathname, navigate]);
 
   const currentOrders: Order[] = React.useMemo(() => {
     const list = Array.isArray(orders) ? [...orders].filter(Boolean) : [];
