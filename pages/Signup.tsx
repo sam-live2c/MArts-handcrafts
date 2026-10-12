@@ -335,7 +335,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
   };
 
   /**
-   * Google Sign Up
+   * Google Sign Up with animated button loading and instant smooth transition
    */
   const handleGoogleSignUp = async () => {
     setIsGoogleLoading(true);
@@ -348,8 +348,36 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       const fbUser = result.user;
       const cleanEmail = (fbUser.email || '').trim().toLowerCase();
 
-      // Seamlessly restore and unify existing account regardless of whether they previously signed in with email/password or OTP
-      const restored = await restoreUserAccountByEmail(
+      // Clear any legacy un-scoped address keys from previous browser sessions
+      try {
+        localStorage.removeItem('marts_default_address');
+        localStorage.removeItem('melody_default_address');
+        localStorage.removeItem('agronic_default_address');
+        localStorage.removeItem('marts_user_address');
+        localStorage.removeItem('melody_user_address');
+        localStorage.removeItem('agronic_user_address');
+        localStorage.removeItem('melody_addresses');
+      } catch (_) {}
+
+      // Fast initial profile to make navigation instantaneous with zero blank screen
+      const immediateUser: User = {
+        name: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
+        displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
+        email: cleanEmail,
+        avatar: fbUser.photoURL || undefined,
+        phone: fbUser.phoneNumber || '',
+        phoneNumber: fbUser.phoneNumber || '',
+        address: '',
+        orders: []
+      };
+
+      // Set user profile in state & localStorage right away
+      localStorage.setItem('melody_user_profile', JSON.stringify(immediateUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+      onSignup(immediateUser);
+
+      // Seamlessly restore and unify existing account in parallel background
+      restoreUserAccountByEmail(
         cleanEmail, 
         undefined, 
         fbUser.displayName || undefined, 
@@ -359,12 +387,24 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
           phone: fbUser.phoneNumber || undefined,
           phoneNumber: fbUser.phoneNumber || undefined
         }
-      );
+      ).then(restored => {
+        if (restored?.user) {
+          localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
+          localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
+          onSignup(restored.user);
+        }
+      }).catch(err => {
+        console.warn('Background restoreUserAccountByEmail notice:', err);
+      });
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(restored.user));
-      localStorage.setItem('marts_user_profile', JSON.stringify(restored.user));
       showToast('Welcome to MArts! Account ready.');
-      handlePostAuthRedirect(restored.user);
+      clearPendingStorage();
+
+      if (redirectTarget) {
+        navigate(`/${redirectTarget.replace(/^\//, '')}`);
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {
         const conflictEmail = (err.customData?.email || err.email || '').trim().toLowerCase();
@@ -376,7 +416,6 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
       } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         showToast(err.message || 'Google sign-up failed. Please try again.', 'error');
       }
-    } finally {
       setIsGoogleLoading(false);
     }
   };
@@ -557,14 +596,20 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
                 type="button"
                 onClick={handleGoogleSignUp}
                 disabled={isGoogleLoading}
-                className="w-full bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-[#EADBCC] text-[#2B221B] font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
+                className={`w-full border text-[#2B221B] font-semibold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer text-sm select-none ${
+                  isGoogleLoading
+                    ? 'bg-[#FAF3EC] border-[#C85A32] shadow-xs cursor-wait'
+                    : 'bg-[#FAF8F5] hover:bg-[#F2ECE4] border-[#EADBCC]'
+                }`}
               >
                 {isGoogleLoading ? (
-                  <Loader2 size={16} className="animate-spin text-[#C85A32]" />
+                  <Loader2 size={17} className="animate-spin text-[#C85A32] shrink-0" />
                 ) : (
                   <GoogleIcon />
                 )}
-                <span>Sign up with Google</span>
+                <span className={isGoogleLoading ? 'text-[#8C3F1E] font-bold' : ''}>
+                  {isGoogleLoading ? 'Setting up Google account...' : 'Sign up with Google'}
+                </span>
               </button>
             </form>
           ) : (

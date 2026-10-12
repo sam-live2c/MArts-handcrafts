@@ -48,6 +48,7 @@ const Header: React.FC<HeaderProps> = ({
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [internalQuery, setInternalQuery] = useState(searchQuery);
+  const [avatarError, setAvatarError] = useState(false);
   
   const headerRef = useRef<HTMLElement>(null);
   const mobileSearchInputRef = useRef<HTMLInputElement>(null);
@@ -298,11 +299,12 @@ const Header: React.FC<HeaderProps> = ({
               className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-[#E5D7CA] hover:border-[#C85A32] hover:bg-[#F2EAE2] bg-transparent flex items-center justify-center text-[#5E473A] hover:text-[#2B221B] shrink-0 transition-colors cursor-pointer overflow-hidden touch-manipulation active:scale-95"
               aria-label="User Profile"
             >
-              {user?.avatar ? (
+              {user?.avatar && !avatarError ? (
                 <img
                   src={user.avatar}
                   alt={user.name || "User"}
                   referrerPolicy="no-referrer"
+                  onError={() => setAvatarError(true)}
                   className="w-full h-full object-cover rounded-full pointer-events-none"
                 />
               ) : (

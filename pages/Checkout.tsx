@@ -216,24 +216,6 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   };
 
   const [activeAddress, setActiveAddress] = useState(() => {
-    const localSaved = localStorage.getItem('marts_default_address') || localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
-    if (localSaved) {
-      try {
-        const parsed = JSON.parse(localSaved);
-        return {
-          name: parsed.name || user?.name || user?.displayName || '',
-          phone: parsed.phone || user?.phone || user?.phoneNumber || '',
-          houseNo: parsed.houseNo || user?.address || '',
-          area: parsed.area || '',
-          city: parsed.city || '',
-          state: parsed.state || '',
-          pincode: parsed.pincode || '',
-          type: parsed.type || 'HOME'
-        };
-      } catch (e) {
-        console.error(e);
-      }
-    }
     const userDelivery = user?.deliveryAddress || user?.shippingAddress;
     if (userDelivery) {
       return {
@@ -264,18 +246,7 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       const currentUser = auth.currentUser;
       let addresses: AddressItem[] = [];
       if (currentUser) {
-        addresses = await fetchUserAddresses(currentUser.uid);
-      }
-
-      if (addresses.length === 0) {
-        const localSaved = localStorage.getItem('marts_default_address') || localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
-        if (localSaved) {
-          try {
-            addresses = [JSON.parse(localSaved)];
-          } catch (e) {
-            console.error(e);
-          }
-        }
+        addresses = await fetchUserAddresses(currentUser.uid, user?.email || currentUser.email || undefined);
       }
 
       if (addresses.length > 0) {

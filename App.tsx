@@ -192,18 +192,18 @@ const App: React.FC = () => {
       }
 
       if (firebaseUser) {
-        // Immediate local cache resolution for zero latency
+        // Immediate local cache resolution for zero latency (strictly verified by matching email or uid)
+        const cleanEmail = (firebaseUser.email || '').trim().toLowerCase();
         try {
           const cachedRaw = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
           if (cachedRaw) {
             const cachedUser = JSON.parse(cachedRaw);
-            if (cachedUser && (cachedUser.email === firebaseUser.email || cachedUser.name)) {
+            if (cachedUser && cachedUser.email && cachedUser.email.trim().toLowerCase() === cleanEmail) {
               setUser(cachedUser);
             }
           }
         } catch (_) {}
 
-        const cleanEmail = (firebaseUser.email || '').trim().toLowerCase();
         try {
           fetchUserProfile(firebaseUser.uid, cleanEmail).then((profile) => {
             if (profile) {
@@ -235,7 +235,7 @@ const App: React.FC = () => {
               if (!addressStr && deliveryAddr) {
                 if (typeof deliveryAddr === 'string') {
                   addressStr = deliveryAddr;
-                } else {
+                } else if (typeof deliveryAddr === 'object') {
                   addressStr = [
                     deliveryAddr.street,
                     deliveryAddr.apartment,
@@ -248,7 +248,7 @@ const App: React.FC = () => {
               }
 
               setUser(prev => {
-                const currentOrders = prev?.orders && prev.orders.length > 0 ? prev.orders : [];
+                const currentOrders = prev?.orders && Array.isArray(prev.orders) ? prev.orders : [];
                 const incomingOrders = Array.isArray(data.orders) ? data.orders : [];
                 const bestOrders = incomingOrders.length > currentOrders.length ? incomingOrders : (currentOrders.length > 0 ? currentOrders : incomingOrders);
 
@@ -263,11 +263,13 @@ const App: React.FC = () => {
                   shippingAddress: data.shippingAddress || deliveryAddr,
                   orders: bestOrders
                 };
-                localStorage.setItem('melody_user_profile', JSON.stringify(updated));
-                if (updated.address) {
-                  localStorage.setItem('melody_user_address', updated.address);
-                  localStorage.setItem('agronic_user_address', updated.address);
-                }
+                try {
+                  localStorage.setItem('marts_user_profile', JSON.stringify(updated));
+                  localStorage.setItem('melody_user_profile', JSON.stringify(updated));
+                  if (updated.address) {
+                    localStorage.setItem(`marts_user_address_${firebaseUser.uid}`, updated.address);
+                  }
+                } catch (_) {}
                 return updated;
               });
             }
@@ -279,12 +281,12 @@ const App: React.FC = () => {
           const [dbCart, dbWishlist, dbOrders] = await Promise.all([
             fetchUserCart(firebaseUser.uid),
             fetchUserWishlist(firebaseUser.uid),
-            fetchUserOrders(firebaseUser.uid)
+            fetchUserOrders(firebaseUser.uid, cleanEmail)
           ]);
 
-          if (dbCart.length > 0) setCart(dbCart);
-          if (dbWishlist.length > 0) setWishlist(dbWishlist);
-          if (dbOrders.length > 0) {
+          if (dbCart && dbCart.length > 0) setCart(dbCart);
+          if (dbWishlist && dbWishlist.length > 0) setWishlist(dbWishlist);
+          if (dbOrders && dbOrders.length > 0) {
             setUser(prev => {
               const base: User = prev || {
                 name: firebaseUser.displayName || 'User',
@@ -293,17 +295,17 @@ const App: React.FC = () => {
                 address: '',
                 orders: []
               };
-              const merged = [...dbOrders];
+              const merged = (Array.isArray(dbOrders) ? dbOrders : []).filter(o => o && o.id);
               (base.orders || []).forEach(o => {
-                if (!merged.some(m => m.id === o.id)) {
+                if (o && o.id && !merged.some(m => m && m.id === o.id)) {
                   merged.push(o);
                 }
               });
               merged.sort((a, b) => {
-                const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-                const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
+                const timeA = typeof a?.createdAt === 'number' ? a.createdAt : (a?.date ? new Date(a.date).getTime() : 0) || 0;
+                const timeB = typeof b?.createdAt === 'number' ? b.createdAt : (b?.date ? new Date(b.date).getTime() : 0) || 0;
                 if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-                return (b.id || '').localeCompare(a.id || '');
+                return String(b?.id || '').localeCompare(String(a?.id || ''));
               });
               return { ...base, orders: merged };
             });

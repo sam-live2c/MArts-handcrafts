@@ -563,7 +563,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  // Google Sign In
+  // Google Sign In with immediate button loading animation and smooth instant redirect
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     setErrorMessage(null);
@@ -575,8 +575,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const fbUser = result.user;
       const cleanEmail = (fbUser.email || '').trim().toLowerCase();
 
-      // Seamlessly restore and unify existing account regardless of whether they previously signed in with email/password or OTP
-      const unified = await restoreUserAccountByEmail(
+      // Clear any legacy un-scoped address keys from previous browser sessions
+      try {
+        localStorage.removeItem('marts_default_address');
+        localStorage.removeItem('melody_default_address');
+        localStorage.removeItem('agronic_default_address');
+        localStorage.removeItem('marts_user_address');
+        localStorage.removeItem('melody_user_address');
+        localStorage.removeItem('agronic_user_address');
+        localStorage.removeItem('melody_addresses');
+      } catch (_) {}
+
+      // Fast initial profile to make navigation instantaneous with zero blank screen
+      const immediateUser: User = {
+        name: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
+        displayName: fbUser.displayName || cleanEmail.split('@')[0] || 'Customer',
+        email: cleanEmail,
+        avatar: fbUser.photoURL || undefined,
+        phone: fbUser.phoneNumber || '',
+        phoneNumber: fbUser.phoneNumber || '',
+        address: '',
+        orders: []
+      };
+
+      // Set user profile in state & localStorage right away
+      localStorage.setItem('melody_user_profile', JSON.stringify(immediateUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+      onLogin(immediateUser);
+
+      // Restore and unify account records in parallel non-blocking
+      restoreUserAccountByEmail(
         cleanEmail,
         undefined,
         fbUser.displayName || undefined,
@@ -586,12 +614,24 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           phone: fbUser.phoneNumber || undefined,
           phoneNumber: fbUser.phoneNumber || undefined
         }
-      );
+      ).then(unified => {
+        if (unified?.user) {
+          localStorage.setItem('melody_user_profile', JSON.stringify(unified.user));
+          localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
+          onLogin(unified.user);
+        }
+      }).catch(err => {
+        console.warn('Background restoreUserAccountByEmail notice:', err);
+      });
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(unified.user));
-      localStorage.setItem('marts_user_profile', JSON.stringify(unified.user));
-      showToast('Welcome back! Account restored successfully.');
-      await handlePostAuthRedirect(fbUser.uid, unified.user);
+      showToast('Welcome back! Signed in with Google.');
+      clearPendingStorage();
+
+      if (redirectTarget) {
+        navigate(`/${redirectTarget.replace(/^\//, '')}`);
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       if (err.code === 'auth/account-exists-with-different-credential') {
         const pendingCred = GoogleAuthProvider.credentialFromError(err);
@@ -607,7 +647,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       } else if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         showToast(err.message || 'Google sign-in failed. Please try again.', 'error');
       }
-    } finally {
       setIsGoogleLoading(false);
     }
   };
@@ -751,14 +790,20 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={isGoogleLoading}
-                className="w-full bg-[#FAF8F5] hover:bg-[#F2ECE4] border border-[#EADBCC] text-[#2B221B] font-semibold py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
+                className={`w-full border text-[#2B221B] font-semibold py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer text-sm select-none ${
+                  isGoogleLoading
+                    ? 'bg-[#FAF3EC] border-[#C85A32] shadow-xs cursor-wait'
+                    : 'bg-[#FAF8F5] hover:bg-[#F2ECE4] border-[#EADBCC]'
+                }`}
               >
                 {isGoogleLoading ? (
-                  <Loader2 size={16} className="animate-spin text-[#C85A32]" />
+                  <Loader2 size={17} className="animate-spin text-[#C85A32] shrink-0" />
                 ) : (
                   <GoogleIcon />
                 )}
-                <span>Sign in with Google</span>
+                <span className={isGoogleLoading ? 'text-[#8C3F1E] font-bold' : ''}>
+                  {isGoogleLoading ? 'Connecting with Google...' : 'Sign in with Google'}
+                </span>
               </button>
             </form>
           )}

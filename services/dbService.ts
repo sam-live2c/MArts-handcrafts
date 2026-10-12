@@ -438,7 +438,7 @@ export const restoreUserAccountByEmail = async (
     const cachedProfile = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
     if (cachedProfile) {
       const parsed = JSON.parse(cachedProfile);
-      if (parsed && (parsed.email?.toLowerCase() === cleanEmail || !parsed.email)) {
+      if (parsed && parsed.email && parsed.email.trim().toLowerCase() === cleanEmail) {
         localData = { ...parsed };
       }
     }
@@ -449,14 +449,12 @@ export const restoreUserAccountByEmail = async (
   const ordersMap = new Map<string, Order>();
   const addressesMap = new Map<string, AddressItem>();
 
-  // Include cached orders immediately
+  // Include cached orders immediately - only strictly user-scoped
   const localOrdersSources = [
     `marts_orders_${targetUid}`,
     `melody_orders_${targetUid}`,
     `marts_orders_${docId}`,
-    `melody_orders_${docId}`,
-    'marts_orders',
-    'melody_orders'
+    `melody_orders_${docId}`
   ];
   for (const key of localOrdersSources) {
     try {
@@ -465,7 +463,7 @@ export const restoreUserAccountByEmail = async (
         const arr = JSON.parse(raw);
         if (Array.isArray(arr)) {
           arr.forEach((o: Order) => {
-            if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === targetUid || o.userId === docId || !o.customerEmail)) {
+            if (o && o.id && (o.customerEmail?.toLowerCase() === cleanEmail || o.userId === targetUid || o.userId === docId)) {
               ordersMap.set(o.id, o);
             }
           });
@@ -474,13 +472,12 @@ export const restoreUserAccountByEmail = async (
     } catch (_) {}
   }
 
-  // Include cached addresses immediately
+  // Include cached addresses immediately - strictly user-scoped keys only
   const localAddressSources = [
+    `marts_addresses_${targetUid}`,
+    `marts_addresses_${docId}`,
     `melody_addresses_${targetUid}`,
-    `melody_addresses_${docId}`,
-    'melody_addresses',
-    'melody_default_address',
-    'marts_default_address'
+    `melody_addresses_${docId}`
   ];
   for (const key of localAddressSources) {
     try {
@@ -1076,29 +1073,22 @@ export const fetchUserAddresses = async (uid: string, fallbackEmail?: string): P
     const uniqueAddresses = deduplicateAddresses(rawAddresses);
 
     if (uniqueAddresses.length > 0) {
+      localStorage.setItem(`marts_addresses_${uid}`, JSON.stringify(uniqueAddresses));
       localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(uniqueAddresses));
-      localStorage.setItem('melody_addresses', JSON.stringify(uniqueAddresses));
       const def = uniqueAddresses.find(a => a.isDefault) || uniqueAddresses[0];
-      localStorage.setItem('melody_default_address', JSON.stringify(def));
-      localStorage.setItem('marts_default_address', JSON.stringify(def));
+      localStorage.setItem(`marts_default_address_${uid}`, JSON.stringify(def));
+      localStorage.setItem(`melody_default_address_${uid}`, JSON.stringify(def));
     }
     return uniqueAddresses;
   } catch (err) {
     console.warn('Firestore offline when fetching addresses, using local storage.');
-    const cached = localStorage.getItem(`melody_addresses_${uid}`) || localStorage.getItem('melody_addresses');
+    const cached = localStorage.getItem(`marts_addresses_${uid}`) || localStorage.getItem(`melody_addresses_${uid}`);
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           return deduplicateAddresses(parsed);
         }
-      } catch (e) {}
-    }
-    const defaultAddr = localStorage.getItem('melody_default_address');
-    if (defaultAddr) {
-      try {
-        const parsed = JSON.parse(defaultAddr);
-        return deduplicateAddresses([parsed]);
       } catch (e) {}
     }
     return [];
@@ -1154,18 +1144,16 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
 
   const dedupedAddresses = deduplicateAddresses(updatedAddresses);
 
+  localStorage.setItem(`marts_addresses_${uid}`, JSON.stringify(dedupedAddresses));
   localStorage.setItem(`melody_addresses_${uid}`, JSON.stringify(dedupedAddresses));
-  localStorage.setItem('melody_addresses', JSON.stringify(dedupedAddresses));
 
   // Format full address string
   const formattedStr = `${addressWithId.houseNo}, ${addressWithId.area ? addressWithId.area + ', ' : ''}${addressWithId.city}, ${addressWithId.state} ${addressWithId.pincode}`.trim();
   if (isDefaultAddress) {
-    localStorage.setItem('marts_default_address', JSON.stringify(updatedAddressItem));
-    localStorage.setItem('marts_user_address', formattedStr);
-    localStorage.setItem('melody_default_address', JSON.stringify(updatedAddressItem));
-    localStorage.setItem('melody_user_address', formattedStr);
-    localStorage.setItem('agronic_default_address', JSON.stringify(updatedAddressItem));
-    localStorage.setItem('agronic_user_address', formattedStr);
+    localStorage.setItem(`marts_default_address_${uid}`, JSON.stringify(updatedAddressItem));
+    localStorage.setItem(`marts_user_address_${uid}`, formattedStr);
+    localStorage.setItem(`melody_default_address_${uid}`, JSON.stringify(updatedAddressItem));
+    localStorage.setItem(`melody_user_address_${uid}`, formattedStr);
   }
 
   // Universal profile sync across the entire app

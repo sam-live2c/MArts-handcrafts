@@ -20,7 +20,7 @@ interface AccountProps {
 const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
   const navigate = useNavigate();
   const [displayAddress, setDisplayAddress] = useState<string>(() => {
-    return localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address') || user?.address || '';
+    return user?.address || '';
   });
 
   const gridOptions = [
@@ -47,20 +47,16 @@ const Account: React.FC<AccountProps> = ({ user, onLogout }) => {
             const def = addresses.find(a => a.isDefault) || addresses[0];
             const formatted = `${def.houseNo}, ${def.area ? def.area + ', ' : ''}${def.city}, ${def.state} ${def.pincode}`;
             setDisplayAddress(formatted);
-            localStorage.setItem('melody_user_address', formatted);
-            localStorage.setItem('agronic_user_address', formatted);
+            return;
+          } else {
+            setDisplayAddress('');
             return;
           }
         } catch (e) {
           console.error('Error loading addresses for profile header:', e);
         }
       }
-      const local = localStorage.getItem('melody_user_address') || localStorage.getItem('agronic_user_address');
-      if (local) {
-        setDisplayAddress(local);
-      } else if (user?.address) {
-        setDisplayAddress(user.address);
-      }
+      setDisplayAddress(user?.address || '');
     };
     loadAddress();
 

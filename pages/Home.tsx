@@ -119,6 +119,11 @@ export const Home: React.FC<HomeProps> = ({
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  // Carousel State declared before effects to prevent TDZ reference errors on visibilitychange
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const carouselTouchStartX = useRef<number | null>(null);
+
   // Preload local banner assets to prevent blank banners during transitions
   useEffect(() => {
     BANNER_SLIDES.forEach((s) => {
@@ -155,11 +160,6 @@ export const Home: React.FC<HomeProps> = ({
       setSearchQuery((location.state as any).initialSearch);
     }
   }, [location.state]);
-
-  // Carousel State
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const carouselTouchStartX = useRef<number | null>(null);
 
   // Safe clamped index guaranteeing a slide is always rendered and never blank
   const safeCurrentSlide = activeBanners.length > 0
@@ -358,7 +358,7 @@ export const Home: React.FC<HomeProps> = ({
             const isActive = idx === safeCurrentSlide;
             const targetLink = (slide.productId && products?.some(p => p.id === slide.productId))
               ? `/product/${slide.productId}`
-              : (slide.link && !slide.link.startsWith('/product/') ? slide.link : '/products');
+              : (slide.link && typeof slide.link === 'string' && !slide.link.startsWith('/product/') ? slide.link : '/products');
             return (
               <div
                 key={slide.id || `banner-${idx}`}
@@ -370,7 +370,7 @@ export const Home: React.FC<HomeProps> = ({
                 <Link
                   to={targetLink}
                   className="block w-full h-full cursor-pointer relative group"
-                  aria-label={slide.title}
+                  aria-label={slide.title || 'MArts Carousel'}
                 >
                   <img
                     src={slide.image || BANNER_SLIDES[idx % BANNER_SLIDES.length]?.image || terracottaBanner}
@@ -379,8 +379,10 @@ export const Home: React.FC<HomeProps> = ({
                     decoding="async"
                     onError={(e) => {
                       const target = e.currentTarget;
-                      const fallback = slide.fallbackImage || BANNER_SLIDES[idx % BANNER_SLIDES.length]?.image || terracottaBanner;
-                      if (target.src !== fallback && !target.src.endsWith(fallback)) {
+                      const fallback = (typeof slide.fallbackImage === 'string' && slide.fallbackImage) 
+                        || BANNER_SLIDES[idx % BANNER_SLIDES.length]?.image 
+                        || terracottaBanner;
+                      if (fallback && typeof fallback === 'string' && target.src !== fallback && !target.src.endsWith(fallback)) {
                         target.src = fallback;
                       }
                     }}

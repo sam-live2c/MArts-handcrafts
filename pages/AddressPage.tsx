@@ -133,17 +133,16 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       let fetched: AddressItem[] = [];
       if (currentUser) {
         fetched = await fetchUserAddresses(currentUser.uid, loggedInEmail);
-      }
-
-      // Check localStorage if empty
-      if (fetched.length === 0) {
-        const localSaved = localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
-        if (localSaved) {
-          try {
-            const parsed = JSON.parse(localSaved);
-            fetched = [parsed];
-          } catch (e) {
-            console.error(e);
+      } else {
+        // Unauthenticated guest check user-scoped cache only
+        const localUid = user?.id || (user as any)?.uid;
+        if (localUid) {
+          const localSaved = localStorage.getItem(`marts_addresses_${localUid}`);
+          if (localSaved) {
+            try {
+              const parsed = JSON.parse(localSaved);
+              if (Array.isArray(parsed)) fetched = parsed;
+            } catch (e) {}
           }
         }
       }
@@ -159,7 +158,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
         setShowForm(false);
       } else {
         setAddresses([]);
-        setShowForm(true); // Open form automatically for users without an address
+        setShowForm(true); // Open clean form automatically for users without an address
       }
       setIsLoading(false);
     };

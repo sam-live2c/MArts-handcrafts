@@ -58,18 +58,6 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
           fetched = await fetchUserAddresses(currentUser.uid, user?.email || currentUser.email || undefined);
         }
 
-        if (fetched.length === 0) {
-          const localSaved = localStorage.getItem('melody_default_address') || localStorage.getItem('agronic_default_address');
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved);
-              fetched = [parsed];
-            } catch (e) {
-              console.error(e);
-            }
-          }
-        }
-
         const uniqueList = deduplicateAddresses(fetched);
 
         if (uniqueList.length > 0) {
