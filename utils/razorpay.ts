@@ -20,24 +20,51 @@ export const loadRazorpayScript = async (): Promise<boolean> => {
   if (typeof window === 'undefined') return false;
   if ((window as any).Razorpay) return true;
 
-  return new Promise((resolve) => {
-    const existing = document.getElementById('razorpay-sdk-script');
-    if (existing) {
-      existing.addEventListener('load', () => resolve(true));
-      existing.addEventListener('error', () => resolve(false));
-      return;
-    }
+  // Check if already in DOM from index.html or previous run
+  const existingScript = 
+    document.getElementById('razorpay-sdk-script') ||
+    document.querySelector('script[src*="checkout.razorpay.com"]');
 
+  if (existingScript) {
+    // Wait briefly if script is still loading in DOM
+    for (let i = 0; i < 20; i++) {
+      if ((window as any).Razorpay) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    if ((window as any).Razorpay) return true;
+  }
+
+  return new Promise((resolve) => {
     const script = document.createElement('script');
     script.id = 'razorpay-sdk-script';
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => {
-      console.warn('Razorpay script could not be loaded, using instant verified checkout.');
-      resolve(false);
+    let finished = false;
+
+    const timeout = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        resolve(Boolean((window as any).Razorpay));
+      }
+    }, 6000);
+
+    script.onload = () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeout);
+        resolve(true);
+      }
     };
-    document.body.appendChild(script);
+
+    script.onerror = () => {
+      if (!finished) {
+        finished = true;
+        clearTimeout(timeout);
+        resolve(false);
+      }
+    };
+
+    document.head.appendChild(script);
   });
 };
 

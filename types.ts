@@ -152,7 +152,7 @@ export interface Order {
   date: string;
   items: CartItem[];
   total: number;
-  status: 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Failed';
+  status: 'Confirmed' | 'Processing' | 'Shipped' | 'Delivered' | 'Cancelled' | 'Failed';
   paymentId?: string;
   paymentMethod?: string;
   paymentStatus?: 'PAID' | 'PENDING' | 'REFUNDED' | 'FAILED' | string;

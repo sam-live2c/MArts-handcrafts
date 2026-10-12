@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { CartItem, User, Order } from '../types';
-import { Lock, ArrowLeft, Check, ChevronDown, ChevronUp, Star, CreditCard, Banknote, Calendar, Building, Gift, HelpCircle, ArrowDown, Plus, Minus, ShieldCheck, CheckCircle2, AlertCircle, Smartphone, X, Upload, FileText } from 'lucide-react';
+import { Lock, ArrowLeft, Check, ChevronDown, ChevronUp, Star, CreditCard, Banknote, Calendar, Building, Gift, HelpCircle, ArrowDown, Plus, Minus, ShieldCheck, CheckCircle2, AlertCircle, Smartphone, X, Upload, FileText, Copy, Truck, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { handleGoBack } from '../utils/navigation';
 import { auth } from '../firebase';
@@ -55,7 +55,21 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
   // 1: Address, 2: Summary, 3: Payment
   const [step, setStep] = useState(2);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isOrderPlaced, setIsOrderPlaced] = useState(false);
+  const [placedOrder, setPlacedOrder] = useState<Order | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('marts_last_placed_order');
+      if (saved) return JSON.parse(saved);
+    } catch (_) {}
+    return null;
+  });
+  const [isOrderPlaced, setIsOrderPlaced] = useState<boolean>(() => {
+    try {
+      return Boolean(sessionStorage.getItem('marts_last_placed_order'));
+    } catch (_) {
+      return false;
+    }
+  });
+  const [copiedOrderId, setCopiedOrderId] = useState(false);
   const [paymentOption, setPaymentOption] = useState<'razorpay' | 'cod'>('razorpay');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [customizationToast, setCustomizationToast] = useState<string | null>(null);
@@ -310,43 +324,98 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
     const currentUser = auth.currentUser;
     const uid = currentUser ? currentUser.uid : 'guest';
 
-    // Synchronize shipping address to Melody App & Firestore schema
-    if (currentUser && activeAddress.houseNo) {
-      const storeDeliveryAddr: StoreDeliveryAddress = {
-        recipientName: activeAddress.name || user?.name || 'Customer',
-        phone: activeAddress.phone || user?.phone || '',
-        street: activeAddress.houseNo,
-        apartment: activeAddress.area || undefined,
-        postalCode: activeAddress.pincode,
-        pin: activeAddress.pincode,
-        city: activeAddress.city,
-        state: activeAddress.state,
-        country: 'India',
-        isDefault: true,
-        updatedAt: new Date().toISOString()
-      };
+    // Production delivery address validation
+    const customerName = (activeAddress.name || user?.name || user?.displayName || '').trim();
+    const customerPhone = (activeAddress.phone || user?.phone || user?.phoneNumber || '').replace(/\D/g, '');
+    const customerHouse = (activeAddress.houseNo || user?.address || '').trim();
+    const customerPincode = (activeAddress.pincode || '').replace(/\D/g, '');
+
+    if (!customerName || customerName.length < 2) {
+      setPaymentError('Please enter the recipient full name in your delivery address.');
+      setStep(1);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (!customerPhone || customerPhone.length !== 10) {
+      setPaymentError('Please enter a valid 10-digit mobile phone number for delivery.');
+      setStep(1);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (!customerHouse || customerHouse.length < 3) {
+      setPaymentError('Please enter house / building / street delivery address.');
+      setStep(1);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (!customerPincode || customerPincode.length !== 6) {
+      setPaymentError('Please enter a valid 6-digit delivery pincode.');
+      setStep(1);
+      setIsProcessing(false);
+      return;
+    }
+
+    // Synchronize shipping address to user profile & Firestore schema
+    const storeDeliveryAddr: StoreDeliveryAddress = {
+      recipientName: customerName,
+      phone: customerPhone,
+      street: activeAddress.houseNo,
+      apartment: activeAddress.area || undefined,
+      postalCode: activeAddress.pincode,
+      pin: activeAddress.pincode,
+      city: activeAddress.city,
+      state: activeAddress.state,
+      country: 'India',
+      isDefault: true,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (currentUser) {
       saveCustomerDeliveryAddress(currentUser.uid, storeDeliveryAddr, user?.email || currentUser.email || undefined).catch(e => {
         console.warn('Checkout address sync notice:', e);
       });
     }
 
+    const customerDeliveryAddr = [
+      activeAddress.houseNo,
+      activeAddress.area,
+      activeAddress.city,
+      activeAddress.state,
+      activeAddress.pincode
+    ].filter(Boolean).join(', ');
+
+    const totalItemsCount = (cart || []).reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+    const pricingBreakdown = {
+      mrp: originalTotal,
+      subtotal: baseTotal,
+      discount: Math.max(0, originalTotal - baseTotal),
+      savings: Math.max(0, originalTotal - baseTotal),
+      customizationFee: customizationFee,
+      deliveryFee: 0,
+      total: total
+    };
+
     if (paymentOption === 'razorpay') {
       try {
-        const orderId = 'OD' + Math.floor(Math.random() * 1000000000000);
+        const orderId = 'OD' + Date.now() + Math.floor(100 + Math.random() * 900);
 
-        // Open client-side verified payment flow
+        // Open genuine Razorpay Checkout Modal
         const razorpayRes = await openRazorpayCheckout({
           amount: total,
           orderId: orderId,
-          customerName: activeAddress.name || user?.name || 'Customer',
-          customerPhone: activeAddress.phone || user?.phone || '',
-          customerEmail: user?.email || 'customer@marts.com',
+          customerName: customerName,
+          customerPhone: customerPhone,
+          customerEmail: user?.email || 'customer@marts.crafts',
           description: `Order #${orderId} - MArts Handcrafted Pottery & Statues`
         });
 
         const paymentId = razorpayRes.razorpay_payment_id;
 
-        await saveRazorpayPaymentToFirestore({
+        // Save real payment transaction record in Firestore
+        saveRazorpayPaymentToFirestore({
           paymentId: paymentId,
           orderId: orderId,
           userId: uid,
@@ -354,73 +423,17 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           currency: 'INR',
           status: 'SUCCESS',
           paymentMethod: 'Online Payment (UPI/Cards)',
-          customerName: activeAddress.name,
-          customerPhone: activeAddress.phone,
-          customerEmail: user?.email || 'customer@marts.com',
+          customerName: customerName,
+          customerPhone: customerPhone,
+          customerEmail: user?.email || '',
           createdAt: Date.now()
-        });
-
-        const customerDeliveryAddr = [
-          activeAddress.houseNo,
-          activeAddress.area,
-          activeAddress.city,
-          activeAddress.state,
-          activeAddress.pincode
-        ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
-
-        const storeDeliveryAddr: StoreDeliveryAddress = {
-          recipientName: activeAddress.name || user?.name || 'Customer',
-          phone: activeAddress.phone || user?.phone || '',
-          street: activeAddress.houseNo,
-          apartment: activeAddress.area || undefined,
-          postalCode: activeAddress.pincode,
-          pin: activeAddress.pincode,
-          city: activeAddress.city,
-          state: activeAddress.state,
-          country: 'India',
-          isDefault: true,
-          updatedAt: new Date().toISOString()
-        };
-
-        const totalItemsCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-
-        const pricingBreakdown = {
-          mrp: originalTotal,
-          subtotal: baseTotal,
-          discount: Math.max(0, originalTotal - baseTotal),
-          savings: Math.max(0, originalTotal - baseTotal),
-          customizationFee: customizationFee,
-          deliveryFee: 0,
-          total: total
-        };
-
-        const initialTracking = {
-          currentStatus: 'Processing' as const,
-          updatedAt: Date.now(),
-          steps: [
-            { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
-            { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
-            { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
-            { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
-          ]
-        };
-
-        const initialStatusHistory = [
-          {
-            status: 'Processing' as const,
-            timestamp: Date.now(),
-            label: 'Order Placed & Processing',
-            note: 'Payment verified via Razorpay. Order registered in artisan fulfillment queue.'
-          }
-        ];
-
-        const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
+        }).catch(e => console.warn('Payment audit log notice:', e));
 
         const newOrder: Order = {
           id: orderId,
-          userId: effectiveUid,
+          userId: uid,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          items: cart.map(item => ({
+          items: (cart || []).map(item => ({
             ...item,
             customization: customizations[item.id] ? {
               confirmed: customizations[item.id].confirmed,
@@ -442,221 +455,309 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           deliveryFee: 0,
           itemCount: totalItemsCount,
           pricing: pricingBreakdown,
-          status: 'Processing',
+          status: 'Confirmed',
           paymentId: paymentId,
           paymentMethod: 'Online Payment (UPI/Cards)',
           paymentStatus: 'PAID',
-          customerName: activeAddress.name || user?.name || 'Customer',
-          customerPhone: activeAddress.phone || user?.phone || '',
+          customerName: customerName,
+          customerPhone: customerPhone,
           customerEmail: user?.email || '',
           customerAddress: customerDeliveryAddr,
           shippingAddress: storeDeliveryAddr,
-          tracking: initialTracking,
-          statusHistory: initialStatusHistory,
+          tracking: {
+            currentStatus: 'Confirmed',
+            updatedAt: Date.now(),
+            steps: [
+              { status: 'Placed', label: 'Order Confirmed & Authorized', completed: true, timestamp: Date.now() },
+              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: false, timestamp: null },
+              { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
+              { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
+            ]
+          },
+          statusHistory: [
+            {
+              status: 'Confirmed',
+              timestamp: Date.now(),
+              label: 'Payment Verified & Order Confirmed',
+              note: `Payment reference #${paymentId} confirmed and settled via Razorpay.`
+            }
+          ],
           createdAt: Date.now(),
           updatedAt: Date.now()
         };
 
+        try {
+          sessionStorage.setItem('marts_last_placed_order', JSON.stringify(newOrder));
+        } catch (_) {}
+
+        setPlacedOrder(newOrder);
         setIsOrderPlaced(true);
+        setIsProcessing(false);
         try {
           await onOrderSuccess(newOrder);
         } catch (e) {
           console.warn('Order success handler warning:', e);
         }
-
-        navigate('/orders', { 
-          replace: true,
-          state: {
-            paymentStatus: 'success',
-            orderId: orderId,
-            paymentId: paymentId,
-            paymentMethod: 'Online Payment (UPI/Cards)',
-            amount: total
-          }
-        });
-
-        setTimeout(() => {
-          clearCart();
-        }, 120);
+        clearCart();
       } catch (err: unknown) {
         setIsProcessing(false);
-        setIsOrderPlaced(false);
         if (err instanceof Error && err.message === 'PAYMENT_CANCELLED') {
-          setPaymentError('Payment cancelled. Please try again.');
+          setPaymentError('Payment window was closed or cancelled. You can retry or choose Cash on Delivery.');
         } else {
-          setPaymentError(err instanceof Error ? err.message : 'Payment could not be processed. Please try again.');
-          console.error('Payment Error:', err);
+          setPaymentError(err instanceof Error ? err.message : 'Payment could not be completed.');
+          console.error('Razorpay Error:', err);
         }
-        setTimeout(() => {
-          setPaymentError(null);
-        }, 6000);
       }
     } else {
-      // Cash on Delivery
-      setTimeout(async () => {
-        try {
-          const orderId = 'OD' + Math.floor(Math.random() * 1000000000000);
-          const customerDeliveryAddr = [
-            activeAddress.houseNo,
-            activeAddress.area,
-            activeAddress.city,
-            activeAddress.state,
-            activeAddress.pincode
-          ].filter(Boolean).join(', ') || user?.address || 'Customer Delivery Address';
+      // Production Cash on Delivery (COD) Authorization (no simulation)
+      try {
+        const orderId = 'OD' + Date.now() + Math.floor(100 + Math.random() * 900);
 
-          const storeDeliveryAddr: StoreDeliveryAddress = {
-            recipientName: activeAddress.name || user?.name || 'Customer',
-            phone: activeAddress.phone || user?.phone || '',
-            street: activeAddress.houseNo,
-            apartment: activeAddress.area || undefined,
-            postalCode: activeAddress.pincode,
-            pin: activeAddress.pincode,
-            city: activeAddress.city,
-            state: activeAddress.state,
-            country: 'India',
-            isDefault: true,
-            updatedAt: new Date().toISOString()
-          };
-
-          const totalItemsCount = (cart || []).reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
-
-          const pricingBreakdown = {
-            mrp: originalTotal,
-            subtotal: baseTotal,
-            discount: Math.max(0, originalTotal - baseTotal),
-            savings: Math.max(0, originalTotal - baseTotal),
-            customizationFee: customizationFee,
-            deliveryFee: 0,
-            total: total
-          };
-
-          const initialTracking = {
-            currentStatus: 'Processing' as const,
+        const newOrder: Order = {
+          id: orderId,
+          userId: uid,
+          date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+          items: (cart || []).map(item => ({
+            ...item,
+            customization: customizations[item.id] ? {
+              confirmed: customizations[item.id].confirmed,
+              files: (customizations[item.id].files || []).map(f => ({
+                id: f.id,
+                name: f.name,
+                size: f.size,
+                type: f.type,
+                previewUrl: f.storageUrl || f.previewUrl || ''
+              }))
+            } : null
+          })),
+          total: total,
+          mrp: originalTotal,
+          subtotal: baseTotal,
+          discount: pricingBreakdown.discount,
+          savings: pricingBreakdown.savings,
+          customizationFee: customizationFee,
+          deliveryFee: 0,
+          itemCount: totalItemsCount,
+          pricing: pricingBreakdown,
+          status: 'Confirmed',
+          paymentMethod: 'Cash on Delivery',
+          paymentStatus: 'PENDING',
+          customerName: customerName,
+          customerPhone: customerPhone,
+          customerEmail: user?.email || '',
+          customerAddress: customerDeliveryAddr,
+          shippingAddress: storeDeliveryAddr,
+          tracking: {
+            currentStatus: 'Confirmed',
             updatedAt: Date.now(),
             steps: [
-              { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: Date.now() },
-              { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: true, timestamp: Date.now() },
+              { status: 'Placed', label: 'Order Confirmed & Authorized', completed: true, timestamp: Date.now() },
+              { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: false, timestamp: null },
               { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: false, timestamp: null },
               { status: 'Delivered', label: 'Delivered to Doorstep', completed: false, timestamp: null }
             ]
-          };
-
-          const initialStatusHistory = [
+          },
+          statusHistory: [
             {
-              status: 'Processing' as const,
+              status: 'Confirmed',
               timestamp: Date.now(),
-              label: 'Order Placed & Processing',
-              note: 'Cash on Delivery order placed. Collect payment on doorstep arrival.'
+              label: 'Cash on Delivery Authorized',
+              note: `Pay ₹${total.toLocaleString()} on doorstep arrival.`
             }
-          ];
+          ],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
 
-          const effectiveUid = auth.currentUser?.uid || (user as any)?.uid || user?.phone || user?.email || 'guest';
+        try {
+          sessionStorage.setItem('marts_last_placed_order', JSON.stringify(newOrder));
+        } catch (_) {}
 
-          const newOrder: Order = {
-            id: orderId,
-            userId: effectiveUid,
-            date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-            items: (cart || []).map(item => ({
-              ...item,
-              customization: customizations[item.id] ? {
-                confirmed: customizations[item.id].confirmed,
-                files: (customizations[item.id].files || []).map(f => ({
-                  id: f.id,
-                  name: f.name,
-                  size: f.size,
-                  type: f.type,
-                  previewUrl: f.storageUrl || f.previewUrl || ''
-                }))
-              } : null
-            })),
-            total: total,
-            mrp: originalTotal,
-            subtotal: baseTotal,
-            discount: pricingBreakdown.discount,
-            savings: pricingBreakdown.savings,
-            customizationFee: customizationFee,
-            deliveryFee: 0,
-            itemCount: totalItemsCount,
-            pricing: pricingBreakdown,
-            status: 'Processing',
-            paymentMethod: 'Cash on Delivery',
-            paymentStatus: 'PENDING',
-            customerName: activeAddress.name || user?.name || 'Customer',
-            customerPhone: activeAddress.phone || user?.phone || '',
-            customerEmail: user?.email || '',
-            customerAddress: customerDeliveryAddr,
-            shippingAddress: storeDeliveryAddr,
-            tracking: initialTracking,
-            statusHistory: initialStatusHistory,
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          };
-
-          setIsOrderPlaced(true);
-          try {
-            await onOrderSuccess(newOrder);
-          } catch (e) {
-            console.warn('Order success handler warning:', e);
-          }
-
-          navigate('/orders', { 
-            replace: true,
-            state: {
-              paymentStatus: 'success',
-              orderId: orderId,
-              paymentMethod: 'Cash on Delivery',
-              amount: total
-            }
-          });
-
-          setTimeout(() => {
-            clearCart();
-          }, 120);
-        } catch (err: unknown) {
-          setIsProcessing(false);
-          setIsOrderPlaced(false);
-          setPaymentError(err instanceof Error ? err.message : 'Could not place order. Please try again.');
-          console.error('COD Order Error:', err);
+        setPlacedOrder(newOrder);
+        setIsOrderPlaced(true);
+        setIsProcessing(false);
+        try {
+          await onOrderSuccess(newOrder);
+        } catch (e) {
+          console.warn('Order success handler warning:', e);
         }
-      }, 500);
+        clearCart();
+      } catch (err: unknown) {
+        setIsProcessing(false);
+        setPaymentError(err instanceof Error ? err.message : 'Could not authorize Cash on Delivery order.');
+        console.error('COD Order Error:', err);
+      }
     }
   };
 
-
   useEffect(() => {
-    if (cart.length === 0 && !isOrderPlaced) {
+    if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
       const timer = setTimeout(() => {
-        if (cart.length === 0 && !isOrderPlaced) {
+        if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
           navigate('/cart', { replace: true });
         }
-      }, 600);
+      }, 500);
       return () => clearTimeout(timer);
     }
-  }, [cart.length, navigate, isOrderPlaced]);
+  }, [cart.length, navigate, isOrderPlaced, placedOrder]);
 
-  if (isOrderPlaced) {
+  // Production-grade Order Confirmation Screen
+  if (isOrderPlaced && placedOrder) {
+    const isCod = placedOrder.paymentMethod === 'Cash on Delivery';
     return (
-      <div className="w-full bg-[#FAF8F5] min-h-[75vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
-        <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 border border-emerald-200 shadow-xs">
-          <Check size={32} strokeWidth={2.5} />
+      <div className="w-full bg-[#FAF8F5] min-h-screen py-6 sm:py-10 px-4 sm:px-6 lg:px-8 text-[#2B221B] animate-in fade-in duration-200">
+        <div className="max-w-2xl mx-auto space-y-6">
+          {/* Main Success Banner Card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-[#EADBCC] shadow-sm text-center space-y-4">
+            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200 shadow-xs">
+              <Check size={34} strokeWidth={2.8} />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[#C85A32] block mb-1">
+                Order Confirmed & Authorized
+              </span>
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#2B221B]">
+                Thank You for Your Order!
+              </h1>
+              <p className="text-xs sm:text-sm text-[#735A4C] mt-1.5 max-w-md mx-auto leading-relaxed">
+                Your order has been registered in our artisan fulfillment queue. We are preparing your handcrafted pottery and sculptures with utmost care.
+              </p>
+            </div>
+
+            {/* Order ID Pill with Copy */}
+            <div className="inline-flex items-center gap-2 bg-[#FAF5EF] border border-[#EADBCC] px-4 py-2 rounded-full text-xs sm:text-sm">
+              <span className="text-[#735A4C]">Order ID:</span>
+              <span className="font-mono font-bold text-[#2B221B]">#{placedOrder.id}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(placedOrder.id);
+                  setCopiedOrderId(true);
+                  setTimeout(() => setCopiedOrderId(false), 2000);
+                }}
+                className="ml-1 text-[#C85A32] hover:text-[#9C4320] transition-colors p-1 rounded-md"
+                title="Copy Order ID"
+                aria-label="Copy Order ID"
+              >
+                {copiedOrderId ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+              </button>
+            </div>
+
+            {/* Payment & Security Badge */}
+            <div className="pt-2">
+              {isCod ? (
+                <div className="inline-flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold px-3.5 py-1.5 rounded-full">
+                  <Banknote size={15} className="text-amber-700 shrink-0" />
+                  <span>Cash on Delivery • Pay ₹{Number(placedOrder.total).toLocaleString()} upon package arrival</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold px-3.5 py-1.5 rounded-full">
+                  <ShieldCheck size={15} className="text-emerald-700 shrink-0" />
+                  <span>Online Payment Verified via Razorpay • Ref: {placedOrder.paymentId || 'Settled'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Primary Action Buttons */}
+            <div className="pt-4 flex flex-col sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  try { sessionStorage.removeItem('marts_last_placed_order'); } catch (_) {}
+                  navigate('/orders');
+                }}
+                className="flex-1 h-12 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold rounded-xl text-sm transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Package size={17} />
+                <span>View in My Orders</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try { sessionStorage.removeItem('marts_last_placed_order'); } catch (_) {}
+                  navigate('/products');
+                }}
+                className="flex-1 h-12 bg-[#FAF5EF] hover:bg-[#F2E8DE] border border-[#EADBCC] text-[#2B221B] font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Continue Shopping</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Delivery & Items Summary Card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-7 border border-[#EADBCC] shadow-sm space-y-5">
+            <div className="flex items-center justify-between border-b border-[#EADBCC]/80 pb-3">
+              <div className="flex items-center gap-2 text-[#2B221B] font-bold text-sm">
+                <Truck size={18} className="text-[#C85A32]" />
+                <span>Delivery Address</span>
+              </div>
+              <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
+                Insured Timber Crate
+              </span>
+            </div>
+
+            <div className="text-xs sm:text-sm text-[#4E392D] space-y-1">
+              <p className="font-bold text-[#2B221B]">{placedOrder.customerName}</p>
+              <p>{placedOrder.customerAddress}</p>
+              <p className="text-[#735A4C]">Phone: <strong className="text-[#2B221B] font-medium">{placedOrder.customerPhone}</strong></p>
+            </div>
+
+            {/* Ordered Items Preview */}
+            <div className="border-t border-[#EADBCC]/80 pt-4 space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#8C3F1E]">
+                Ordered Items ({placedOrder.items.length})
+              </h4>
+              <div className="space-y-3 divide-y divide-[#EADBCC]/50">
+                {placedOrder.items.map((item, idx) => (
+                  <div key={idx} className="pt-3 first:pt-0 flex items-center justify-between gap-3 text-xs sm:text-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-12 h-12 object-contain bg-[#FAF5EF] border border-[#EADBCC]/60 rounded-xl shrink-0 p-1"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-semibold text-[#2B221B] truncate">{item.name}</p>
+                        <p className="text-[11px] text-[#735A4C]">Qty: {item.quantity || 1}</p>
+                      </div>
+                    </div>
+                    <span className="font-bold text-[#2B221B] shrink-0">
+                      ₹{((Number(item.price) || 0) * (Number(item.quantity) || 1)).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Total Paid / Payable */}
+            <div className="border-t border-[#EADBCC] pt-3.5 flex items-center justify-between text-sm sm:text-base font-bold text-[#2B221B]">
+              <span>{isCod ? 'Payable on Delivery' : 'Total Paid'}</span>
+              <span className="text-lg text-[#C85A32]">₹{Number(placedOrder.total).toLocaleString()}</span>
+            </div>
+          </div>
         </div>
-        <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#2B221B]">Order Placed Successfully!</h2>
-        <p className="text-xs sm:text-sm text-[#735A4C] mt-1.5 max-w-sm">Directing you to your order confirmation...</p>
       </div>
     );
   }
 
-  if (cart.length === 0 && !isOrderPlaced) {
+  if (cart.length === 0 && !isOrderPlaced && !placedOrder) {
     return (
-      <div className="w-full bg-[#FAF8F5] min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-[#C85A32] flex items-center justify-center mb-3">
-          <svg className="w-7 h-7 animate-spin text-[#C85A32]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-        <p className="text-sm font-bold text-[#2B221B]">Loading Checkout...</p>
-        <p className="text-xs text-[#735A4C] mt-1">Preparing your artisan order</p>
+      <div className="w-full bg-[#FAF8F5] min-h-[70vh] flex flex-col items-center justify-center p-6 text-center select-none">
+        <Package size={52} className="text-[#C85A32]/40 mb-3" />
+        <h2 className="text-lg font-bold text-[#2B221B]">Your Cart is Empty</h2>
+        <p className="text-xs text-[#735A4C] mt-1 max-w-sm mx-auto mb-5 leading-relaxed">
+          Looks like there are no artisan terracotta or bronze sculptures in your cart. Discover our collection to place an order.
+        </p>
+        <button 
+          type="button"
+          onClick={() => navigate('/products')}
+          className="h-11 px-7 bg-[#C85A32] hover:bg-[#A04724] active:bg-[#8C3F1E] text-white font-bold rounded-xl text-xs transition-colors shadow-xs cursor-pointer inline-flex items-center gap-2"
+        >
+          <span>Explore Collections</span>
+        </button>
       </div>
     );
   }

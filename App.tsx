@@ -422,14 +422,12 @@ const App: React.FC = () => {
       }).catch(e => console.warn('saveOrderToFirestore notice:', e));
 
       if (uid && currentFirebaseUser) {
-        try {
-          await setDoc(doc(db, 'users', uid), {
-            orders: updatedOrders,
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
-        } catch (e) {
+        setDoc(doc(db, 'users', uid), {
+          orders: updatedOrders,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(e => {
           console.warn('Notice: user doc orders update offline:', e);
-        }
+        });
       }
     } catch (err) {
       console.warn('Error in handleAddOrder:', err);

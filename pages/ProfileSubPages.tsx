@@ -44,6 +44,7 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
   const [pincode, setPincode] = useState('');
 
   const [userAddresses, setUserAddresses] = useState<AddressItem[]>([]);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -190,7 +191,10 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
     }
 
     setIsSaving(false);
-    alert('Profile & Address details updated successfully!');
+    setSaveSuccessMsg('Profile & Address details updated successfully!');
+    setTimeout(() => {
+      setSaveSuccessMsg(null);
+    }, 4000);
   };
 
   const renderAddresses = () => (
@@ -577,6 +581,13 @@ const ProfileSubPages: React.FC<ProfileSubPagesProps> = ({ type, user, onUpdateU
               ))}
             </div>
          </div>
+
+          {saveSuccessMsg && (
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+              <Check size={16} className="text-emerald-600 shrink-0" />
+              <span>{saveSuccessMsg}</span>
+            </div>
+          )}
 
          <div className="pt-6">
             <button 

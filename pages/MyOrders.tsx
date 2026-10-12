@@ -27,11 +27,43 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
   const [activeFilter, setActiveFilter] = useState<'all' | 'delivered' | 'cancelled'>('all');
   const [activeMenuOrderId, setActiveMenuOrderId] = useState<string | null>(null);
   const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-  // Start with true to ensure skeleton displays until real-time orders are fully loaded
-  const [isLoading, setIsLoading] = useState(true);
+  // Helper to safely sort orders without crashing on numeric IDs or undefined dates
+  const sortOrdersSafe = (list: Order[]): Order[] => {
+    if (!Array.isArray(list)) return [];
+    return [...list].filter(Boolean).sort((a, b) => {
+      const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+      const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+  };
 
-  // Orders initialized empty so stale/default orders do not flash during loading
-  const [orders, setOrders] = useState<Order[]>([]);
+  // Orders initialized with existing data to avoid any delay or skeleton flicker
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      if (Array.isArray(user?.orders) && user.orders.length > 0) {
+        return sortOrdersSafe(user.orders);
+      }
+      const cached = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return sortOrdersSafe(parsed);
+      }
+    } catch (_) {}
+    return [];
+  });
+
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    if (Array.isArray(user?.orders) && user.orders.length > 0) return false;
+    try {
+      const cached = localStorage.getItem('melody_orders') || localStorage.getItem('marts_orders');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch (_) {}
+    return true;
+  });
 
   const [toast, setToast] = useState<{
     type: 'success' | 'failed' | 'info';
@@ -39,22 +71,16 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     message?: string;
   } | null>(null);
 
-  // Sync when user prop updates if not in initial loading
+  // Sync when user prop updates
   useEffect(() => {
     if (Array.isArray(user?.orders) && user.orders.length > 0) {
       setOrders(prev => {
         const map = new Map<string, Order>();
-        (prev || []).forEach(o => { if (o && o.id) map.set(o.id, o); });
-        user.orders.forEach(o => { if (o && o.id) map.set(o.id, o); });
-        const merged = Array.from(map.values());
-        merged.sort((a, b) => {
-          const timeA = a?.createdAt || (a?.date ? new Date(a.date).getTime() : 0);
-          const timeB = b?.createdAt || (b?.date ? new Date(b.date).getTime() : 0);
-          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-          return (b?.id || '').localeCompare(a?.id || '');
-        });
-        return merged;
+        (prev || []).forEach(o => { if (o && o.id) map.set(String(o.id), o); });
+        user.orders.forEach(o => { if (o && o.id) map.set(String(o.id), o); });
+        return sortOrdersSafe(Array.from(map.values()));
       });
+      setIsLoading(false);
     }
   }, [user?.orders]);
 
@@ -74,30 +100,23 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
 
       const syncAndDispatchOrders = () => {
         const mergedMap = new Map<string, Order>();
-        subOrdersMap.forEach((ord, id) => mergedMap.set(id, ord));
+        subOrdersMap.forEach((ord, id) => mergedMap.set(String(id), ord));
         globalOrdersMap.forEach((ord, id) => {
-          const existing = mergedMap.get(id);
+          const strId = String(id);
+          const existing = mergedMap.get(strId);
           if (!existing) {
-            mergedMap.set(id, ord);
+            mergedMap.set(strId, ord);
           } else {
             const existingTime = existing.updatedAt || existing.createdAt || 0;
             const incomingTime = ord.updatedAt || ord.createdAt || 0;
             if (incomingTime >= existingTime || ord.status !== existing.status) {
-              mergedMap.set(id, { ...existing, ...ord });
+              mergedMap.set(strId, { ...existing, ...ord });
             }
           }
         });
 
-        const liveOrders = Array.from(mergedMap.values());
-        liveOrders.sort((a, b) => {
-          const timeA = a.createdAt || (a.date ? new Date(a.date).getTime() : 0);
-          const timeB = b.createdAt || (b.date ? new Date(b.date).getTime() : 0);
-          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-          return (b.id || '').localeCompare(a.id || '');
-        });
-
+        const liveOrders = sortOrdersSafe(Array.from(mergedMap.values()));
         setOrders(liveOrders);
-        onUpdateOrders(liveOrders);
         try {
           localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(liveOrders));
           localStorage.setItem('melody_orders', JSON.stringify(liveOrders));
@@ -186,8 +205,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           if (cachedStr) {
             const cachedOrders = JSON.parse(cachedStr);
             if (Array.isArray(cachedOrders)) {
-              setOrders(cachedOrders);
-              onUpdateOrders(cachedOrders);
+              setOrders(sortOrdersSafe(cachedOrders));
             }
           }
         } catch (_) {}
@@ -228,7 +246,9 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         title: 'Order Placed Successfully',
         message: state.orderId ? `Order #${state.orderId} registered in fulfillment pipeline` : (state.message || 'Your order has been placed successfully'),
       });
-      navigate(location.pathname, { replace: true, state: null });
+      try {
+        window.history.replaceState({}, document.title);
+      } catch (_) {}
       const timer = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(timer);
     } else if (state.paymentStatus === 'failed') {
@@ -237,20 +257,16 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
         title: 'Payment Failed',
         message: state.error || state.message || 'Your payment could not be processed',
       });
-      navigate(location.pathname, { replace: true, state: null });
+      try {
+        window.history.replaceState({}, document.title);
+      } catch (_) {}
       const timer = setTimeout(() => setToast(null), 5000);
       return () => clearTimeout(timer);
     }
-  }, [location.state, location.pathname, navigate]);
+  }, [location.state]);
 
   const currentOrders: Order[] = React.useMemo(() => {
-    const list = Array.isArray(orders) ? [...orders].filter(Boolean) : [];
-    return list.sort((a, b) => {
-      const timeA = a?.createdAt || (a?.date ? new Date(a.date).getTime() : 0);
-      const timeB = b?.createdAt || (b?.date ? new Date(b.date).getTime() : 0);
-      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
-      return (b?.id || '').localeCompare(a?.id || '');
-    });
+    return sortOrdersSafe(orders);
   }, [orders]);
 
   const showToast = (title: string, message?: string, type: 'success' | 'failed' | 'info' = 'success', duration = 4000) => {
@@ -666,13 +682,14 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
           ) : (
             <div className="space-y-6 sm:space-y-8 divide-y divide-[#EADBCC]/80">
               {filteredOrders.map((order, orderIdx) => {
-                const statusLower = (order.status || 'processing').toLowerCase();
+                const statusLower = (order.status || 'confirmed').toLowerCase();
                 const isDelivered = statusLower === 'delivered';
                 const isCancelled = statusLower === 'cancelled';
+                const isConfirmed = statusLower === 'confirmed' || statusLower === 'placed';
                 const isProcessing = statusLower === 'processing';
                 const isShipped = statusLower === 'shipped';
                 const isFailed = statusLower === 'failed';
-                const isActiveOrder = isProcessing || isShipped;
+                const isActiveOrder = isConfirmed || isProcessing || isShipped;
                 const isMenuOpen = activeMenuOrderId === order.id;
 
                 const safeItems = Array.isArray(order?.items) ? order.items.filter(Boolean) : [];
@@ -694,15 +711,16 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                   ? order.discount 
                   : Math.max(0, mrp - itemsBaseTotal);
 
+                const safeOrderDate = order?.date || (order?.createdAt ? new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recently');
                 const deliveryDateText = isDelivered
-                  ? `Delivered on ${order.date}`
+                  ? `Delivered on ${safeOrderDate}`
                   : isCancelled
-                  ? `Cancelled on ${order.date}`
+                  ? `Cancelled on ${safeOrderDate}`
                   : isFailed
-                  ? `Payment Failed on ${order.date}`
+                  ? `Payment Failed on ${safeOrderDate}`
                   : isShipped
-                  ? `Shipped on ${order.date}`
-                  : `Delivery by ${order.date === 'Aug 09, 2026' ? 'Aug 12, Wed' : 'Aug 14, Fri'}`;
+                  ? `Shipped on ${safeOrderDate}`
+                  : 'Delivery by 3-5 Business Days (Insured Timber Crate)';
 
                 return (
                   <div 
@@ -717,6 +735,11 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
                           {isDelivered && (
                             <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                               <CheckCircle2 size={12} strokeWidth={2.5} /> Delivered
+                            </span>
+                          )}
+                          {isConfirmed && (
+                            <span className="bg-emerald-50 text-emerald-800 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 size={12} strokeWidth={2.5} /> Confirmed
                             </span>
                           )}
                           {isProcessing && (

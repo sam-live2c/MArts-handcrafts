@@ -22,13 +22,13 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 // Firebase Authentication instance
 export const auth = getAuth(app);
 
-// Suppress excessive internal connection logs in sandboxed dev environment
-setLogLevel('error');
+// Suppress internal transport retry logs in sandboxed/preview dev environment
+setLogLevel('silent');
 
-// Cloud Firestore instance with auto-detect long polling resilience
+// Cloud Firestore instance configured with forced long polling for proxy/iframe compatibility
 const firestoreDbId = (firebaseAppletConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId || '(default)';
 export const db = initializeFirestore(app, {
-  experimentalAutoDetectLongPolling: true,
+  experimentalForceLongPolling: true,
   ignoreUndefinedProperties: true,
 }, firestoreDbId);
 
@@ -38,13 +38,13 @@ export const storage = getStorage(app);
 // Firebase Realtime Database instance for real-time live events and sync
 export const rtdb = getDatabase(app);
 
-// Validate connection to Firestore on initialization
+// Validate connection to Firestore on initialization with graceful offline handling
 async function testFirestoreConnection() {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn('Notice: Firestore connection pending or client operating in offline mode.');
+    if (error instanceof Error && (error.message.includes('the client is offline') || (error as any).code === 'unavailable')) {
+      console.warn('Notice: Firestore operating in offline or cache-first mode.');
     }
   }
 }

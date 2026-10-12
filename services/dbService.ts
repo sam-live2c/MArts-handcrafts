@@ -854,19 +854,21 @@ export const calculateOrderPricing = (
 };
 
 export const createOrderTracking = (
-  status: Order['status'] = 'Processing', 
+  status: Order['status'] = 'Confirmed', 
   createdAt: number = Date.now()
 ) => {
-  const isDelivered = status === 'Delivered';
-  const isShipped = status === 'Shipped' || isDelivered;
-  const isProcessing = status !== 'Cancelled' && status !== 'Failed';
+  const current = String(status);
+  const isDelivered = current === 'Delivered';
+  const isShipped = current === 'Shipped' || isDelivered;
+  const isProcessing = current === 'Processing' || isShipped;
+  const isConfirmed = current === 'Confirmed' || isProcessing || isShipped;
 
   return {
     currentStatus: status,
     updatedAt: Date.now(),
     steps: [
-      { status: 'Placed', label: 'Order Confirmed', completed: true, timestamp: createdAt },
-      { status: 'Processing', label: 'Processing & Kiln Quality Check', completed: isProcessing, timestamp: createdAt },
+      { status: 'Placed', label: 'Order Confirmed & Authorized', completed: isConfirmed, timestamp: createdAt },
+      { status: 'Processing', label: 'Artisan Packaging & Quality Inspection', completed: isProcessing, timestamp: isProcessing ? createdAt : null },
       { status: 'Shipped', label: 'Dispatched in Insured Timber Crate', completed: isShipped, timestamp: isShipped ? Date.now() : null },
       { status: 'Delivered', label: 'Delivered to Doorstep', completed: isDelivered, timestamp: isDelivered ? Date.now() : null }
     ]
@@ -880,16 +882,18 @@ export const updateOrderTracking = (
 ) => {
   const base = existingTracking || createOrderTracking(newStatus, createdAt);
   const now = Date.now();
-  const isDelivered = newStatus === 'Delivered';
-  const isShipped = newStatus === 'Shipped' || isDelivered;
-  const isProcessing = newStatus !== 'Cancelled' && newStatus !== 'Failed';
+  const current = String(newStatus);
+  const isDelivered = current === 'Delivered';
+  const isShipped = current === 'Shipped' || isDelivered;
+  const isProcessing = current === 'Processing' || isShipped;
+  const isConfirmed = current === 'Confirmed' || isProcessing || isShipped;
 
   return {
     currentStatus: newStatus,
     updatedAt: now,
     steps: base.steps.map((step: any) => {
-      if (step.status === 'Placed') return { ...step, completed: true };
-      if (step.status === 'Processing') return { ...step, completed: isProcessing };
+      if (step.status === 'Placed') return { ...step, completed: isConfirmed };
+      if (step.status === 'Processing') return { ...step, completed: isProcessing, timestamp: isProcessing ? (step.timestamp || now) : null };
       if (step.status === 'Shipped') {
         return {
           ...step,
@@ -1008,15 +1012,15 @@ export const saveOrderToFirestore = async (
     total
   };
 
-  const trackingData = order.tracking || createOrderTracking(order.status || 'Processing', order.createdAt || Date.now());
+  const trackingData = order.tracking || createOrderTracking(order.status || 'Confirmed', order.createdAt || Date.now());
 
   const statusHistory = Array.isArray(order.statusHistory) && order.statusHistory.length > 0 
     ? order.statusHistory 
     : [
         {
-          status: order.status || 'Processing',
+          status: order.status || 'Confirmed',
           timestamp: order.createdAt || Date.now(),
-          label: `Order ${order.status || 'Processing'}`,
+          label: `Order ${order.status || 'Confirmed'}`,
           note: order.paymentMethod ? `Placed with ${order.paymentMethod}` : 'Order registered in fulfillment pipeline'
         }
       ];
@@ -1040,7 +1044,7 @@ export const saveOrderToFirestore = async (
     deliveryFee,
     itemCount,
     pricing: pricingData,
-    status: order.status || 'Processing',
+    status: order.status || 'Confirmed',
     tracking: trackingData,
     statusHistory,
     createdAt: order.createdAt || Date.now(),
