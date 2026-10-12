@@ -60,10 +60,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onClick={handleClick}
-      className={`bg-white rounded-none overflow-hidden flex flex-col h-full hover:shadow transition-shadow pb-2 ${isOutOfStock ? "opacity-75" : ""}`}
+      className={`bg-transparent rounded-none border-0 shadow-none overflow-hidden flex flex-col h-full pb-2 ${isOutOfStock ? "opacity-75" : ""}`}
       aria-label={`View details for ${product.name}, price ₹${product.price.toLocaleString()}`}
     >
-      <div className="relative bg-gray-50 flex items-center justify-center overflow-hidden aspect-square rounded-none">
+      <div className="relative bg-[#FAF6F0] flex items-center justify-center overflow-hidden aspect-square rounded-xl sm:rounded-2xl">
         <img
           src={product.image}
           alt=""

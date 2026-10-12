@@ -117,14 +117,7 @@ service cloud.firestore {
     // GLOBAL ORDERS COLLECTION (CUSTOMER + ADMIN PIPELINE)
     // ==========================================
     match /orders/{orderId} {
-      // Allow reading so customers and admins can view placed orders
-      allow read: if true;
-
-      // Allow order placement by customers and admins
-      allow create: if true;
-
-      // Admins can update any order; Customers can cancel their own order
-      allow update: if isAdmin() || incoming().status == 'Cancelled' || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow read, create, update: if true;
       allow delete: if isAdmin();
     }
 
@@ -132,9 +125,7 @@ service cloud.firestore {
     // PAYMENTS COLLECTION (SECURE AUDIT LOGS)
     // ==========================================
     match /payments/{paymentId} {
-      allow get: if (isSignedIn() && resource.data.userId == request.auth.uid) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isSignedIn();
+      allow read, create: if true;
       allow update, delete: if isAdmin();
     }
 

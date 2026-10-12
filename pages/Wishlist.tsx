@@ -2,8 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Heart,
-  Star,
-  Trash2
+  Star
 } from 'lucide-react';
 import { Product, User } from '../types';
 import Header from '../components/Header';
@@ -93,7 +92,7 @@ const Wishlist: React.FC<WishlistProps> = ({
         {/* Wishlist Items Grid - matching Home page product grid style */}
         {wishlistProducts.length > 0 ? (
           <div className="space-y-8">
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-5 lg:gap-6 items-stretch">
               {wishlistProducts.map((prod) => {
                 const isOutOfStock = prod.stock <= 0;
 
@@ -101,28 +100,28 @@ const Wishlist: React.FC<WishlistProps> = ({
                   <div
                     key={prod.id}
                     onClick={() => navigate(`/product/${prod.id}`)}
-                    className="bg-transparent rounded-none border-0 shadow-none p-0 flex flex-col justify-between group cursor-pointer"
+                    className="bg-transparent rounded-none border-0 shadow-none p-0 flex flex-col justify-between group cursor-pointer h-full"
                   >
-                    <div>
-                      {/* Clean Product Image Container directly on surface */}
+                    <div className="flex-1 flex flex-col">
+                      {/* Clean Product Image Container */}
                       <div className="relative bg-[#FAF6F0] rounded-xl sm:rounded-2xl aspect-square overflow-hidden mb-2 sm:mb-3 flex items-center justify-center">
                         <img
                           src={prod.image}
                           alt={prod.name}
                           loading="lazy"
                           decoding="async"
-                          className="w-full h-full object-contain p-2"
+                          className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300"
                           referrerPolicy="no-referrer"
                         />
 
-                        {/* Remove / Heart Wishlist toggle icon */}
+                        {/* Top-right Heart Wishlist toggle icon */}
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onRemoveFromWishlist(prod.id);
                           }}
-                          className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-xs border border-[#E8DFD8] flex items-center justify-center transition-all cursor-pointer text-[#C85A32] hover:bg-[#FAF0E6] shadow-xs"
+                          className="absolute top-2 right-2 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 backdrop-blur-xs border border-[#E8DFD8] flex items-center justify-center transition-all cursor-pointer text-[#C85A32] hover:bg-rose-50 shadow-xs active:scale-90"
                           aria-label="Remove from Wishlist"
                           title="Remove from Wishlist"
                         >
@@ -158,7 +157,7 @@ const Wishlist: React.FC<WishlistProps> = ({
                       })()}
 
                       {/* Product Title */}
-                      <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 mb-1.5 group-hover:text-[#B85D36] transition-colors">
+                      <h3 className="font-serif font-bold text-[#2B221B] text-xs sm:text-sm md:text-base leading-snug line-clamp-2 min-h-[2.5rem] mb-1.5 group-hover:text-[#B85D36] transition-colors">
                         {prod.name}
                       </h3>
 
@@ -168,40 +167,37 @@ const Wishlist: React.FC<WishlistProps> = ({
                       </p>
                     </div>
 
-                    <div>
-                      {/* Price Display with Remove button beside price */}
-                      <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-[#F0E6DC]">
-                        <div className="flex items-baseline gap-1.5 min-w-0 flex-wrap">
-                          <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
-                            ₹{prod.price.toLocaleString()}
+                    {/* Aligned Price & Remove Action Footer */}
+                    <div className="mt-auto pt-2 border-t border-[#F0E6DC] flex items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-1 sm:gap-1.5 flex-wrap">
+                        <span className="text-sm sm:text-base md:text-lg font-bold text-[#2B221B]">
+                          ₹{Number(prod.price || 0).toLocaleString()}
+                        </span>
+                        {prod.oldPrice && (
+                          <del className="text-[10px] sm:text-xs text-[#A89283] font-normal">
+                            ₹{Number(prod.oldPrice || 0).toLocaleString()}
+                          </del>
+                        )}
+                        {prod.discount && (
+                          <span className="text-[9px] sm:text-[10px] font-bold text-[#9C4320] bg-[#F7ECE4] px-1.5 py-0.5 rounded">
+                            {prod.discount}
                           </span>
-                          {prod.oldPrice && (
-                            <del className="text-[10px] sm:text-xs text-[#A89283] font-normal">
-                              ₹{prod.oldPrice.toLocaleString()}
-                            </del>
-                          )}
-                          {prod.discount && (
-                            <span className="text-[9px] sm:text-[10px] font-bold text-[#9C4320] bg-[#F7ECE4] px-1.5 py-0.2 rounded">
-                              {prod.discount}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Remove button beside price with distinct border and icon */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRemoveFromWishlist(prod.id);
-                          }}
-                          className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs font-semibold text-[#8C3F1E] hover:text-rose-600 bg-white hover:bg-rose-50 border border-[#C5B3A1] hover:border-rose-400 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md sm:rounded-lg transition-all cursor-pointer shrink-0 active:scale-95 shadow-2xs group/btn"
-                          title="Remove from Wishlist"
-                          aria-label="Remove from Wishlist"
-                        >
-                          <Trash2 size={13} strokeWidth={1.8} className="shrink-0 text-[#C85A32] group-hover/btn:text-rose-600 transition-colors" />
-                          <span>Remove</span>
-                        </button>
+                        )}
                       </div>
+
+                      {/* Remove label button beside price perfectly aligned */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveFromWishlist(prod.id);
+                        }}
+                        className="inline-flex items-center justify-center text-[11px] sm:text-xs font-medium text-neutral-600 hover:text-neutral-900 bg-transparent hover:bg-neutral-50 border border-neutral-300 hover:border-neutral-400 px-2.5 sm:px-3 py-1 rounded transition-colors cursor-pointer shrink-0 active:scale-95 ml-auto"
+                        title="Remove from Wishlist"
+                        aria-label="Remove from Wishlist"
+                      >
+                        Remove
+                      </button>
                     </div>
                   </div>
                 );

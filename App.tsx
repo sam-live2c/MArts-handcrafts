@@ -172,25 +172,33 @@ const App: React.FC = () => {
       }
 
       if (firebaseUser) {
+        // Immediate local cache resolution for zero latency
         try {
-          const profile = await fetchUserProfile(firebaseUser.uid);
-          if (profile) {
-            setUser(profile);
-          } else {
-            const newProfile: User = {
-              name: firebaseUser.displayName || 'User',
-              phone: firebaseUser.phoneNumber || '',
-              email: firebaseUser.email || '',
-              address: '',
-              orders: []
-            };
-            try {
-              await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-            } catch (err) {
-              console.warn('Notice: Firestore user doc creation skipped (offline mode):', err);
+          const cachedRaw = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+          if (cachedRaw) {
+            const cachedUser = JSON.parse(cachedRaw);
+            if (cachedUser && (cachedUser.email === firebaseUser.email || cachedUser.name)) {
+              setUser(cachedUser);
             }
-            setUser(newProfile);
           }
+        } catch (_) {}
+
+        try {
+          fetchUserProfile(firebaseUser.uid).then((profile) => {
+            if (profile) {
+              setUser(profile);
+            } else {
+              const newProfile: User = {
+                name: firebaseUser.displayName || 'User',
+                phone: firebaseUser.phoneNumber || '',
+                email: firebaseUser.email || '',
+                address: '',
+                orders: []
+              };
+              setDoc(doc(db, 'users', firebaseUser.uid), newProfile, { merge: true }).catch(() => {});
+              setUser(newProfile);
+            }
+          }).catch(() => {});
 
           // Real-time listener for universal profile updates across websites/tabs
           const userDocRef = doc(db, 'users', firebaseUser.uid);

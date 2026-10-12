@@ -458,8 +458,12 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
         };
 
         setIsOrderPlaced(true);
-        await Promise.resolve(onOrderSuccess(newOrder));
-        clearCart();
+        try {
+          await onOrderSuccess(newOrder);
+        } catch (e) {
+          console.warn('Order success handler warning:', e);
+        }
+
         navigate('/orders', { 
           replace: true,
           state: {
@@ -470,6 +474,10 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
             amount: total
           }
         });
+
+        setTimeout(() => {
+          clearCart();
+        }, 120);
       } catch (err: unknown) {
         setIsProcessing(false);
         setIsOrderPlaced(false);
@@ -585,8 +593,12 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
           };
 
           setIsOrderPlaced(true);
-          await Promise.resolve(onOrderSuccess(newOrder));
-          clearCart();
+          try {
+            await onOrderSuccess(newOrder);
+          } catch (e) {
+            console.warn('Order success handler warning:', e);
+          }
+
           navigate('/orders', { 
             replace: true,
             state: {
@@ -596,13 +608,17 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
               amount: total
             }
           });
+
+          setTimeout(() => {
+            clearCart();
+          }, 120);
         } catch (err: unknown) {
           setIsProcessing(false);
           setIsOrderPlaced(false);
           setPaymentError(err instanceof Error ? err.message : 'Could not place order. Please try again.');
           console.error('COD Order Error:', err);
         }
-      }, 800);
+      }, 500);
     }
   };
 
@@ -617,6 +633,18 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
       return () => clearTimeout(timer);
     }
   }, [cart.length, navigate, isOrderPlaced]);
+
+  if (isOrderPlaced) {
+    return (
+      <div className="w-full bg-[#FAF8F5] min-h-[75vh] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-200">
+        <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4 border border-emerald-200 shadow-xs">
+          <Check size={32} strokeWidth={2.5} />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-serif font-bold text-[#2B221B]">Order Placed Successfully!</h2>
+        <p className="text-xs sm:text-sm text-[#735A4C] mt-1.5 max-w-sm">Directing you to your order confirmation...</p>
+      </div>
+    );
+  }
 
   if (cart.length === 0 && !isOrderPlaced) {
     return (

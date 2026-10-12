@@ -74,16 +74,15 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [searchParams] = useSearchParams();
   const redirectTarget = searchParams.get('redirect');
 
-  // Redirection Handler
-  const handlePostAuthRedirect = async (uid: string, loggedInUser: User) => {
-    const savedAddresses = await fetchUserAddresses(uid);
+  // Redirection Handler (Instant Navigation)
+  const handlePostAuthRedirect = (uid: string, loggedInUser: User) => {
+    onLogin(loggedInUser);
+
     const hasAddress =
       (loggedInUser.address && loggedInUser.address.trim().length > 0) ||
-      savedAddresses.length > 0 ||
       !!localStorage.getItem('melody_user_address') ||
-      !!localStorage.getItem('marts_user_address');
-
-    onLogin(loggedInUser);
+      !!localStorage.getItem('marts_user_address') ||
+      !!localStorage.getItem('melody_default_address');
 
     if (redirectTarget) {
       if (!hasAddress && redirectTarget === 'checkout') {
@@ -94,6 +93,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     } else {
       navigate('/');
     }
+
+    // Load addresses in background non-blockingly
+    fetchUserAddresses(uid).catch(() => {});
   };
 
   // Generate 6-digit OTP code
@@ -412,40 +414,64 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const gUser = result.user;
       const fbUid = gUser.uid;
 
-      const userDocRef = doc(db, 'users', fbUid);
-      const userDocSnap = await getDoc(userDocRef);
+      // Construct immediate user profile from Google credentials for zero latency
+      const immediateUser: User = {
+        name: gUser.displayName || 'Artisan Collector',
+        displayName: gUser.displayName || 'Artisan Collector',
+        email: gUser.email || '',
+        phone: gUser.phoneNumber || '',
+        avatar: gUser.photoURL || undefined,
+        address: '',
+        orders: [],
+        role: 'customer'
+      };
 
-      let loggedInUser: User;
-      if (userDocSnap.exists()) {
-        const data = userDocSnap.data();
-        loggedInUser = {
-          name: data.name || gUser.displayName || 'Artisan Collector',
-          displayName: data.displayName || gUser.displayName || 'Artisan Collector',
-          businessName: data.businessName || '',
-          phone: data.phone || data.phoneNumber || gUser.phoneNumber || '',
-          email: gUser.email || '',
-          avatar: gUser.photoURL || undefined,
-          address: data.address || '',
-          orders: data.orders || [],
-          role: data.role || 'customer'
-        };
-      } else {
-        loggedInUser = {
-          name: gUser.displayName || 'Artisan Collector',
-          displayName: gUser.displayName || 'Artisan Collector',
-          email: gUser.email || '',
-          phone: gUser.phoneNumber || '',
-          avatar: gUser.photoURL || undefined,
-          address: '',
-          orders: [],
-          role: 'customer'
-        };
-        await setDoc(userDocRef, loggedInUser, { merge: true }).catch(() => {});
-      }
+      // Check cached profile if already present to preserve existing address/orders
+      try {
+        const cachedStr = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+        if (cachedStr) {
+          const cached = JSON.parse(cachedStr);
+          if (cached.email === gUser.email) {
+            if (cached.address) immediateUser.address = cached.address;
+            if (Array.isArray(cached.orders)) immediateUser.orders = cached.orders;
+            if (cached.role) immediateUser.role = cached.role;
+            if (cached.phone) immediateUser.phone = cached.phone;
+          }
+        }
+      } catch (_) {}
 
-      localStorage.setItem('melody_user_profile', JSON.stringify(loggedInUser));
-      localStorage.setItem('marts_user_profile', JSON.stringify(loggedInUser));
-      await handlePostAuthRedirect(fbUid, loggedInUser);
+      // Save to localStorage and redirect immediately (zero wait)
+      localStorage.setItem('melody_user_profile', JSON.stringify(immediateUser));
+      localStorage.setItem('marts_user_profile', JSON.stringify(immediateUser));
+      handlePostAuthRedirect(fbUid, immediateUser);
+
+      // Asynchronously sync with Firestore in background without blocking the UI
+      (async () => {
+        try {
+          const userDocRef = doc(db, 'users', fbUid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            const syncedUser: User = {
+              ...immediateUser,
+              name: data.name || immediateUser.name,
+              displayName: data.displayName || immediateUser.displayName,
+              businessName: data.businessName || '',
+              phone: data.phone || data.phoneNumber || immediateUser.phone,
+              address: data.address || immediateUser.address,
+              orders: Array.isArray(data.orders) && data.orders.length > 0 ? data.orders : immediateUser.orders,
+              role: data.role || immediateUser.role
+            };
+            localStorage.setItem('melody_user_profile', JSON.stringify(syncedUser));
+            localStorage.setItem('marts_user_profile', JSON.stringify(syncedUser));
+            onLogin(syncedUser);
+          } else {
+            await setDoc(userDocRef, immediateUser, { merge: true }).catch(() => {});
+          }
+        } catch (e) {
+          console.warn('Background Google profile sync notice:', e);
+        }
+      })();
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         setErrorMessage(err.message || 'Google Sign-In failed. Please try again.');

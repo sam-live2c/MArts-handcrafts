@@ -176,15 +176,14 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
         role: 'customer'
       };
 
-      try {
-        await setDoc(doc(db, 'users', gUser.uid), newUser, { merge: true });
-      } catch (firestoreErr) {
-        console.warn('Firestore Google user profile sync note:', firestoreErr);
-      }
-
-      localStorage.setItem('melody_user_profile', JSON.stringify(newUser));
       localStorage.setItem('marts_user_profile', JSON.stringify(newUser));
+      localStorage.setItem('melody_user_profile', JSON.stringify(newUser));
       handlePostAuthRedirect(newUser);
+
+      // Sync to Firestore in the background non-blockingly
+      setDoc(doc(db, 'users', gUser.uid), newUser, { merge: true }).catch((firestoreErr) => {
+        console.warn('Firestore Google user profile sync note:', firestoreErr);
+      });
     } catch (err: any) {
       if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
         setFieldErrors({ email: err.message || 'Google Sign-Up failed. Please try again.' });

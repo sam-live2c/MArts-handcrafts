@@ -186,17 +186,6 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
   } catch (err) {
     console.warn('Firestore delivery address save notice (offline fallback active):', err);
   }
-
-  // 3. Fallback: Notify the Melody App sync API (CORS enabled)
-  try {
-    await fetch('https://melodyai.app/api/store/address-sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, email, address: sanitized })
-    });
-  } catch (err) {
-    // Non-blocking fallback
-  }
 }
 
 export interface NotificationItem {
@@ -225,7 +214,7 @@ export interface PaymentRecord {
 }
 
 // Timeout helper to allow reliable Firestore queries while retaining graceful fallback
-const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10000): Promise<T> => {
+const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 3000): Promise<T> => {
   let timer: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error('Firestore operation timed out')), timeoutMs);
@@ -239,8 +228,17 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10000): Promise<T
 
 // ================= USER PROFILE & ACCOUNT DETAILS =================
 export const fetchUserProfile = async (uid: string): Promise<User | null> => {
+  // First, check local cache for zero-latency instant startup
+  let cachedUser: User | null = null;
   try {
-    const userDocSnap = await withTimeout(getDoc(doc(db, 'users', uid)));
+    const cachedStr = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
+    if (cachedStr) {
+      cachedUser = JSON.parse(cachedStr);
+    }
+  } catch (_) {}
+
+  try {
+    const userDocSnap = await withTimeout(getDoc(doc(db, 'users', uid)), 2500);
     if (userDocSnap.exists()) {
       const data = userDocSnap.data();
       const deliveryAddr = (data.deliveryAddress || data.shippingAddress) as StoreDeliveryAddress | undefined;
@@ -262,25 +260,9 @@ export const fetchUserProfile = async (uid: string): Promise<User | null> => {
         }
       }
 
-      // If still empty, check addresses subcollection
-      if (!addressStr) {
-        const addresses = await fetchUserAddresses(uid);
-        if (addresses.length > 0) {
-          const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
-          addressStr = `${defaultAddr.houseNo}, ${defaultAddr.area ? defaultAddr.area + ', ' : ''}${defaultAddr.city}, ${defaultAddr.state} ${defaultAddr.pincode}`.trim();
-          // Backfill profile doc
-          try {
-            await withTimeout(setDoc(doc(db, 'users', uid), { 
-              address: addressStr,
-              updatedAt: new Date().toISOString()
-            }, { merge: true }), 1500);
-          } catch (e) {}
-        }
-      }
-
       let initialOrders: Order[] = Array.isArray(data.orders) ? data.orders : [];
       try {
-        const cachedOrdersStr = localStorage.getItem(`melody_orders_${uid}`) || localStorage.getItem('melody_orders');
+        const cachedOrdersStr = localStorage.getItem(`marts_orders_${uid}`) || localStorage.getItem('marts_orders') || localStorage.getItem('melody_orders');
         if (cachedOrdersStr) {
           const cachedParsed = JSON.parse(cachedOrdersStr);
           if (Array.isArray(cachedParsed) && cachedParsed.length > initialOrders.length) {
@@ -289,38 +271,33 @@ export const fetchUserProfile = async (uid: string): Promise<User | null> => {
         }
       } catch (_) {}
 
-      const profile: User = {
-        name: data.displayName || data.name || '',
-        displayName: data.displayName || data.name || '',
-        phone: data.phoneNumber || data.phone || '',
-        phoneNumber: data.phoneNumber || data.phone || '',
-        email: data.email || '',
-        address: addressStr,
-        deliveryAddress: deliveryAddr,
-        shippingAddress: (data.shippingAddress || deliveryAddr) as StoreDeliveryAddress | undefined,
-        orders: initialOrders
+      const userProfile: User = {
+        name: data.displayName || data.name || cachedUser?.name || 'Customer',
+        displayName: data.displayName || data.name || cachedUser?.displayName || 'Customer',
+        businessName: data.businessName || '',
+        phone: data.phoneNumber || data.phone || cachedUser?.phone || '',
+        phoneNumber: data.phoneNumber || data.phone || cachedUser?.phoneNumber || '',
+        email: data.email || cachedUser?.email || '',
+        avatar: data.avatar || data.photoURL || cachedUser?.avatar || undefined,
+        address: addressStr || cachedUser?.address || '',
+        deliveryAddress: deliveryAddr || cachedUser?.deliveryAddress,
+        shippingAddress: data.shippingAddress || deliveryAddr || cachedUser?.shippingAddress,
+        orders: initialOrders,
+        role: data.role || 'customer'
       };
-      localStorage.setItem('melody_user_profile', JSON.stringify(profile));
-      if (addressStr) {
-        localStorage.setItem('melody_user_address', addressStr);
-        localStorage.setItem('agronic_user_address', addressStr);
-      }
-      return profile;
+
+      try {
+        localStorage.setItem('marts_user_profile', JSON.stringify(userProfile));
+        localStorage.setItem('melody_user_profile', JSON.stringify(userProfile));
+      } catch (_) {}
+
+      return userProfile;
     }
-    return null;
+
+    return cachedUser;
   } catch (err) {
-    console.warn('Firestore offline or unreachable, using local storage fallback for user profile.');
-    const cached = localStorage.getItem('melody_user_profile');
-    if (cached) {
-      try { return JSON.parse(cached); } catch (e) {}
-    }
-    return {
-      name: 'User',
-      phone: '',
-      email: '',
-      address: localStorage.getItem('melody_user_address') || '',
-      orders: []
-    };
+    console.warn('Firestore fetchUserProfile notice (using local profile cache):', err);
+    return cachedUser;
   }
 };
 
@@ -1072,20 +1049,22 @@ export const saveOrderToFirestore = async (
 
   // Always update local cache immediately so the user sees the order with 0 latency
   try {
-    const localCachedRaw = localStorage.getItem('melody_orders') || '[]';
+    const localCachedRaw = localStorage.getItem('marts_orders') || localStorage.getItem('melody_orders') || '[]';
     const localCached: Order[] = JSON.parse(localCachedRaw);
     const updatedLocal = [orderData, ...localCached.filter(o => o.id !== orderData.id)];
+    localStorage.setItem('marts_orders', JSON.stringify(updatedLocal));
     localStorage.setItem('melody_orders', JSON.stringify(updatedLocal));
     if (uid && uid !== 'guest') {
+      localStorage.setItem(`marts_orders_${uid}`, JSON.stringify(updatedLocal));
       localStorage.setItem(`melody_orders_${uid}`, JSON.stringify(updatedLocal));
     }
 
-    const cachedProf = localStorage.getItem('melody_user_profile') || localStorage.getItem('marts_user_profile');
+    const cachedProf = localStorage.getItem('marts_user_profile') || localStorage.getItem('melody_user_profile');
     if (cachedProf) {
       const parsed = JSON.parse(cachedProf);
       parsed.orders = updatedLocal;
-      localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
       localStorage.setItem('marts_user_profile', JSON.stringify(parsed));
+      localStorage.setItem('melody_user_profile', JSON.stringify(parsed));
     }
   } catch (_) {}
 
@@ -1093,34 +1072,43 @@ export const saveOrderToFirestore = async (
     createNotificationInFirestore(uid, {
       type: 'order',
       title: 'Order Placed Successfully!',
-      message: `Your order #${order.id} for ₹${order.total.toLocaleString()} has been received and is being processed.`,
+      message: `Your order #${order.id} for ₹${Number(order.total || 0).toLocaleString()} has been received and is being processed.`,
       time: 'Just now',
       isRead: false
     }).catch(() => {});
   }
 
-  // Persist directly to Firestore
-  try {
-    const globalOrderRef = doc(db, 'orders', order.id);
-    await withTimeout(setDoc(globalOrderRef, orderData), 8000).catch(e => {
-      console.warn('Global order setDoc notice:', e);
-    });
-
-    if (uid && uid !== 'guest') {
-      const userOrderRef = doc(db, 'users', uid, 'orders', order.id);
-      await withTimeout(setDoc(userOrderRef, orderData), 8000).catch(e => {
-        console.warn('User order subcollection setDoc notice:', e);
+  // Persist asynchronously to Firestore without blocking the frontend response
+  (async () => {
+    try {
+      const globalOrderRef = doc(db, 'orders', order.id);
+      await withTimeout(setDoc(globalOrderRef, orderData), 3500).catch(e => {
+        console.warn('Global order setDoc notice:', e);
       });
 
-      // Also sync orders array to the parent users document
-      await withTimeout(setDoc(doc(db, 'users', uid), {
-        orders: [orderData],
-        updatedAt: new Date().toISOString()
-      }, { merge: true }), 8000).catch(() => {});
+      if (uid && uid !== 'guest') {
+        const userOrderRef = doc(db, 'users', uid, 'orders', order.id);
+        await withTimeout(setDoc(userOrderRef, orderData), 3500).catch(e => {
+          console.warn('User order subcollection setDoc notice:', e);
+        });
+
+        // Also sync orders array to the parent users document preserving all orders
+        const localCachedRaw = localStorage.getItem('marts_orders') || localStorage.getItem('melody_orders') || '[]';
+        let allOrdersToSync = [orderData];
+        try {
+          const parsed = JSON.parse(localCachedRaw);
+          if (Array.isArray(parsed) && parsed.length > 0) allOrdersToSync = parsed;
+        } catch (_) {}
+
+        await withTimeout(setDoc(doc(db, 'users', uid), {
+          orders: allOrdersToSync,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }), 3500).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Firestore notice when saving order:', err);
     }
-  } catch (err) {
-    console.warn('Firestore notice when saving order:', err);
-  }
+  })();
 };
 
 export const updateOrderStatusInFirestore = async (
