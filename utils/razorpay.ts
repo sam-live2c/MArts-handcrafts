@@ -41,93 +41,83 @@ export const loadRazorpayScript = async (): Promise<boolean> => {
   });
 };
 
+// Real production & test Razorpay Credentials provided by merchant:
+// Key ID: rzp_test_Tmud3q9poZJYPz
+// Key Secret: 5yA3U3TBW9WYqTzqlRIILsp5
+const DEFAULT_RAZORPAY_KEY_ID = 'rzp_test_Tmud3q9poZJYPz';
+
+export const getRazorpayKeyId = (): string => {
+  const envKey =
+    (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined) ||
+    (import.meta.env.VITE_RAZORPAY_KEY as string | undefined) ||
+    (typeof window !== 'undefined' ? (window as any).__RAZORPAY_KEY__ : undefined);
+
+  if (envKey && typeof envKey === 'string' && envKey.trim().length > 0) {
+    return envKey.trim();
+  }
+  return DEFAULT_RAZORPAY_KEY_ID;
+};
+
 /**
- * Client-side verified checkout processor for MArts Handcrafts.
- * Accepts Key ID or Secret Key provided in environment variables:
- * VITE_RAZORPAY_KEY_ID, VITE_RAZORPAY_KEY_SECRET, or RAZORPAY_KEY_SECRET.
- * If Razorpay credentials are configured, loads the official Razorpay checkout modal.
- * If credentials are simulated or unavailable, completes instant verified transaction.
+ * Real production payment authorization for MArts Handcrafts.
+ * Opens official Razorpay modal and validates real payment responses.
  */
 export const openRazorpayCheckout = async (
   options: RazorpayOptions
 ): Promise<RazorpayPaymentSuccessResponse> => {
-  const envKey = 
-    (import.meta.env.VITE_RAZORPAY_KEY_ID as string | undefined) ||
-    (import.meta.env.VITE_RAZORPAY_KEY_SECRET as string | undefined) ||
-    (import.meta.env.VITE_RAZORPAY_SECRET_KEY as string | undefined) ||
-    (typeof window !== 'undefined' ? (window as any).__RAZORPAY_KEY__ : undefined);
+  const activeKeyId = getRazorpayKeyId();
 
-  const cleanKey = envKey && typeof envKey === 'string' ? envKey.trim() : '';
-
-  // If a key is present and starts with rzp_ (or test key pattern), invoke the Razorpay SDK
-  if (cleanKey.length > 5 && (cleanKey.startsWith('rzp_') || cleanKey.startsWith('key_') || cleanKey.length >= 14)) {
-    try {
-      const isLoaded = await loadRazorpayScript();
-      if (isLoaded && (window as any).Razorpay) {
-        return await new Promise<RazorpayPaymentSuccessResponse>((resolve, reject) => {
-          try {
-            const rzp = new (window as any).Razorpay({
-              key: cleanKey,
-              amount: Math.round(options.amount * 100), // amount in paise
-              currency: 'INR',
-              name: 'MArts Handcrafts',
-              description: options.description || `Order #${options.orderId} - Handcrafted Pottery & Statues`,
-              order_id: undefined, // Direct checkout mode
-              prefill: {
-                name: options.customerName || 'Valued Customer',
-                contact: options.customerPhone || '',
-                email: options.customerEmail || ''
-              },
-              theme: {
-                color: '#C85A32'
-              },
-              handler: (response: any) => {
-                resolve({
-                  razorpay_payment_id: response.razorpay_payment_id || ('pay_' + Math.random().toString(36).substring(2, 12)),
-                  razorpay_order_id: response.razorpay_order_id || options.orderId || ('ORD_' + Date.now()),
-                  razorpay_signature: response.razorpay_signature || ('sig_' + Date.now())
-                });
-              },
-              modal: {
-                ondismiss: () => {
-                  reject(new Error('PAYMENT_CANCELLED'));
-                }
-              }
-            });
-
-            rzp.on('payment.failed', (failResp: any) => {
-              console.warn('Razorpay payment failed notice:', failResp);
-              // Gracefully handle rejection with fallback or clear notice
-              const desc = failResp?.error?.description || 'Payment failed';
-              reject(new Error(desc));
-            });
-
-            rzp.open();
-          } catch (initErr) {
-            console.warn('Razorpay modal invocation notice, switching to verified checkout:', initErr);
-            // Fallback to seamless verified completion so order is never lost
-            resolve({
-              razorpay_payment_id: 'pay_' + Math.random().toString(36).substring(2, 14),
-              razorpay_order_id: options.orderId || ('ORD_' + Date.now()),
-              razorpay_signature: 'sig_verified_' + Date.now(),
-            });
-          }
-        });
-      }
-    } catch (sdkErr: any) {
-      if (sdkErr?.message === 'PAYMENT_CANCELLED') {
-        throw sdkErr;
-      }
-      console.warn('Razorpay processing notice:', sdkErr);
-    }
+  if (!activeKeyId || !activeKeyId.startsWith('rzp_')) {
+    throw new Error('Valid Razorpay Key ID is required to process online payment.');
   }
 
-  // Instant seamless verified payment processing (UPI / Cards / NetBanking simulation)
-  await new Promise((resolve) => setTimeout(resolve, 400));
+  const isLoaded = await loadRazorpayScript();
+  if (!isLoaded || !(window as any).Razorpay) {
+    throw new Error('Could not initialize Razorpay checkout gateway. Please check your internet connection.');
+  }
 
-  return {
-    razorpay_payment_id: 'pay_' + Math.random().toString(36).substring(2, 14),
-    razorpay_order_id: options.orderId || ('ORD_' + Date.now()),
-    razorpay_signature: 'sig_marts_verified_' + Date.now(),
-  };
+  return new Promise<RazorpayPaymentSuccessResponse>((resolve, reject) => {
+    try {
+      const rzp = new (window as any).Razorpay({
+        key: activeKeyId,
+        amount: Math.round(Number(options.amount) * 100), // amount in paise
+        currency: 'INR',
+        name: 'MArts Handcrafts',
+        description: options.description || `Order #${options.orderId} - Handcrafted Pottery & Statues`,
+        prefill: {
+          name: options.customerName || 'Customer',
+          contact: options.customerPhone || '',
+          email: options.customerEmail || ''
+        },
+        theme: {
+          color: '#C85A32'
+        },
+        handler: (response: any) => {
+          if (!response || !response.razorpay_payment_id) {
+            reject(new Error('Payment was received but payment ID was missing.'));
+            return;
+          }
+          resolve({
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id || options.orderId,
+            razorpay_signature: response.razorpay_signature || ''
+          });
+        },
+        modal: {
+          ondismiss: () => {
+            reject(new Error('PAYMENT_CANCELLED'));
+          }
+        }
+      });
+
+      rzp.on('payment.failed', (failResp: any) => {
+        const desc = failResp?.error?.description || failResp?.error?.reason || 'Payment failed with bank or gateway.';
+        reject(new Error(desc));
+      });
+
+      rzp.open();
+    } catch (err: any) {
+      reject(new Error(err?.message || 'Failed to open Razorpay payment interface.'));
+    }
+  });
 };
