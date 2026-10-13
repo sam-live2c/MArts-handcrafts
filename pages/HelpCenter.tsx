@@ -321,7 +321,7 @@ const HelpCenter: React.FC = () => {
                 Our support desk is available to assist you with order inquiries, replacements, and custom requirements.
               </p>
               <div className="pt-1 text-xs text-[#8C7464] flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1">
-                <span>Email: <strong className="text-[#2B221B]">{supportEmail}</strong> / <strong className="text-[#2B221B]">akmarts1511@gmail.com</strong></span>
+                <span>Email: <strong className="text-[#2B221B]">{supportEmail}</strong></span>
                 <span>•</span>
                 <span>Phone / WhatsApp: <strong className="text-[#2B221B]">+91 70616 71820</strong></span>
                 <span>•</span>

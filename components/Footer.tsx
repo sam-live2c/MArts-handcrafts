@@ -49,14 +49,9 @@ const Footer: React.FC = () => {
 
               <div className="flex items-center gap-2.5">
                 <Mail size={16} className="text-[#C85A32] shrink-0" />
-                <div className="flex flex-col gap-0.5">
-                  <a href="mailto:martsindia3@gmail.com" className="hover:text-[#C85A32] transition-colors font-medium">
-                    martsindia3@gmail.com
-                  </a>
-                  <a href="mailto:akmarts1511@gmail.com" className="hover:text-[#C85A32] transition-colors text-xs text-[#735A4C]">
-                    akmarts1511@gmail.com
-                  </a>
-                </div>
+                <a href="mailto:martsindia3@gmail.com" className="hover:text-[#C85A32] transition-colors font-medium">
+                  martsindia3@gmail.com
+                </a>
               </div>
             </div>
           </div>

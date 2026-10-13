@@ -142,12 +142,6 @@ const About: React.FC = () => {
                   martsindia3@gmail.com
                 </a>
               </div>
-              <div className="flex items-center gap-2">
-                <Mail size={14} className="text-[#C85A32]" />
-                <a href="mailto:akmarts1511@gmail.com" className="hover:text-[#C85A32] font-semibold transition-colors">
-                  akmarts1511@gmail.com
-                </a>
-              </div>
             </div>
           </section>
         </article>

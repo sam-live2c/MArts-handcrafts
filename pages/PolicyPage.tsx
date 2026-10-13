@@ -236,9 +236,6 @@ const PrivacyPolicyContent: React.FC = () => {
             Email:{' '}
             <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
               martsindia3@gmail.com
-            </a>{' '}
-            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
-              akmarts1511@gmail.com
             </a>
           </p>
           <p>
@@ -428,9 +425,6 @@ const RefundPolicyContent: React.FC = () => {
             Email:{' '}
             <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
               martsindia3@gmail.com
-            </a>{' '}
-            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
-              akmarts1511@gmail.com
             </a>
           </p>
           <p>
@@ -628,9 +622,6 @@ const TermsConditionsContent: React.FC = () => {
             Email:{' '}
             <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
               martsindia3@gmail.com
-            </a>{' '}
-            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
-              akmarts1511@gmail.com
             </a>
           </p>
           <p>
@@ -771,9 +762,6 @@ const ShippingPolicyContent: React.FC = () => {
             Email:{' '}
             <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
               martsindia3@gmail.com
-            </a>{' '}
-            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
-              akmarts1511@gmail.com
             </a>
           </p>
           <p>

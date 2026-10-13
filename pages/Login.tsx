@@ -1118,14 +1118,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {/* VIEW 4: FORGOT PASSWORD (OTP ONLY - NO RESET LINKS) */}
           {view === 'forgot_password' && (
             <div className="space-y-4">
-              <button
-                type="button"
-                onClick={() => switchView('password')}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8C3F1E] hover:text-[#C85A32] cursor-pointer transition-colors"
-              >
-                <ArrowLeft size={14} />
-                <span>Back to Sign In</span>
-              </button>
 
               {/* STEP 1: Enter Email & Request OTP */}
               {forgotStep === 'request' && (
@@ -1199,11 +1191,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {/* STEP 2: Enter & Verify 6-Digit OTP Code */}
               {forgotStep === 'verify' && (
                 <div className="space-y-4 animate-in fade-in duration-200">
-                  {/* Step Indicator */}
-                  <div className="flex items-center justify-between text-xs text-[#8C6D58] border-b border-[#EADBCC] pb-2">
-                    <span className="font-semibold uppercase tracking-wider text-[11px]">Step 2 of 3: Verify OTP</span>
-                    <span className="text-emerald-700 font-medium">OTP Sent</span>
-                  </div>
 
                   <div className="p-3 bg-[#FAF3EA] rounded-2xl flex items-center justify-between">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -1311,14 +1298,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               {/* STEP 3: Create New Password (Only after OTP verified!) */}
               {forgotStep === 'create_password' && (
                 <form onSubmit={handleCreateNewPassword} className="space-y-4 animate-in fade-in duration-200">
-                  {/* Step Indicator */}
-                  <div className="flex items-center justify-between text-xs text-[#8C6D58] border-b border-[#EADBCC] pb-2">
-                    <span className="font-semibold uppercase tracking-wider text-[11px]">Step 3 of 3: Create New Password</span>
-                    <span className="text-emerald-700 font-medium flex items-center gap-1">
-                      <CheckCircle2 size={12} className="text-emerald-600" />
-                      Verified
-                    </span>
-                  </div>
 
                   {/* Verified Banner */}
                   <div className="p-3 bg-emerald-50 border border-emerald-200/80 rounded-2xl flex items-center gap-2.5">
