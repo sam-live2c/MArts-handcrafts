@@ -120,9 +120,8 @@ service cloud.firestore {
     // USERS COLLECTION & SUBCOLLECTIONS (PII PROTECTED)
     // ==========================================
     match /users/{userId} {
-      // Individual user profile can be read by owner UID, owner by email, admin, or pre-auth lookup
-      allow get: if isOwner(userId) || isEmailOwner() || isAdmin() || !isSignedIn();
-      allow list: if isAdmin();
+      // Individual user profile and queries can be read by owner UID, owner by email, admin, or pre-auth lookup
+      allow read: if isOwner(userId) || isEmailOwner() || isAdmin() || !isSignedIn();
 
       // User creation during signup
       allow create: if true;

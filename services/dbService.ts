@@ -279,7 +279,24 @@ export async function getAssociatedUserIdsForEmail(
     }
   } catch (_) {}
 
-  // 4. Also check if local storage has stored linked or reconciled user IDs
+  // 4. Check cached orders for any associated userIds
+  try {
+    const candidateKeys = [`marts_orders_${cleanEmail}`, 'marts_orders', `marts_orders_${sanitizedId}`];
+    if (currentUid) candidateKeys.push(`marts_orders_${currentUid}`);
+    for (const key of candidateKeys) {
+      const raw = safeStorage.getItem(key);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          arr.forEach((o: any) => {
+            if (o?.userId && o.userId !== 'guest') ids.add(o.userId);
+          });
+        }
+      }
+    }
+  } catch (_) {}
+
+  // 5. Also check if local storage has stored linked or reconciled user IDs
   try {
     const cachedStr = safeStorage.getItem(`marts_user_profile_${currentUid}`) || safeStorage.getItem('marts_user_profile');
     if (cachedStr) {
@@ -961,128 +978,170 @@ export const reconcileCanonicalUserData = async (
 ): Promise<{ success: boolean; reconciledCount: number }> => {
   if (!canonicalUid || !userEmail) return { success: false, reconciledCount: 0 };
   const cleanEmail = userEmail.trim().toLowerCase();
-  const legacyDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-  if (legacyDocId === canonicalUid) return { success: true, reconciledCount: 0 };
+  if (!cleanEmail) return { success: false, reconciledCount: 0 };
 
   try {
-    const legacyUserRef = doc(db, 'users', legacyDocId);
-    const legacySnap = await getDoc(legacyUserRef).catch(() => null);
+    const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, canonicalUid);
+    const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
+    if (!associatedUids.includes(emailDocId)) associatedUids.push(emailDocId);
+    if (!associatedUids.includes(canonicalUid)) associatedUids.push(canonicalUid);
 
-    // 1. Fetch any orders belonging to this email or legacyDocId
-    const globalOrdersQuery = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
-    const globalOrdersSnap = await getDocs(globalOrdersQuery).catch(() => null);
+    // 1. Gather all orders across global orders by customerEmail and candidate user subcollections
+    const ordersMap = new Map<string, Order>();
 
-    const legacyOrdersCol = collection(db, 'users', legacyDocId, 'orders');
-    const legacyOrdersSnap = await getDocs(legacyOrdersCol).catch(() => null);
-
-    const legacyAddrCol = collection(db, 'users', legacyDocId, 'addresses');
-    const legacyAddrSnap = await getDocs(legacyAddrCol).catch(() => null);
-
-    const batch = writeBatch(db);
-    let operationCount = 0;
-
-    // Migrate orders to canonical UID
-    const seenOrderIds = new Set<string>();
-
-    if (globalOrdersSnap && !globalOrdersSnap.empty) {
-      globalOrdersSnap.forEach((docSnap) => {
-        const orderData = docSnap.data() as Order;
-        if (orderData && orderData.id && orderData.userId !== canonicalUid) {
-          seenOrderIds.add(orderData.id);
-          batch.update(docSnap.ref, { userId: canonicalUid, updatedAt: Date.now() });
-          const userOrderRef = doc(db, 'users', canonicalUid, 'orders', orderData.id);
-          batch.set(userOrderRef, { ...orderData, userId: canonicalUid }, { merge: true });
-          operationCount += 2;
-        }
-      });
-    }
-
-    if (legacyOrdersSnap && !legacyOrdersSnap.empty) {
-      legacyOrdersSnap.forEach((docSnap) => {
-        const orderData = docSnap.data() as Order;
-        if (orderData && orderData.id && !seenOrderIds.has(orderData.id)) {
-          seenOrderIds.add(orderData.id);
-          const userOrderRef = doc(db, 'users', canonicalUid, 'orders', orderData.id);
-          batch.set(userOrderRef, { ...orderData, userId: canonicalUid }, { merge: true });
-          operationCount += 1;
-        }
-      });
-    }
-
-    // Migrate addresses
-    if (legacyAddrSnap && !legacyAddrSnap.empty) {
-      legacyAddrSnap.forEach((docSnap) => {
-        const addrData = docSnap.data();
-        if (docSnap.id !== 'default') {
-          const targetAddrRef = doc(db, 'users', canonicalUid, 'addresses', docSnap.id);
-          batch.set(targetAddrRef, addrData, { merge: true });
-          operationCount += 1;
-        }
-      });
-    }
-
-    // Migrate wishlist
+    // Global orders for this email
     try {
-      const legacyWishlistRef = doc(db, 'users', legacyDocId, 'wishlist', 'items');
-      const legacyWishlistSnap = await getDoc(legacyWishlistRef).catch(() => null);
-      if (legacyWishlistSnap && legacyWishlistSnap.exists()) {
-        const canonicalWishlistRef = doc(db, 'users', canonicalUid, 'wishlist', 'items');
-        const canonicalWishlistSnap = await getDoc(canonicalWishlistRef).catch(() => null);
-        const legacyItems = legacyWishlistSnap.data().productIds || [];
-        const canonicalItems = (canonicalWishlistSnap && canonicalWishlistSnap.exists()) ? (canonicalWishlistSnap.data().productIds || []) : [];
-        const mergedWishlist = Array.from(new Set([...canonicalItems, ...legacyItems]));
-        batch.set(canonicalWishlistRef, { productIds: mergedWishlist, updatedAt: Date.now() }, { merge: true });
-        operationCount += 1;
-      }
-    } catch (_) {}
-
-    // Migrate cart items
-    try {
-      const legacyCartSnap = await getDocs(collection(db, 'users', legacyDocId, 'cart')).catch(() => null);
-      if (legacyCartSnap && !legacyCartSnap.empty) {
-        legacyCartSnap.forEach(docSnap => {
-          const itemData = docSnap.data();
-          const targetCartRef = doc(db, 'users', canonicalUid, 'cart', docSnap.id);
-          batch.set(targetCartRef, itemData, { merge: true });
-          operationCount += 1;
+      const globalOrdersQuery = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
+      const globalOrdersSnap = await withTimeout(getDocs(globalOrdersQuery), 3500).catch(() => null);
+      if (globalOrdersSnap && !globalOrdersSnap.empty) {
+        globalOrdersSnap.forEach((docSnap) => {
+          const ord = docSnap.data() as Order;
+          const orderId = String(ord?.id || docSnap.id);
+          if (orderId && ord) {
+            ordersMap.set(orderId, { ...ord, id: orderId, customerEmail: cleanEmail });
+            if (ord.userId && ord.userId !== 'guest' && !associatedUids.includes(ord.userId)) {
+              associatedUids.push(ord.userId);
+            }
+          }
         });
       }
     } catch (_) {}
 
-    // Merge profile fields into canonical users/{canonicalUid}
-    if (legacySnap && legacySnap.exists()) {
-      const legacyData = legacySnap.data();
-      const canonicalUserRef = doc(db, 'users', canonicalUid);
-      const canonicalSnap = await getDoc(canonicalUserRef).catch(() => null);
-      const existingCanonical = canonicalSnap?.exists() ? canonicalSnap.data() : {};
+    // Subcollections and user doc orders for all associated candidate IDs
+    for (const candId of associatedUids) {
+      try {
+        const subSnap = await withTimeout(getDocs(collection(db, 'users', candId, 'orders')), 2500).catch(() => null);
+        if (subSnap && !subSnap.empty) {
+          subSnap.forEach((docSnap) => {
+            const ord = docSnap.data() as Order;
+            const orderId = String(ord?.id || docSnap.id);
+            if (orderId && ord) {
+              const existing = ordersMap.get(orderId);
+              if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                ordersMap.set(orderId, { ...existing, ...ord, id: orderId, customerEmail: ord.customerEmail || cleanEmail });
+              }
+            }
+          });
+        }
+      } catch (_) {}
 
-      const mergedProfile: Record<string, any> = {
-        email: cleanEmail,
-        uid: canonicalUid,
-        name: existingCanonical?.name || legacyData?.name || existingCanonical?.displayName || legacyData?.displayName || 'Customer',
-        displayName: existingCanonical?.displayName || legacyData?.displayName || existingCanonical?.name || legacyData?.name || 'Customer',
-        phone: existingCanonical?.phone || legacyData?.phone || existingCanonical?.phoneNumber || legacyData?.phoneNumber || '',
-        phoneNumber: existingCanonical?.phoneNumber || legacyData?.phoneNumber || existingCanonical?.phone || legacyData?.phone || '',
-        deliveryAddress: existingCanonical?.deliveryAddress || legacyData?.deliveryAddress || null,
-        shippingAddress: existingCanonical?.shippingAddress || legacyData?.shippingAddress || null,
-        address: existingCanonical?.address || legacyData?.address || '',
-        passwordHash: existingCanonical?.passwordHash || legacyData?.passwordHash || null,
-        linkedProviders: Array.from(new Set([...(existingCanonical?.linkedProviders || []), ...(legacyData?.linkedProviders || [])])),
-        reconciledFrom: legacyDocId,
-        reconciledAt: Date.now(),
-        updatedAt: new Date().toISOString()
-      };
+      try {
+        const uSnap = await withTimeout(getDoc(doc(db, 'users', candId)), 2000).catch(() => null);
+        if (uSnap && uSnap.exists()) {
+          const uData = uSnap.data();
+          if (Array.isArray(uData.orders)) {
+            uData.orders.forEach((ord: Order) => {
+              if (ord && ord.id) {
+                const orderId = String(ord.id);
+                const existing = ordersMap.get(orderId);
+                if (!existing || (ord.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                  ordersMap.set(orderId, { ...existing, ...ord, id: orderId, customerEmail: ord.customerEmail || cleanEmail });
+                }
+              }
+            });
+          }
+        }
+      } catch (_) {}
+    }
 
-      batch.set(canonicalUserRef, mergedProfile, { merge: true });
-      batch.set(legacyUserRef, {
-        reconciledTo: canonicalUid,
-        reconciledAt: Date.now()
-      }, { merge: true });
-      operationCount += 2;
+    // Also include cached orders
+    const candidateKeys = ['marts_orders', `marts_orders_${cleanEmail}`];
+    for (const candId of associatedUids) candidateKeys.push(`marts_orders_${candId}`);
+    for (const k of candidateKeys) {
+      try {
+        const raw = safeStorage.getItem(k);
+        if (raw) {
+          const arr = JSON.parse(raw);
+          if (Array.isArray(arr)) {
+            arr.forEach((ord: Order) => {
+              if (ord && ord.id && !ordersMap.has(String(ord.id))) {
+                ordersMap.set(String(ord.id), ord);
+              }
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    const unifiedOrders = Array.from(ordersMap.values()).sort((a, b) => {
+      const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+      const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+      if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+      return String(b?.id || '').localeCompare(String(a?.id || ''));
+    });
+
+    // Update safeStorage across all candidate keys
+    if (unifiedOrders.length > 0) {
+      for (const k of candidateKeys) {
+        try { safeStorage.setItem(k, JSON.stringify(unifiedOrders)); } catch (_) {}
+      }
+    }
+
+    // Bidirectional sync to Firestore for all candidate IDs
+    let operationCount = 0;
+    const batch = writeBatch(db);
+
+    for (const candId of associatedUids) {
+      if (candId && candId !== 'guest') {
+        // Update user doc orders array
+        const userRef = doc(db, 'users', candId);
+        batch.set(userRef, {
+          orders: unifiedOrders,
+          email: cleanEmail,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        operationCount++;
+
+        // Sync individual orders to subcollection
+        for (const ord of unifiedOrders.slice(0, 50)) {
+          const userOrderRef = doc(db, 'users', candId, 'orders', ord.id);
+          batch.set(userOrderRef, ord, { merge: true });
+          operationCount++;
+        }
+      }
+    }
+
+    // Reconcile addresses across candidate IDs
+    const addressesMap = new Map<string, AddressItem>();
+    for (const candId of associatedUids) {
+      try {
+        const addrSnap = await withTimeout(getDocs(collection(db, 'users', candId, 'addresses')), 2000).catch(() => null);
+        if (addrSnap && !addrSnap.empty) {
+          addrSnap.forEach(docSnap => {
+            const data = docSnap.data();
+            if (data && docSnap.id !== 'default') {
+              addressesMap.set(docSnap.id, {
+                id: data.id || docSnap.id,
+                name: data.recipientName || data.name || '',
+                phone: data.phone || data.phoneNumber || '',
+                email: cleanEmail,
+                pincode: data.postalCode || data.pin || data.pincode || '',
+                houseNo: data.street || data.houseNo || '',
+                area: [data.apartment, data.landmark].filter(Boolean).join(', ') || data.area || '',
+                city: data.city || '',
+                state: data.state || '',
+                type: data.type || 'HOME',
+                isDefault: data.isDefault === true
+              });
+            }
+          });
+        }
+      } catch (_) {}
+    }
+
+    const dedupedAddresses = deduplicateAddresses(Array.from(addressesMap.values()));
+    if (dedupedAddresses.length > 0) {
+      for (const candId of associatedUids) {
+        for (const addr of dedupedAddresses) {
+          const addrRef = doc(db, 'users', candId, 'addresses', addr.id);
+          batch.set(addrRef, addr, { merge: true });
+          operationCount++;
+        }
+      }
     }
 
     if (operationCount > 0) {
-      await batch.commit();
+      await withTimeout(batch.commit(), 4000).catch(e => console.warn('Reconcile batch commit notice:', e));
     }
 
     return { success: true, reconciledCount: operationCount };
@@ -1956,28 +2015,44 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       }
     }
 
-    // Run parallel queries across all candidate user documents, subcollections, and global orders
-    const orderPromises: Promise<any>[] = [];
-
-    // Query subcollections, user docs, and global orders by userId for every candidate ID
-    for (const candId of associatedUids) {
-      orderPromises.push(getDocs(collection(db, 'users', candId, 'orders')).catch(() => null));
-      orderPromises.push(getDoc(doc(db, 'users', candId)).catch(() => null));
-      orderPromises.push(getDocs(query(collection(db, 'orders'), where('userId', '==', candId))).catch(() => null));
-    }
-
-    // Also query global orders by customerEmail
+    // 1. Authoritative: Fetch from global orders by customerEmail (fast, catches all providers)
     if (cleanEmail) {
-      orderPromises.push(
-        getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))).catch(() => null)
-      );
+      try {
+        const emailOrdersSnap = await withTimeout(
+          getDocs(query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail))),
+          3500
+        ).catch(() => null);
+
+        if (emailOrdersSnap && !emailOrdersSnap.empty) {
+          emailOrdersSnap.forEach((docSnap) => {
+            const o = docSnap.data() as Order;
+            const orderId = String(o?.id || docSnap.id);
+            if (orderId && o) {
+              const existing = ordersMap.get(orderId);
+              if (!existing || (o.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                ordersMap.set(orderId, { ...existing, ...o, id: orderId, customerEmail: cleanEmail });
+              }
+              if (o.userId && o.userId !== 'guest' && !associatedUids.includes(o.userId)) {
+                associatedUids.push(o.userId);
+              }
+            }
+          });
+        }
+      } catch (_) {}
     }
 
-    const settled = await withTimeout(Promise.allSettled(orderPromises), 8000);
+    // 2. Fetch candidate subcollections & user docs
+    const orderPromises: Promise<any>[] = [];
+    for (const candId of associatedUids) {
+      orderPromises.push(withTimeout(getDocs(collection(db, 'users', candId, 'orders')), 3000).catch(() => null));
+      orderPromises.push(withTimeout(getDoc(doc(db, 'users', candId)), 2500).catch(() => null));
+      orderPromises.push(withTimeout(getDocs(query(collection(db, 'orders'), where('userId', '==', candId))), 3000).catch(() => null));
+    }
+
+    const settled = await withTimeout(Promise.allSettled(orderPromises), 5000).catch(() => []);
     for (const res of settled) {
       if (res.status === 'fulfilled' && res.value) {
         const val = res.value;
-        // Check if query snapshot or collection snapshot
         if (typeof val.forEach === 'function') {
           val.forEach((docSnap: any) => {
             const o = docSnap.data() as Order;
@@ -1990,7 +2065,6 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
             }
           });
         } else if (typeof val.data === 'function') {
-          // Document snapshot (users/{candId})
           const dData = val.data();
           if (dData && Array.isArray(dData.orders)) {
             dData.orders.forEach((o: Order) => {
@@ -2028,22 +2102,25 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       // Background non-blocking sync: propagate orders to candidate user subcollections & global orders
       (async () => {
         try {
-          const primaryUid = uid && uid !== 'guest' ? uid : associatedUids[0];
+          const emailDocId = cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null;
+          const targetIds = Array.from(new Set([...associatedUids, uid, emailDocId].filter(Boolean))) as string[];
+
           for (const ord of sorted) {
-            if (primaryUid) {
-              setDoc(doc(db, 'users', primaryUid, 'orders', ord.id), ord, { merge: true }).catch(() => {});
-            }
-            if (cleanEmail) {
-              const emailDocId = 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_');
-              setDoc(doc(db, 'users', emailDocId, 'orders', ord.id), ord, { merge: true }).catch(() => {});
+            for (const candId of targetIds) {
+              if (candId && candId !== 'guest') {
+                setDoc(doc(db, 'users', candId, 'orders', ord.id), ord, { merge: true }).catch(() => {});
+              }
             }
             setDoc(doc(db, 'orders', ord.id), {
               ...ord,
               customerEmail: ord.customerEmail || cleanEmail
             }, { merge: true }).catch(() => {});
           }
-          if (primaryUid) {
-            setDoc(doc(db, 'users', primaryUid), { orders: sorted, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+
+          for (const candId of targetIds) {
+            if (candId && candId !== 'guest') {
+              setDoc(doc(db, 'users', candId), { orders: sorted, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+            }
           }
         } catch (_) {}
       })();
@@ -2051,7 +2128,6 @@ export const fetchUserOrders = async (uid: string, fallbackEmail?: string): Prom
       return sorted;
     }
 
-    // Return current orders in map even if Firestore returned 0 docs
     return sorted;
   } catch (err) {
     console.warn('Notice when fetching orders, using cached order store:', err);
