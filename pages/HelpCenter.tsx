@@ -53,7 +53,7 @@ const FAQ_DATA: FAQItem[] = [
     id: 'cancel-modify',
     category: 'orders',
     question: 'Can I cancel or modify my delivery address after placing an order?',
-    answer: 'Yes. You can modify your shipping address or cancel your order within 6 hours of placement before our warehouse initiates custom protective crating. Simply send an email to support@marts.com with your Order ID.'
+    answer: 'Yes. You can modify your shipping address or cancel your order within 6 hours of placement before our warehouse initiates custom protective crating. Simply send an email to martsindia3@gmail.com or WhatsApp +91 70616 71820 with your Order ID.'
   },
 
   // Food Safety & Care
@@ -92,7 +92,7 @@ const FAQ_DATA: FAQItem[] = [
     id: 'damaged-transit',
     category: 'returns',
     question: 'What should I do if my parcel arrives damaged?',
-    answer: 'Take 2 clear photos of the damaged packaging and the broken item, then email us at support@marts.com with your Order ID. Our support team will verify your claim within 2 hours and dispatch a fresh replacement immediately.'
+    answer: 'Take 2 clear photos of the damaged packaging and the broken item, then email us at martsindia3@gmail.com or WhatsApp +91 70616 71820 with your Order ID. Our support team will verify your claim within 2 hours and dispatch a fresh replacement immediately.'
   },
   {
     id: 'refund-timeline',
@@ -106,13 +106,13 @@ const FAQ_DATA: FAQItem[] = [
     id: 'custom-orders',
     category: 'custom',
     question: 'Can I commission bespoke stone sculptures or bulk pottery?',
-    answer: 'Yes. We accept bespoke commission requests for architectural sculptures, garden planters, temple murtis, and customized corporate pottery sets. Email support@marts.com with your sketches, dimensions, and preferred stone or clay requirements for a personalized quote.'
+    answer: 'Yes. We accept bespoke commission requests for architectural sculptures, garden planters, temple murtis, and customized corporate pottery sets. Email martsindia3@gmail.com with your sketches, dimensions, and preferred stone or clay requirements for a personalized quote.'
   },
   {
     id: 'order-receipt',
     category: 'custom',
     question: 'Where can I download order receipts?',
-    answer: 'Every order includes an itemized order receipt. You can download the receipt directly from your "My Orders" page in your Account, or email us at support@marts.com to receive a digital copy.'
+    answer: 'Every order includes an itemized order receipt. You can download the receipt directly from your "My Orders" page in your Account, or email us at martsindia3@gmail.com to receive a digital copy.'
   }
 ];
 
@@ -132,7 +132,7 @@ const HelpCenter: React.FC = () => {
     'track-order': true,
   });
 
-  const supportEmail = 'support@marts.com';
+  const supportEmail = 'martsindia3@gmail.com';
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -321,14 +321,24 @@ const HelpCenter: React.FC = () => {
                 Our support desk is available to assist you with order inquiries, replacements, and custom requirements.
               </p>
               <div className="pt-1 text-xs text-[#8C7464] flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1">
-                <span>Email: <strong className="text-[#2B221B]">{supportEmail}</strong></span>
+                <span>Email: <strong className="text-[#2B221B]">{supportEmail}</strong> / <strong className="text-[#2B221B]">akmarts1511@gmail.com</strong></span>
                 <span>•</span>
-                <span>Response within 24 hours</span>
+                <span>Phone / WhatsApp: <strong className="text-[#2B221B]">+91 70616 71820</strong></span>
+                <span>•</span>
+                <span>Atelier: <strong className="text-[#2B221B]">Bokaro, Jharkhand</strong></span>
               </div>
             </div>
 
-            {/* Direct Email Action */}
-            <div className="w-full md:w-auto shrink-0 flex justify-center md:justify-end">
+            {/* Direct Email & Call Actions */}
+            <div className="w-full md:w-auto shrink-0 flex flex-wrap items-center justify-center md:justify-end gap-3">
+              <a
+                href="https://wa.me/917061671820"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-[#25D366] hover:bg-[#1EBE5D] text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs cursor-pointer"
+              >
+                <span>WhatsApp</span>
+              </a>
               <a
                 href={`mailto:${supportEmail}?subject=MArts%20Support%20Inquiry`}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#C85A32] hover:bg-[#A04724] text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs cursor-pointer"

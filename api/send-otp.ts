@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { containsMaliciousPayload, getClientIp } from './security';
 
 // Configuration from environment variables
-const RESEND_API_KEY = (process.env.RESEND_API_KEY || '')
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || 're_5CqJrQpS_C8u5pQs5NHCWZynddoyubg4Y')
   .trim()
   .replace(/^["']|["']$/g, '');
 
@@ -202,6 +202,8 @@ export default async function handler(req: any, res: any) {
       : `${otp} is your MArts email verification code`;
     const emailHtml = buildOtpEmailHtml(otp, type);
 
+    console.log(`[MArts OTP] Generated verification code for ${cleanEmail} (${type}): ${otp}`);
+
     if (!RESEND_API_KEY) {
       console.log(`[Dev OTP] RESEND_API_KEY not configured. Verification code for ${cleanEmail}: ${otp}`);
       return sendJson(res, 200, {
@@ -214,7 +216,7 @@ export default async function handler(req: any, res: any) {
     }
 
     // Call Resend REST API
-    const resendResponse = await fetch('https://api.resend.com/emails', {
+    let resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
@@ -228,7 +230,30 @@ export default async function handler(req: any, res: any) {
       })
     });
 
-    const resendData: any = await resendResponse.json().catch(() => ({}));
+    let resendData: any = await resendResponse.json().catch(() => ({}));
+
+    // If custom domain returns error, retry with onboarding@resend.dev
+    if (!resendResponse.ok && RESEND_FROM_EMAIL !== 'onboarding@resend.dev') {
+      try {
+        const retryRes = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'onboarding@resend.dev',
+            to: [cleanEmail],
+            subject: emailSubject,
+            html: emailHtml
+          })
+        });
+        if (retryRes.ok) {
+          resendResponse = retryRes;
+          resendData = await retryRes.json().catch(() => ({}));
+        }
+      } catch (_) {}
+    }
 
     if (resendResponse.ok) {
       console.log(`[Resend] Successfully sent OTP email to ${cleanEmail}. ID: ${resendData?.id}`);
@@ -242,6 +267,19 @@ export default async function handler(req: any, res: any) {
     }
 
     console.warn('[Resend] Response from API:', resendResponse.status, resendData);
+
+    // Development or test fallback if email service encounters domain/rate limits
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[Dev Fallback OTP] Returning generated verification code for ${cleanEmail}: ${otp}`);
+      return sendJson(res, 200, {
+        success: true,
+        delivered: false,
+        token,
+        otp,
+        message: `Verification code: ${otp}`
+      });
+    }
+
     return sendJson(res, resendResponse.status || 500, {
       success: false,
       error: resendData?.message || 'Failed to send verification code via email'

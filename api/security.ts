@@ -124,10 +124,33 @@ export function containsMaliciousPayload(val: unknown, depth = 0): boolean {
 export function securityHeadersMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Guard against MIME-sniffing
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Clickjacking protection
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   // XSS Protection
   res.setHeader('X-XSS-Protection', '1; mode=block');
   // Referrer Policy
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Cross-Origin Opener Policy (allows Google Auth popups while preventing window opener manipulation)
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  // Permissions Policy
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
+  // Strict Transport Security (HSTS)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+
+  // Content Security Policy
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://apis.google.com https://www.googletagmanager.com",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' https://api.resend.com https://*.firebaseio.com https://*.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://firestore.googleapis.com https://api.razorpay.com https://lumberjack.razorpay.com wss://*.firebaseio.com",
+    "frame-src 'self' https://api.razorpay.com https://*.firebaseapp.com https://accounts.google.com",
+    "object-src 'none'",
+    "base-uri 'self'"
+  ].join('; ');
+
+  res.setHeader('Content-Security-Policy', csp);
 
   next();
 }

@@ -544,9 +544,10 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
   <div class="invoice-card">
     <div class="header">
       <div>
-        <div class="brand-title">MArts</div>
-        <div class="brand-subtitle">Handcrafted Pottery & Statues • Heritage Atelier</div>
-        <div class="brand-subtitle">support@marts.crafts</div>
+        <div class="brand-title">MArts &amp; Uart</div>
+        <div class="brand-subtitle">Handcrafted Pottery &amp; Statues • Founder: Anant Kumbhakar</div>
+        <div class="brand-subtitle">Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand</div>
+        <div class="brand-subtitle">📞 +91 70616 71820 • ✉️ martsindia3@gmail.com</div>
       </div>
       <div class="invoice-meta">
         <div class="invoice-tag">${receiptHeading}</div>
@@ -627,7 +628,7 @@ const MyOrders: React.FC<MyOrdersProps> = ({ user, onUpdateOrders, cartCount, wi
     <div class="footer">
       <div>This is a computer-generated order receipt and delivery summary issued by MArts Handcrafts.</div>
       <div>Thank you for honoring traditional pottery kilns, stone carving ateliers, and heritage craft traditions!</div>
-      <div style="margin-top: 6px; font-size: 11px; color: #999;">For replacement or damage claims, please contact support@marts.crafts within 48 hours of delivery.</div>
+      <div style="margin-top: 6px; font-size: 11px; color: #999;">For replacement or damage claims, please contact martsindia3@gmail.com / +91 70616 71820 within 48 hours of delivery.</div>
     </div>
   </div>
 </body>
@@ -682,14 +683,14 @@ I have downloaded my order receipt. Please verify and process the cancellation m
     // 4. Show confirmation toast noting admin will update manually
     showToast(
       'Receipt Downloaded',
-      'Connecting to Support (+91 98765 43210). The admin will verify and update your order manually.',
+      'Connecting to Support (+91 70616 71820). The admin will verify and update your order manually.',
       'success',
       6000
     );
 
     // 5. Redirect to Support Number
     if (channel === 'whatsapp') {
-      const whatsappUrl = `https://wa.me/919876543210?text=${encodeURIComponent(supportMsg)}`;
+      const whatsappUrl = `https://wa.me/917061671820?text=${encodeURIComponent(supportMsg)}`;
       try {
         const opened = window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
         if (!opened) {
@@ -699,7 +700,7 @@ I have downloaded my order receipt. Please verify and process the cancellation m
         window.location.href = whatsappUrl;
       }
     } else {
-      window.location.href = 'tel:+919876543210';
+      window.location.href = 'tel:+917061671820';
     }
   };
 
@@ -1113,7 +1114,7 @@ I have downloaded my order receipt. Please verify and process the cancellation m
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-[#735A4C]">Artisan Support Desk</span>
-                  <span className="font-semibold text-[#2B221B]">+91 98765 43210</span>
+                  <span className="font-semibold text-[#2B221B]">+91 70616 71820</span>
                 </div>
               </div>
 
@@ -1139,7 +1140,7 @@ I have downloaded my order receipt. Please verify and process the cancellation m
                   className="w-full flex items-center justify-center gap-2 bg-[#FAF5EF] hover:bg-[#F2E8DE] text-[#2B221B] border border-[#EADBCC] py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
                 >
                   <Phone size={16} className="text-[#C85A32]" />
-                  <span>Call Support Desk (+91 98765 43210)</span>
+                  <span>Call Support Desk (+91 70616 71820)</span>
                 </button>
 
                 <button

@@ -71,9 +71,9 @@ const Contact: React.FC = () => {
                     <Phone size={18} />
                   </div>
                   <div>
-                    <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Telephone</p>
-                    <a href="tel:+919876543210" className="text-sm font-bold text-[#2B221B] hover:text-[#C85A32] transition-colors">
-                      +91 98765 43210
+                    <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Telephone &amp; WhatsApp</p>
+                    <a href="tel:+917061671820" className="text-sm font-bold text-[#2B221B] hover:text-[#C85A32] transition-colors">
+                      +91 70616 71820
                     </a>
                   </div>
                 </div>
@@ -84,9 +84,14 @@ const Contact: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Email Support</p>
-                    <a href="mailto:atelier@marts.com" className="text-sm font-bold text-[#2B221B] hover:text-[#C85A32] transition-colors">
-                      atelier@marts.com
-                    </a>
+                    <div className="flex flex-col gap-0.5">
+                      <a href="mailto:martsindia3@gmail.com" className="text-sm font-bold text-[#2B221B] hover:text-[#C85A32] transition-colors">
+                        martsindia3@gmail.com
+                      </a>
+                      <a href="mailto:akmarts1511@gmail.com" className="text-xs text-[#735A4C] hover:text-[#C85A32] transition-colors">
+                        akmarts1511@gmail.com
+                      </a>
+                    </div>
                   </div>
                 </div>
 
@@ -97,8 +102,9 @@ const Contact: React.FC = () => {
                   <div>
                     <p className="text-[11px] font-bold text-[#A89283] uppercase tracking-wider mb-0.5">Showroom &amp; Atelier</p>
                     <p className="text-xs sm:text-sm font-medium text-[#4E392D] leading-relaxed">
-                      Plot 14, Heritage Artisan Guild Enclave, Pottery &amp; Sculpture Crafts Zone, Sector 4, Khurja / Bengal Craft Belt, PIN 203131, India
+                      Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India
                     </p>
+                    <p className="text-[11px] text-[#A89283] mt-1 font-medium">Founder: Anant Kumbhakar (Uart / MArts)</p>
                   </div>
                 </div>
 
@@ -118,7 +124,7 @@ const Contact: React.FC = () => {
               <ShieldCheck size={28} className="text-[#C85A32] shrink-0" />
               <div className="text-xs text-[#6E5343]">
                 <p className="font-bold text-[#2B221B]">Direct Artisan Transparency</p>
-                <p>All inquiries are handled directly by our pottery craft curators.</p>
+                <p>Directly managed by Anant Kumbhakar and master guild craftspersons.</p>
               </div>
             </div>
           </div>

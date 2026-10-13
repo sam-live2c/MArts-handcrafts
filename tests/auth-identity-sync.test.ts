@@ -484,7 +484,7 @@ async function runTests() {
     const sampleAddress = {
       id: 'addr_12345',
       name: 'Patron Crafts',
-      phone: '+91 9876543210',
+      phone: '+91 7061671820',
       email: verifiedEmail,
       pincode: '700001',
       houseNo: 'Flat 4B, Heritage Enclave',

@@ -5,5 +5,5 @@ Disallow: /account
 Disallow: /checkout
 Disallow: /cart
 
-Sitemap: https://ais-dev-le4v3m3kswxy6fgiul6nks-404488101517.asia-southeast1.run.app/sitemap.xml
-Sitemap: https://ais-dev-le4v3m3kswxy6fgiul6nks-404488101517.asia-southeast1.run.app/sitemap.txt
+Sitemap: https://martsindia.in/sitemap.xml
+Sitemap: https://martsindia.in/sitemap.txt

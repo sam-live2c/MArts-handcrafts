@@ -19,7 +19,7 @@ const Footer: React.FC = () => {
             </p>
             <div className="flex items-center gap-2 text-xs font-semibold text-[#8C3F1E] pt-1">
               <ShieldCheck size={16} className="text-[#C85A32] shrink-0" />
-              <span>100% Master Artisan Handcrafted Pottery &amp; Statues</span>
+              <span>100% Master Artisan Handcrafted Pottery &amp; Statues • Founded by Anant Kumbhakar</span>
             </div>
           </div>
 
@@ -36,22 +36,27 @@ const Footer: React.FC = () => {
               <div className="flex items-start gap-2.5">
                 <Compass size={16} className="text-[#C85A32] shrink-0 mt-0.5" />
                 <p className="leading-relaxed">
-                  Heritage Artisan Guild Enclave, Pottery &amp; Sculpture Crafts Zone, Sector 4, Khurja / Bengal Craft Belt, PIN 203131, India
+                  Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India
                 </p>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <Phone size={16} className="text-[#C85A32] shrink-0" />
-                <a href="tel:+919876543210" className="hover:text-[#C85A32] transition-colors font-medium">
-                  +91 98765 43210
+                <a href="tel:+917061671820" className="hover:text-[#C85A32] transition-colors font-medium">
+                  +91 70616 71820
                 </a>
               </div>
 
               <div className="flex items-center gap-2.5">
                 <Mail size={16} className="text-[#C85A32] shrink-0" />
-                <a href="mailto:atelier@marts.com" className="hover:text-[#C85A32] transition-colors font-medium">
-                  atelier@marts.com
-                </a>
+                <div className="flex flex-col gap-0.5">
+                  <a href="mailto:martsindia3@gmail.com" className="hover:text-[#C85A32] transition-colors font-medium">
+                    martsindia3@gmail.com
+                  </a>
+                  <a href="mailto:akmarts1511@gmail.com" className="hover:text-[#C85A32] transition-colors text-xs text-[#735A4C]">
+                    akmarts1511@gmail.com
+                  </a>
+                </div>
               </div>
             </div>
           </div>
@@ -59,7 +64,7 @@ const Footer: React.FC = () => {
 
         {/* Bottom Bar: Copyright & Dedicated Options Row */}
         <div className="pt-8 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#735A4C]">
-          <p>© {new Date().getFullYear()} MArts Handcrafted. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} MArts &amp; Uart Handcrafted (Anant Kumbhakar). All rights reserved.</p>
 
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 font-semibold">
             <Link to="/help" className="hover:text-[#C85A32] transition-colors">

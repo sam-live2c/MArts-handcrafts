@@ -21,8 +21,6 @@ import { FullScreenCircleLoader } from '../components/CircleLoader';
 import { validateOrderRateLimit } from '../utils/authSecurity';
 import { safeStorage, sanitizeCustomizationsForCache } from '../utils/storage';
 
-const upiLogoIcon = 'https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg';
-
 interface CustomizationFile {
   id: string;
   name: string;
@@ -1063,19 +1061,27 @@ const Checkout: React.FC<CheckoutProps> = ({ cart, setCart, clearCart, user, onO
                                 Instant checkout with UPI (Google Pay, PhonePe, Paytm), Debit/Credit Cards &amp; NetBanking
                              </p>
 
-                             {/* Supported App Logos */}
+                             {/* Supported Payment Options (Native SVG Badges, no external image hotlinks) */}
                              <div className="mt-3 pt-2.5 border-t border-gray-200/60 flex items-center flex-wrap gap-2.5">
-                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs">
-                                  <img src="https://upload.wikimedia.org/wikipedia/commons/e/e1/UPI-Logo-vector.svg" alt="UPI" className="h-3.5 object-contain" referrerPolicy="no-referrer" />
+                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs gap-1">
+                                  <span className="text-[11px] font-black tracking-tight text-[#0F6F43]">UPI</span>
+                                  <span className="text-[10px] text-gray-400 font-bold">/</span>
+                                  <span className="text-[10px] font-black text-[#5F259F]">BHIM</span>
                                 </div>
-                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs">
-                                  <img src="https://upload.wikimedia.org/wikipedia/commons/f/f2/Google_Pay_Logo.svg" alt="GPay" className="h-3.5 object-contain" referrerPolicy="no-referrer" />
+                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs gap-1">
+                                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none">
+                                    <path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.17z" fill="#4285F4"/>
+                                    <path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z" fill="#34A853"/>
+                                    <path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.16 0 9.98 0 12c0 2.02.45 3.84 1.25 5.42l4.03-3.15z" fill="#FBBC05"/>
+                                    <path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z" fill="#EA4335"/>
+                                  </svg>
+                                  <span className="text-[10px] font-bold text-gray-700">Pay</span>
                                 </div>
-                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs">
-                                  <img src="https://upload.wikimedia.org/wikipedia/commons/7/71/PhonePe_Logo.svg" alt="PhonePe" className="h-3.5 object-contain" referrerPolicy="no-referrer" />
+                                <div className="h-6 px-2 bg-[#5F259F]/10 border border-[#5F259F]/30 rounded flex items-center justify-center shadow-2xs">
+                                  <span className="text-[10px] font-black text-[#5F259F] tracking-tight">PhonePe</span>
                                 </div>
-                                <div className="h-6 px-2 bg-white border border-gray-200 rounded flex items-center justify-center shadow-2xs">
-                                  <img src="https://upload.wikimedia.org/wikipedia/commons/4/42/Paytm_logo.png" alt="Paytm" className="h-3 object-contain" referrerPolicy="no-referrer" />
+                                <div className="h-6 px-2 bg-[#002970]/10 border border-[#002970]/30 rounded flex items-center justify-center shadow-2xs">
+                                  <span className="text-[10px] font-black text-[#002970] tracking-tight">Paytm</span>
                                 </div>
                                 <span className="text-[11px] font-semibold text-gray-500">+ Cards &amp; NetBanking</span>
                              </div>

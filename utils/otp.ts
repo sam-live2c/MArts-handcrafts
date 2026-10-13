@@ -165,7 +165,7 @@ export function buildOtpEmailHtml(otp: string, type: string = 'login'): string {
           <tr>
             <td style="background-color: #FAF8F5; padding: 20px 30px; text-align: center; border-top: 1px solid #EFE8DF;">
               <p style="margin: 0 0 4px; font-size: 11px; color: #8A7263; font-weight: 600;">
-                MArts Handcrafted Guild • North 24 Parganas, West Bengal, India
+                Uart &amp; MArts Handcrafted Guild • Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India
               </p>
               <p style="margin: 0; font-size: 10px; color: #B09B8E;">
                 Authentic Terracotta, Ceramic Vases &amp; Heritage Sculptures

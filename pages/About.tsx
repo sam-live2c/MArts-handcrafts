@@ -39,13 +39,13 @@ const About: React.FC = () => {
           {/* Page Header */}
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-              About MArts Handcrafted
+              About MArts &amp; Uart Handcrafted
             </h1>
             <p className="text-sm sm:text-base text-gray-600 mt-2 leading-relaxed">
               Preserving generational master craftsmanship: wheel-thrown terracotta pottery, vitrified ceramics, and hand-chiseled stone sculptures.
             </p>
             <p className="text-xs text-gray-500 mt-2">
-              Operated under the MArts Guild Ecosystem • Master Artisans Guild &amp; Heritage Craft Preservation
+              Founded &amp; Operated by Anant Kumbhakar (Uart / MArts Handcrafted) • Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand
             </p>
           </div>
 
@@ -68,7 +68,7 @@ const About: React.FC = () => {
               2. Generational Craftsmanship &amp; Guild Clusters
             </h2>
             <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-              We partner directly with over 200 hereditary artisan families across recognized heritage craft belts in Bengal, Khurja, and Rajasthan. Raw alluvial riverbed clay is filtered, wedged, and thrown on slow-spinning wooden wheels. Our stone sculptors chisel solid monolithic sandstone and natural marble using hand mallets and hardened steel tips.
+              We partner directly with over 200 hereditary artisan families across recognized heritage craft belts in Jharkhand, Bengal, Khurja, and Rajasthan. Raw alluvial riverbed clay is filtered, wedged, and thrown on slow-spinning wooden wheels. Our stone sculptors chisel solid monolithic sandstone and natural marble using hand mallets and hardened steel tips.
             </p>
           </section>
 
@@ -132,14 +132,20 @@ const About: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 pt-1 text-xs text-gray-700">
               <div className="flex items-center gap-2">
                 <Phone size={14} className="text-[#C85A32]" />
-                <a href="tel:+919876543210" className="hover:text-[#C85A32] font-semibold transition-colors">
-                  +91 98765 43210
+                <a href="tel:+917061671820" className="hover:text-[#C85A32] font-semibold transition-colors">
+                  +91 70616 71820
                 </a>
               </div>
               <div className="flex items-center gap-2">
                 <Mail size={14} className="text-[#C85A32]" />
-                <a href="mailto:atelier@marts.com" className="hover:text-[#C85A32] font-semibold transition-colors">
-                  atelier@marts.com
+                <a href="mailto:martsindia3@gmail.com" className="hover:text-[#C85A32] font-semibold transition-colors">
+                  martsindia3@gmail.com
+                </a>
+              </div>
+              <div className="flex items-center gap-2">
+                <Mail size={14} className="text-[#C85A32]" />
+                <a href="mailto:akmarts1511@gmail.com" className="hover:text-[#C85A32] font-semibold transition-colors">
+                  akmarts1511@gmail.com
                 </a>
               </div>
             </div>

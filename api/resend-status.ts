@@ -1,4 +1,4 @@
-const RESEND_API_KEY = (process.env.RESEND_API_KEY || '')
+const RESEND_API_KEY = (process.env.RESEND_API_KEY || 're_5CqJrQpS_C8u5pQs5NHCWZynddoyubg4Y')
   .trim()
   .replace(/^["']|["']$/g, '');
 

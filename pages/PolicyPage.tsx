@@ -70,17 +70,17 @@ const PrivacyPolicyContent: React.FC = () => {
           How we collect, utilize, and safeguard your merchant information and payment transactions in compliance with Indian and international privacy standards.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by Uart &amp; MArts Handcrafted under the Artisanal Guild Ecosystem • Founder: Anant Kumbhakar
         </p>
       </div>
 
       {/* MArts Guild Umbrella Scope */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          MArts Guild Ecosystem &amp; Umbrella Scope
+          Uart &amp; MArts Guild Ecosystem &amp; Umbrella Scope
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          This store (<span className="font-semibold text-gray-900">MArts</span>) operates under the <span className="font-semibold text-gray-900">MArts Guild</span> ecosystem (managed by MArts / Sahanur Molla). Every website, portal, sub-domain, online hardware checkout, and digital service under the MArts Guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework.
+          This store (<span className="font-semibold text-gray-900">MArts / Uart</span>) operates under the artisanal ecosystem managed by <span className="font-semibold text-gray-900">Anant Kumbhakar</span> (Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand). Every website, portal, sub-domain, online hardware checkout, and digital service under the guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework.
         </p>
       </section>
 
@@ -107,13 +107,13 @@ const PrivacyPolicyContent: React.FC = () => {
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
           If a customer/merchant does not receive the ₹2 refund within <span className="font-semibold text-gray-900">5 to 7 business days</span>, or encounters any transaction issue, billing dispute, or whatever problem with their account or service, they are required to contact support directly via WhatsApp at{' '}
-          <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
-            +91 9876543210
+          <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
+            +91 70616 71820
           </a>{' '}
           with their transaction reference.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. MArts (MArts, MArts Guild, and its operators) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
+          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. Uart &amp; MArts (and proprietor Anant Kumbhakar) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
         </p>
       </section>
 
@@ -212,8 +212,8 @@ const PrivacyPolicyContent: React.FC = () => {
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
           To exercise any of these rights, email our Data Protection Desk at{' '}
-          <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-            atelier@marts.com
+          <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+            martsindia3@gmail.com
           </a>.
         </p>
       </section>
@@ -228,20 +228,23 @@ const PrivacyPolicyContent: React.FC = () => {
         </p>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1 pt-1">
           <p className="font-semibold text-gray-900">
-            Sahanur Molla (Grievance Redressal &amp; Privacy Officer)
+            Anant Kumbhakar (Grievance Redressal &amp; Privacy Officer)
           </p>
-          <p>MArts Handcrafted</p>
-          <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
+          <p>Uart / MArts Handcrafted</p>
+          <p>Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India</p>
           <p>
             Email:{' '}
-            <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-              atelier@marts.com
+            <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              martsindia3@gmail.com
+            </a>{' '}
+            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              akmarts1511@gmail.com
             </a>
           </p>
           <p>
             Phone:{' '}
-            <a href="tel:+919876543210" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="tel:+917061671820" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
         </div>
@@ -264,17 +267,17 @@ const RefundPolicyContent: React.FC = () => {
           Our merchant-first guarantee, transparent return timelines, and automated refund processing protocols for physical NFC hardware and custom engraving.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by Uart &amp; MArts Handcrafted under the Artisanal Guild Ecosystem • Founder: Anant Kumbhakar
         </p>
       </div>
 
       {/* MArts Guild Umbrella Scope */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          MArts Guild Ecosystem &amp; Umbrella Scope
+          Uart &amp; MArts Guild Ecosystem &amp; Umbrella Scope
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          This store (<span className="font-semibold text-gray-900">MArts</span>) operates under the unified <span className="font-semibold text-gray-900">MArts Guild</span> ecosystem (managed by MArts / Sahanur Molla). Every website, portal, sub-domain, online hardware checkout, and digital service under the MArts Guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework. All refund requests, return requests, and hardware replacements across all MArts Guild endpoints are processed pursuant to these provisions.
+          This store (<span className="font-semibold text-gray-900">MArts / Uart</span>) operates under the unified artisanal ecosystem managed by <span className="font-semibold text-gray-900">Anant Kumbhakar</span> (Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand). Every website, portal, sub-domain, online hardware checkout, and digital service under the guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework. All refund requests, return requests, and replacements across all endpoints are processed pursuant to these provisions.
         </p>
       </section>
 
@@ -332,13 +335,13 @@ const RefundPolicyContent: React.FC = () => {
           </li>
         </ul>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed pt-1">
-          To initiate an expedited replacement, email a brief 5-second video demonstrating the scan failure or photo of damage along with your Order ID to{' '}
-          <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-            atelier@marts.com
+          To initiate an expedited replacement, email a photo of damage along with your Order ID to{' '}
+          <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+            martsindia3@gmail.com
           </a>{' '}
           or message our WhatsApp desk at{' '}
-          <a href="tel:+919876543210" className="text-[#1A73E8] hover:underline font-medium">
-            +91 9876543210
+          <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-medium">
+            +91 70616 71820
           </a>.
         </p>
       </section>
@@ -392,13 +395,13 @@ const RefundPolicyContent: React.FC = () => {
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
           If a customer/merchant does not receive the ₹2 refund within <span className="font-semibold text-gray-900">5 to 7 business days</span>, or encounters any transaction issue, billing dispute, or whatever problem with their account or service, they are required to contact support directly via WhatsApp at{' '}
-          <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
-            +91 9876543210
+          <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
+            +91 70616 71820
           </a>{' '}
           with their transaction reference.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. MArts (MArts, MArts Guild, and its operators) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
+          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. Uart &amp; MArts (and proprietor Anant Kumbhakar) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
         </p>
       </section>
 
@@ -418,19 +421,22 @@ const RefundPolicyContent: React.FC = () => {
           6. Redressal &amp; Refund Inquiries
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
-          <p className="font-semibold text-gray-900">Sahanur Molla (Merchant Support &amp; Logistics)</p>
-          <p>MArts Handcrafted</p>
-          <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
+          <p className="font-semibold text-gray-900">Anant Kumbhakar (Merchant Support &amp; Logistics)</p>
+          <p>Uart / MArts Handcrafted</p>
+          <p>Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India</p>
           <p>
             Email:{' '}
-            <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-              atelier@marts.com
+            <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              martsindia3@gmail.com
+            </a>{' '}
+            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              akmarts1511@gmail.com
             </a>
           </p>
           <p>
             Phone:{' '}
-            <a href="tel:+919876543210" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="tel:+917061671820" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
         </div>
@@ -453,7 +459,7 @@ const TermsConditionsContent: React.FC = () => {
           The legal contract governing the purchase of handcrafted pottery, ceramic vessels, monolithic stone statues, and the use of the MArts store.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by Uart &amp; MArts Handcrafted under the Artisanal Guild Ecosystem • Founder: Anant Kumbhakar
         </p>
       </div>
 
@@ -463,20 +469,20 @@ const TermsConditionsContent: React.FC = () => {
           Binding Merchant Agreement &amp; Commercial Terms
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 mt-2 leading-relaxed">
-          By accessing the MArts website, placing an order for handcrafted terracotta pottery, statues, or art decor, you enter into a legally binding agreement with <span className="font-semibold text-gray-900">MArts Handcrafted</span>. If you do not agree with any part of these terms, please refrain from transacting on this platform.
+          By accessing the MArts &amp; Uart website, placing an order for handcrafted terracotta pottery, statues, or art decor, you enter into a legally binding agreement with <span className="font-semibold text-gray-900">Uart / MArts Handcrafted (Anant Kumbhakar)</span>. If you do not agree with any part of these terms, please refrain from transacting on this platform.
         </p>
         <p className="text-xs text-gray-500 mt-2.5">
-          Governing Law: Information Technology Act 2000 • Indian Contract Act 1872 • Jurisdiction: Kolkata, West Bengal.
+          Governing Law: Information Technology Act 2000 • Indian Contract Act 1872 • Jurisdiction: Bokaro, Jharkhand.
         </p>
       </section>
 
       {/* 1. MArts Guild Ecosystem & Umbrella Scope */}
       <section className="space-y-3">
         <h2 className="text-base sm:text-lg font-bold text-gray-900">
-          1. MArts Guild Ecosystem &amp; Umbrella Scope
+          1. Uart &amp; MArts Guild Ecosystem &amp; Umbrella Scope
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          This store (<span className="font-semibold text-gray-900">MArts</span>) operates under the unified <span className="font-semibold text-gray-900">MArts Guild</span> ecosystem (managed by MArts / Sahanur Molla). Every website, portal, sub-domain, online hardware checkout, and digital service under the MArts Guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework.
+          This store (<span className="font-semibold text-gray-900">MArts / Uart</span>) operates under the unified artisanal ecosystem managed by <span className="font-semibold text-gray-900">Anant Kumbhakar</span> (Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand). Every website, portal, sub-domain, online hardware checkout, and digital service under the guild umbrella falls strictly under this unified Privacy Policy, Data Protection, and Terms of Service framework.
         </p>
       </section>
 
@@ -547,13 +553,13 @@ const TermsConditionsContent: React.FC = () => {
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
           If a customer/merchant does not receive the ₹2 refund within <span className="font-semibold text-gray-900">5 to 7 business days</span>, or encounters any transaction issue, billing dispute, or whatever problem with their account or service, they are required to contact support directly via WhatsApp at{' '}
-          <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
-            +91 9876543210
+          <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-semibold">
+            +91 70616 71820
           </a>{' '}
           with their transaction reference.
         </p>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. MArts (MArts, MArts Guild, and its operators) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
+          <strong className="text-gray-900">Merchant/Customer Responsibility &amp; Disclaimer of Liability:</strong> Failure or delay to notify support via WhatsApp within <span className="font-semibold text-gray-900">30 days</span> shall be conclusively deemed a voluntary waiver and sole negligence of the customer/merchant. Uart &amp; MArts (and proprietor Anant Kumbhakar) holds zero financial liability, responsibility, or further obligation for unnotified claims or unclaimed amounts.
         </p>
       </section>
 
@@ -599,7 +605,7 @@ const TermsConditionsContent: React.FC = () => {
           9. Governing Law &amp; Legal Jurisdiction
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          These Terms of Service are governed by and construed in accordance with the laws of the Republic of India. In the event of any claim, dispute, or litigation arising from this agreement, the courts located in <span className="font-semibold text-gray-900">Kolkata, West Bengal, India</span> shall have exclusive jurisdiction.
+          These Terms of Service are governed by and construed in accordance with the laws of the Republic of India. In the event of any claim, dispute, or litigation arising from this agreement, the courts located in <span className="font-semibold text-gray-900">Bokaro, Jharkhand, India</span> shall have exclusive jurisdiction.
         </p>
       </section>
 
@@ -609,25 +615,28 @@ const TermsConditionsContent: React.FC = () => {
           10. Merchant Inquiries &amp; Legal Notices
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
-          <p className="font-semibold text-gray-900">Sahanur Molla (Proprietor &amp; Grievance Officer)</p>
-          <p>MArts Handcrafted</p>
-          <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
+          <p className="font-semibold text-gray-900">Anant Kumbhakar (Proprietor &amp; Grievance Officer)</p>
+          <p>Uart / MArts Handcrafted</p>
+          <p>Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India</p>
           <p>
             WhatsApp Support:{' '}
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
           <p>
             Email:{' '}
-            <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-              atelier@marts.com
+            <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              martsindia3@gmail.com
+            </a>{' '}
+            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              akmarts1511@gmail.com
             </a>
           </p>
           <p>
             Phone:{' '}
-            <a href="tel:+919876543210" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="tel:+917061671820" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
         </div>
@@ -650,7 +659,7 @@ const ShippingPolicyContent: React.FC = () => {
           Turnaround schedules, pan-India courier logistics, dispatch tracking, and parcel delivery commitments for custom smart hardware.
         </p>
         <p className="text-xs text-gray-500 mt-2">
-          Operated by MArts Handcrafted under the MArts Guild Ecosystem • Artisanal Pottery & Sculpture Guild
+          Operated by Uart &amp; MArts Handcrafted under the Artisanal Guild Ecosystem • Founder: Anant Kumbhakar
         </p>
       </div>
 
@@ -691,7 +700,7 @@ const ShippingPolicyContent: React.FC = () => {
           2. Transit Times &amp; Regional Delivery Estimates
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
-          Once your parcel is dispatched from our fulfillment facility in West Bengal, estimated delivery times are as follows:
+          Once your parcel is dispatched from our fulfillment facility in Bokaro, Jharkhand, estimated delivery times are as follows:
         </p>
         <ul className="list-disc list-outside pl-5 space-y-2 text-xs sm:text-sm text-gray-700 leading-relaxed">
           <li>
@@ -736,8 +745,8 @@ const ShippingPolicyContent: React.FC = () => {
         </h2>
         <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
           Courier personnel make up to 3 delivery attempts to your designated address. Please ensure your provided contact number is reachable for OTP verification. If you notice any typo in your address after checkout, please notify our logistics desk immediately at{' '}
-          <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-            atelier@marts.com
+          <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+            martsindia3@gmail.com
           </a>{' '}
           prior to package dispatch.
         </p>
@@ -749,25 +758,28 @@ const ShippingPolicyContent: React.FC = () => {
           6. Logistics &amp; Shipping Helpdesk
         </h2>
         <div className="text-xs sm:text-sm text-gray-700 leading-relaxed space-y-1">
-          <p className="font-semibold text-gray-900">Sahanur Molla (Logistics &amp; Dispatch)</p>
-          <p>MArts Handcrafted</p>
-          <p>North 24 Parganas, North 24 Parganas, West Bengal – 743425, India</p>
+          <p className="font-semibold text-gray-900">Anant Kumbhakar (Logistics &amp; Dispatch)</p>
+          <p>Uart / MArts Handcrafted</p>
+          <p>Vill. Asanbani, P.O. Chandra, P.S. Siyaljori, Dist. Bokaro, Jharkhand, India</p>
           <p>
             WhatsApp Support:{' '}
-            <a href="https://wa.me/919876543210" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="https://wa.me/917061671820" target="_blank" rel="noopener noreferrer" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
           <p>
             Email:{' '}
-            <a href="mailto:atelier@marts.com" className="text-[#1A73E8] hover:underline font-medium">
-              atelier@marts.com
+            <a href="mailto:martsindia3@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              martsindia3@gmail.com
+            </a>{' '}
+            / <a href="mailto:akmarts1511@gmail.com" className="text-[#1A73E8] hover:underline font-medium">
+              akmarts1511@gmail.com
             </a>
           </p>
           <p>
             Phone:{' '}
-            <a href="tel:+919876543210" className="text-[#1A73E8] hover:underline font-medium">
-              +91 9876543210
+            <a href="tel:+917061671820" className="text-[#1A73E8] hover:underline font-medium">
+              +91 70616 71820
             </a>
           </p>
         </div>

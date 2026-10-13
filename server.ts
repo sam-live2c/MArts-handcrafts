@@ -51,7 +51,11 @@ app.use((err: any, _req: Request, res: Response, next: any) => {
 // Injection & Attack Payload Guard
 app.use(injectionGuardMiddleware);
 
-// ================= SEO & CRAWLER ROUTES =================
+// ================= SEO, CRAWLER & SECURITY VERIFICATION ROUTES =================
+app.get(['/.well-known/security.txt', '/security.txt'], (_req, res) => {
+  res.type('text/plain');
+  res.sendFile(path.resolve(__dirname, 'public/.well-known/security.txt'), { dotfiles: 'allow' });
+});
 app.get(['/robots.txt', '/robot.txt'], (_req, res) => {
   res.type('text/plain');
   res.sendFile(path.resolve(__dirname, 'public/robots.txt'));
