@@ -14,7 +14,7 @@ import {
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
-import { CartItem, User, Order, Product, StoreDeliveryAddress } from '../types';
+import { CartItem, User, Order, Product, StoreDeliveryAddress, Review } from '../types';
 import { sanitizeProductRatings } from '../utils/productRating';
 import { safeStorage, sanitizeUserForCache, broadcastUserUpdate } from '../utils/storage';
 
@@ -146,12 +146,15 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
     sanitized.postalCode
   ].filter(Boolean).join(', ');
 
-  // User-scoped cache only for offline resiliency (never leak globally across accounts)
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, userId);
+
+  // User-scoped cache for all candidate UIDs (Google UID, email doc ID, etc.)
   const localDefaultAddr: AddressItem = {
     id: (address as any).id && (address as any).id !== 'default' ? (address as any).id : 'default',
     name: sanitized.recipientName,
     phone: sanitized.phone,
-    email: email || '',
+    email: cleanEmail,
     pincode: sanitized.postalCode,
     houseNo: sanitized.street,
     area: [sanitized.apartment, sanitized.landmark].filter(Boolean).join(', '),
@@ -160,28 +163,34 @@ export async function saveCustomerDeliveryAddress(userId: string, address: Store
     type: 'HOME',
     isDefault: true
   };
-  safeStorage.setItem(`marts_default_address_${userId}`, JSON.stringify(localDefaultAddr));
-  safeStorage.setItem(`marts_user_address_${userId}`, formattedStr);
+
+  for (const candId of associatedUids) {
+    safeStorage.setItem(`marts_default_address_${candId}`, JSON.stringify(localDefaultAddr));
+    safeStorage.setItem(`marts_user_address_${candId}`, formattedStr);
+  }
+  safeStorage.setItem('marts_default_address', JSON.stringify(localDefaultAddr));
+  safeStorage.setItem('marts_user_address', formattedStr);
 
   try {
-    // Clean up any legacy duplicate 'default' doc in subcollection to prevent clone entries
-    try {
-      await withTimeout(deleteDoc(doc(db, 'users', userId, 'addresses', 'default')), 1500);
-    } catch (_) {}
+    for (const candId of associatedUids) {
+      if (!candId || candId === 'guest') continue;
+      try {
+        await withTimeout(deleteDoc(doc(db, 'users', candId, 'addresses', 'default')), 1500).catch(() => {});
+      } catch (_) {}
 
-    // Write to main user document: users/{uid} (merge into fields deliveryAddress and shippingAddress)
-    const userRef = doc(db, 'users', userId);
-    await withTimeout(setDoc(userRef, {
-      displayName: sanitized.recipientName,
-      name: sanitized.recipientName,
-      phoneNumber: sanitized.phone,
-      phone: sanitized.phone,
-      deliveryAddress: sanitized,
-      shippingAddress: sanitized,
-      address: formattedStr,
-      updatedAt: new Date().toISOString(),
-      ...(email ? { email: email.toLowerCase() } : {})
-    }, { merge: true }), 2500);
+      const userRef = doc(db, 'users', candId);
+      await withTimeout(setDoc(userRef, {
+        displayName: sanitized.recipientName,
+        name: sanitized.recipientName,
+        phoneNumber: sanitized.phone,
+        phone: sanitized.phone,
+        deliveryAddress: sanitized,
+        shippingAddress: sanitized,
+        address: formattedStr,
+        updatedAt: new Date().toISOString(),
+        ...(cleanEmail ? { email: cleanEmail } : {})
+      }, { merge: true }), 2500).catch(() => {});
+    }
   } catch (err) {
     console.warn('Firestore delivery address save notice (offline fallback active):', err);
   }
@@ -877,9 +886,19 @@ export const restoreUserAccountByEmail = async (
     safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(restoredProfile)));
     if (dedupedAddresses.length > 0 && defaultAddressItem) {
       safeStorage.setItem(`marts_default_address_${targetUid}`, JSON.stringify(defaultAddressItem));
+      safeStorage.setItem('marts_default_address', JSON.stringify(defaultAddressItem));
+      safeStorage.setItem('marts_addresses', JSON.stringify(dedupedAddresses));
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_addresses_${candId}`, JSON.stringify(dedupedAddresses));
+        safeStorage.setItem(`marts_default_address_${candId}`, JSON.stringify(defaultAddressItem));
+      }
     }
     if (addressStr) {
       safeStorage.setItem(`marts_user_address_${targetUid}`, addressStr);
+      safeStorage.setItem('marts_user_address', addressStr);
+      for (const candId of associatedUids) {
+        safeStorage.setItem(`marts_user_address_${candId}`, addressStr);
+      }
     }
     broadcastUserUpdate(restoredProfile);
   } catch (_) {}
@@ -1334,6 +1353,59 @@ export const syncUserCartToFirestore = async (uid: string, cartItems: CartItem[]
   }
 };
 
+/**
+ * Real-time subscription to user cart.
+ * Unifies and synchronizes cart across Google and Email accounts for the same verified email in real time.
+ */
+export const subscribeToUserCart = (
+  uid: string,
+  fallbackEmail: string | undefined,
+  onUpdate: (cart: CartItem[]) => void
+): (() => void) => {
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
+  const unsubs: (() => void)[] = [];
+  let isCancelled = false;
+
+  getAssociatedUserIdsForEmail(cleanEmail, uid).then((associatedUids) => {
+    if (isCancelled) return;
+    const candidateUids = associatedUids.filter((id) => id && id !== 'guest');
+    if (candidateUids.length === 0) return;
+
+    candidateUids.forEach((candId) => {
+      try {
+        const cartColRef = collection(db, 'users', candId, 'cart');
+        const unsub = onSnapshot(
+          cartColRef,
+          (snapshot) => {
+            if (isCancelled) return;
+            const itemsList: CartItem[] = [];
+            snapshot.forEach((docSnap) => {
+              const item = docSnap.data() as CartItem;
+              if (item && item.id) itemsList.push(item);
+            });
+            safeStorage.setItem(`marts_cart_${candId}`, JSON.stringify(itemsList));
+            safeStorage.setItem('marts_cart', JSON.stringify(itemsList));
+            onUpdate(itemsList);
+          },
+          (err) => {
+            console.warn('Real-time cart subscription notice:', err);
+          }
+        );
+        unsubs.push(unsub);
+      } catch (_) {}
+    });
+  });
+
+  return () => {
+    isCancelled = true;
+    unsubs.forEach((u) => {
+      try {
+        u();
+      } catch (_) {}
+    });
+  };
+};
+
 // ================= ADDRESSES =================
 export const fetchUserAddresses = async (uid: string, fallbackEmail?: string): Promise<AddressItem[]> => {
   const cleanEmail = (fallbackEmail || (() => {
@@ -1457,13 +1529,13 @@ export const fetchUserAddresses = async (uid: string, fallbackEmail?: string): P
   }
 };
 
-export const saveUserAddress = async (uid: string, address: AddressItem): Promise<User> => {
+export const saveUserAddress = async (uid: string, address: AddressItem, fallbackEmail?: string): Promise<User> => {
   // Ensure valid ID (never 'default' or 'addr_default')
   const targetId = (!address.id || address.id === 'default' || address.id === 'addr_default') ? ('addr_' + Date.now()) : address.id;
   const addressWithId: AddressItem = { ...address, id: targetId };
 
   // Fetch existing addresses and deduplicate
-  const existing = await fetchUserAddresses(uid);
+  const existing = await fetchUserAddresses(uid, fallbackEmail || address.email);
   const isDefaultAddress = Boolean(addressWithId.isDefault || existing.length === 0);
   const updatedAddressItem: AddressItem = { ...addressWithId, isDefault: isDefaultAddress };
 
@@ -1506,18 +1578,28 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
 
   const dedupedAddresses = deduplicateAddresses(updatedAddresses);
 
-  safeStorage.setItem(`marts_addresses_${uid}`, JSON.stringify(dedupedAddresses));
-
   // Format full address string
   const formattedStr = `${addressWithId.houseNo}, ${addressWithId.area ? addressWithId.area + ', ' : ''}${addressWithId.city}, ${addressWithId.state} ${addressWithId.pincode}`.trim();
-  if (isDefaultAddress) {
-    safeStorage.setItem(`marts_default_address_${uid}`, JSON.stringify(updatedAddressItem));
-    safeStorage.setItem(`marts_user_address_${uid}`, formattedStr);
-  }
 
   // Universal profile sync across the entire app
   const cached = safeStorage.getItem(`marts_user_profile_${uid}`) || safeStorage.getItem('marts_user_profile');
   let currentProfile: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
+  const targetEmail = (addressWithId.email || fallbackEmail || currentProfile.email || '').trim().toLowerCase();
+  const associatedUids = await getAssociatedUserIdsForEmail(targetEmail, uid);
+
+  for (const candId of associatedUids) {
+    safeStorage.setItem(`marts_addresses_${candId}`, JSON.stringify(dedupedAddresses));
+    if (isDefaultAddress) {
+      safeStorage.setItem(`marts_default_address_${candId}`, JSON.stringify(updatedAddressItem));
+      safeStorage.setItem(`marts_user_address_${candId}`, formattedStr);
+    }
+  }
+  safeStorage.setItem('marts_addresses', JSON.stringify(dedupedAddresses));
+  if (isDefaultAddress) {
+    safeStorage.setItem('marts_default_address', JSON.stringify(updatedAddressItem));
+    safeStorage.setItem('marts_user_address', formattedStr);
+  }
+
   const updatedProfile: User = {
     ...currentProfile,
     ...(addressWithId.name ? { name: addressWithId.name, displayName: addressWithId.name } : {}),
@@ -1529,27 +1611,6 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   broadcastUserUpdate(updatedProfile);
 
   try {
-    const addrRef = doc(db, 'users', uid, 'addresses', addressWithId.id);
-    await withTimeout(setDoc(addrRef, updatedAddressItem, { merge: true }), 2500);
-
-    // Also replicate to canonical email doc for seamless cross-login restoration
-    const targetEmail = (addressWithId.email || currentProfile.email || '').trim().toLowerCase();
-    if (targetEmail) {
-      const emailDocId = 'marts_user_' + targetEmail.replace(/[^a-zA-Z0-9]/g, '_');
-      if (emailDocId !== uid) {
-        setDoc(doc(db, 'users', emailDocId, 'addresses', addressWithId.id), updatedAddressItem, { merge: true }).catch(() => {});
-        setDoc(doc(db, 'users', emailDocId), {
-          ...(isDefaultAddress ? { address: formattedStr } : {}),
-          updatedAt: new Date().toISOString()
-        }, { merge: true }).catch(() => {});
-      }
-    }
-
-    // Clean up any legacy 'default' doc from the subcollection so it never duplicates
-    try {
-      await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', 'default')), 1500);
-    } catch (_) {}
-
     const userDocUpdate: Record<string, any> = {
       updatedAt: new Date().toISOString()
     };
@@ -1563,22 +1624,34 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
     }
     if (isDefaultAddress) {
       userDocUpdate.address = formattedStr;
-    }
-
-    const batch = writeBatch(db);
-    if (isDefaultAddress) {
-      for (const a of withoutCurrent) {
-        if (a.isDefault) {
-          batch.update(doc(db, 'users', uid, 'addresses', a.id), { isDefault: false });
-        }
-      }
-    }
-    batch.set(doc(db, 'users', uid), userDocUpdate, { merge: true });
-    await withTimeout(batch.commit(), 2500);
-
-    if (isDefaultAddress) {
       const storeDeliveryAddr = convertToStoreDeliveryAddress(addressWithId);
-      await saveCustomerDeliveryAddress(uid, storeDeliveryAddr, addressWithId.email || currentProfile.email);
+      userDocUpdate.deliveryAddress = storeDeliveryAddr;
+      userDocUpdate.shippingAddress = storeDeliveryAddr;
+    }
+
+    for (const candId of associatedUids) {
+      if (!candId || candId === 'guest') continue;
+      // Set address subcollection document across all candidate UIDs
+      const addrRef = doc(db, 'users', candId, 'addresses', addressWithId.id);
+      await withTimeout(setDoc(addrRef, updatedAddressItem, { merge: true }), 2500).catch(() => {});
+
+      // Clean up legacy 'default' doc
+      try {
+        await withTimeout(deleteDoc(doc(db, 'users', candId, 'addresses', 'default')), 1500).catch(() => {});
+      } catch (_) {}
+
+      if (isDefaultAddress) {
+        const batch = writeBatch(db);
+        for (const a of withoutCurrent) {
+          if (a.isDefault) {
+            batch.update(doc(db, 'users', candId, 'addresses', a.id), { isDefault: false });
+          }
+        }
+        batch.set(doc(db, 'users', candId), userDocUpdate, { merge: true });
+        await withTimeout(batch.commit(), 2500).catch(() => {});
+      } else {
+        await withTimeout(setDoc(doc(db, 'users', candId), userDocUpdate, { merge: true }), 2500).catch(() => {});
+      }
     }
   } catch (err) {
     console.warn('Firestore offline when saving address, saved locally.');
@@ -1587,19 +1660,88 @@ export const saveUserAddress = async (uid: string, address: AddressItem): Promis
   return updatedProfile;
 };
 
-export const deleteUserAddress = async (uid: string, addressId: string): Promise<void> => {
-  const existing = await fetchUserAddresses(uid);
+export const deleteUserAddress = async (uid: string, addressId: string, fallbackEmail?: string): Promise<void> => {
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
+  const associatedUids = await getAssociatedUserIdsForEmail(cleanEmail, uid);
+
+  const existing = await fetchUserAddresses(uid, cleanEmail);
   const updated = existing.filter(a => a.id !== addressId && a.id !== 'default');
   const deduped = deduplicateAddresses(updated);
-  safeStorage.setItem(`marts_addresses_${uid}`, JSON.stringify(deduped));
+
+  for (const candId of associatedUids) {
+    safeStorage.setItem(`marts_addresses_${candId}`, JSON.stringify(deduped));
+  }
+  safeStorage.setItem('marts_addresses', JSON.stringify(deduped));
+
   try {
-    await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', addressId)), 2000);
-    if (addressId === 'default' || updated.length === 0) {
-      await withTimeout(deleteDoc(doc(db, 'users', uid, 'addresses', 'default')), 2000).catch(() => {});
+    for (const candId of associatedUids) {
+      if (!candId || candId === 'guest') continue;
+      await withTimeout(deleteDoc(doc(db, 'users', candId, 'addresses', addressId)), 2000).catch(() => {});
+      if (addressId === 'default' || updated.length === 0) {
+        await withTimeout(deleteDoc(doc(db, 'users', candId, 'addresses', 'default')), 2000).catch(() => {});
+      }
     }
   } catch (err) {
     console.warn('Firestore offline when deleting address.');
   }
+};
+
+/**
+ * Real-time subscription to user addresses.
+ * Unifies addresses between Google and Email accounts for the same verified email in real time.
+ */
+export const subscribeToUserAddresses = (
+  uid: string,
+  fallbackEmail: string | undefined,
+  onUpdate: (addresses: AddressItem[]) => void
+): (() => void) => {
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
+  const unsubs: (() => void)[] = [];
+  let isCancelled = false;
+
+  getAssociatedUserIdsForEmail(cleanEmail, uid).then((associatedUids) => {
+    if (isCancelled) return;
+    const candidateUids = associatedUids.filter((id) => id && id !== 'guest');
+    if (candidateUids.length === 0) return;
+
+    let debounceTimer: any = null;
+    const triggerRefresh = () => {
+      if (isCancelled) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchUserAddresses(uid, cleanEmail).then((addrs) => {
+          if (!isCancelled && Array.isArray(addrs)) {
+            onUpdate(addrs);
+          }
+        }).catch(() => {});
+      }, 200);
+    };
+
+    // Initial immediate load
+    fetchUserAddresses(uid, cleanEmail).then((addrs) => {
+      if (!isCancelled && Array.isArray(addrs) && addrs.length > 0) {
+        onUpdate(addrs);
+      }
+    }).catch(() => {});
+
+    candidateUids.forEach((candId) => {
+      try {
+        const addrColRef = collection(db, 'users', candId, 'addresses');
+        unsubs.push(onSnapshot(addrColRef, triggerRefresh, () => {}));
+        const userDocRef = doc(db, 'users', candId);
+        unsubs.push(onSnapshot(userDocRef, triggerRefresh, () => {}));
+      } catch (_) {}
+    });
+  });
+
+  return () => {
+    isCancelled = true;
+    unsubs.forEach((u) => {
+      try {
+        u();
+      } catch (_) {}
+    });
+  };
 };
 
 // ================= NOTIFICATIONS =================
@@ -2344,6 +2486,243 @@ export const syncUserWishlistToFirestore = async (uid: string, wishlist: string[
     await Promise.allSettled(promises);
   } catch (err) {
     console.warn('Firestore offline when syncing wishlist to local storage.');
+  }
+};
+
+/**
+ * Real-time subscription to user wishlist.
+ * Unifies and synchronizes wishlist across Google and Email accounts for the same verified email in real time.
+ */
+export const subscribeToUserWishlist = (
+  uid: string,
+  fallbackEmail: string | undefined,
+  onUpdate: (wishlist: string[]) => void
+): (() => void) => {
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
+  const unsubs: (() => void)[] = [];
+  let isCancelled = false;
+
+  getAssociatedUserIdsForEmail(cleanEmail, uid).then((associatedUids) => {
+    if (isCancelled) return;
+    const candidateUids = associatedUids.filter((id) => id && id !== 'guest');
+    if (candidateUids.length === 0) return;
+
+    candidateUids.forEach((candId) => {
+      try {
+        const wishlistRef = doc(db, 'users', candId, 'wishlist', 'items');
+        const unsub = onSnapshot(
+          wishlistRef,
+          (docSnap) => {
+            if (isCancelled) return;
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              const list = Array.isArray(data?.productIds) ? data.productIds : [];
+              safeStorage.setItem(`marts_wishlist_${candId}`, JSON.stringify(list));
+              safeStorage.setItem('marts_wishlist', JSON.stringify(list));
+              onUpdate(list);
+            }
+          },
+          (err) => {
+            console.warn('Real-time wishlist subscription notice:', err);
+          }
+        );
+        unsubs.push(unsub);
+      } catch (_) {}
+    });
+  });
+
+  return () => {
+    isCancelled = true;
+    unsubs.forEach((u) => {
+      try {
+        u();
+      } catch (_) {}
+    });
+  };
+};
+
+/**
+ * Real-time subscription to user orders.
+ * Keeps orders synchronized between Google and Email accounts in real time.
+ */
+export const subscribeToUserOrders = (
+  uid: string,
+  fallbackEmail: string | undefined,
+  onUpdate: (orders: Order[]) => void
+): (() => void) => {
+  const cleanEmail = (fallbackEmail || '').trim().toLowerCase();
+  const unsubs: (() => void)[] = [];
+  let isCancelled = false;
+
+  getAssociatedUserIdsForEmail(cleanEmail, uid).then((associatedUids) => {
+    if (isCancelled) return;
+    const candidateUids = associatedUids.filter((id) => id && id !== 'guest');
+
+    let debounceTimer: any = null;
+    const triggerRefresh = () => {
+      if (isCancelled) return;
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchUserOrders(uid, cleanEmail).then((orders) => {
+          if (!isCancelled && Array.isArray(orders)) {
+            onUpdate(orders);
+          }
+        }).catch(() => {});
+      }, 300);
+    };
+
+    // 1. Listen to global orders collection by customerEmail
+    if (cleanEmail) {
+      try {
+        const qEmail = query(collection(db, 'orders'), where('customerEmail', '==', cleanEmail));
+        unsubs.push(onSnapshot(qEmail, triggerRefresh, () => {}));
+      } catch (_) {}
+    }
+
+    // 2. Listen to orders in candidate user subcollections
+    candidateUids.forEach((candId) => {
+      try {
+        const colRef = collection(db, 'users', candId, 'orders');
+        unsubs.push(onSnapshot(colRef, triggerRefresh, () => {}));
+      } catch (_) {}
+    });
+  });
+
+  return () => {
+    isCancelled = true;
+    unsubs.forEach((u) => {
+      try {
+        u();
+      } catch (_) {}
+    });
+  };
+};
+
+// ================= REVIEWS (REAL-TIME STOREFRONT RATINGS) =================
+export const fetchProductReviews = async (productId: string): Promise<Review[]> => {
+  if (!productId) return [];
+  try {
+    const reviewsCol = collection(db, 'products', productId, 'reviews');
+    const snap = await withTimeout(getDocs(query(reviewsCol, orderBy('createdAt', 'desc'))), 2500);
+    const reviews: Review[] = [];
+    snap.forEach((d) => {
+      const data = d.data() as Review;
+      if (data && data.id) reviews.push(data);
+    });
+    if (reviews.length > 0) {
+      safeStorage.setItem(`marts_reviews_${productId}`, JSON.stringify(reviews));
+      return reviews;
+    }
+  } catch (err) {
+    console.warn('Product reviews fetch notice:', err);
+  }
+
+  // Fallback to local storage
+  try {
+    const cached = safeStorage.getItem(`marts_reviews_${productId}`) || safeStorage.getItem(`melody_reviews_${productId}`);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (_) {}
+  return [];
+};
+
+export const subscribeToProductReviews = (
+  productId: string,
+  onUpdate: (reviews: Review[]) => void
+): (() => void) => {
+  if (!productId) return () => {};
+  try {
+    const reviewsCol = collection(db, 'products', productId, 'reviews');
+    return onSnapshot(
+      query(reviewsCol, orderBy('createdAt', 'desc')),
+      (snap) => {
+        const liveReviews: Review[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as Review;
+          if (data && data.id) liveReviews.push(data);
+        });
+        if (liveReviews.length > 0) {
+          safeStorage.setItem(`marts_reviews_${productId}`, JSON.stringify(liveReviews));
+          onUpdate(liveReviews);
+        }
+      },
+      (err) => {
+        console.warn('Realtime reviews subscription notice:', err);
+        try {
+          const cached = safeStorage.getItem(`marts_reviews_${productId}`);
+          if (cached) onUpdate(JSON.parse(cached));
+        } catch (_) {}
+      }
+    );
+  } catch (err) {
+    console.warn('subscribeToProductReviews setup notice:', err);
+    return () => {};
+  }
+};
+
+export const submitProductReview = async (review: Review): Promise<void> => {
+  if (!review || !review.productId || !review.comment) return;
+  const reviewId = review.id || `rev-${Date.now()}`;
+  const fullReview: Review = {
+    ...review,
+    id: reviewId,
+    createdAt: review.createdAt || Date.now(),
+    helpfulCount: review.helpfulCount || 0,
+    isVerified: review.isVerified !== undefined ? review.isVerified : true
+  };
+
+  // 1. Immediately cache locally
+  try {
+    const cached = safeStorage.getItem(`marts_reviews_${fullReview.productId}`);
+    const existing: Review[] = cached ? JSON.parse(cached) : [];
+    const updated = [fullReview, ...existing.filter((r) => r.id !== reviewId)];
+    safeStorage.setItem(`marts_reviews_${fullReview.productId}`, JSON.stringify(updated));
+  } catch (_) {}
+
+  // 2. Persist to Firestore: both product subcollection and top-level reviews collection
+  try {
+    const subColRef = doc(db, 'products', fullReview.productId, 'reviews', reviewId);
+    const topColRef = doc(db, 'reviews', reviewId);
+    await Promise.all([
+      withTimeout(setDoc(subColRef, fullReview, { merge: true }), 3000),
+      withTimeout(setDoc(topColRef, fullReview, { merge: true }), 3000)
+    ]);
+
+    // 3. Recalculate and update product rating and reviewsCount in products collection
+    const currentReviews = await fetchProductReviews(fullReview.productId);
+    const allReviews = [fullReview, ...currentReviews.filter((r) => r.id !== reviewId)];
+    const avgRating = Number((allReviews.reduce((sum, r) => sum + (r.rating || 5), 0) / allReviews.length).toFixed(1));
+    await updateDoc(doc(db, 'products', fullReview.productId), {
+      rating: avgRating,
+      reviewsCount: allReviews.length,
+      updatedAt: Date.now()
+    }).catch(() => {});
+  } catch (err) {
+    console.warn('submitProductReview Firestore notice:', err);
+  }
+
+  try {
+    window.dispatchEvent(new Event('marts_reviews_updated'));
+  } catch (_) {}
+};
+
+export const voteHelpfulReview = async (productId: string, reviewId: string, increment: boolean): Promise<void> => {
+  try {
+    const subRef = doc(db, 'products', productId, 'reviews', reviewId);
+    const topRef = doc(db, 'reviews', reviewId);
+    const snap = await getDoc(subRef).catch(() => null);
+    if (snap && snap.exists()) {
+      const cur = snap.data()?.helpfulCount || 0;
+      const newCount = Math.max(0, cur + (increment ? 1 : -1));
+      await Promise.all([
+        updateDoc(subRef, { helpfulCount: newCount }).catch(() => {}),
+        updateDoc(topRef, { helpfulCount: newCount }).catch(() => {})
+      ]);
+    }
+  } catch (err) {
+    console.warn('voteHelpfulReview notice:', err);
   }
 };
 

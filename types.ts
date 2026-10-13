@@ -7,6 +7,8 @@ export interface SpecificationGroup {
 export interface Review {
   id: string;
   productId: string;
+  userId?: string;
+  userEmail?: string;
   userName: string;
   userImage?: string;
   rating: number;
@@ -15,6 +17,7 @@ export interface Review {
   isVerified: boolean;
   helpfulCount: number;
   orderId?: string;
+  createdAt?: number;
 }
 
 export interface Product {

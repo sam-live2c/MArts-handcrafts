@@ -76,11 +76,30 @@ service cloud.firestore {
     }
 
     // ==========================================
-    // PRODUCTS COLLECTION (PUBLIC READ, ADMIN WRITE)
+    // PRODUCTS COLLECTION (PUBLIC READ, ADMIN WRITE, RATING UPDATE)
     // ==========================================
     match /products/{productId} {
       allow read: if true;
-      allow write: if isAdmin() && isValidId(productId);
+      allow update: if isValidId(productId) && (
+        isAdmin() || 
+        incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'reviewsCount', 'updatedAt'])
+      );
+      allow create, delete: if isAdmin() && isValidId(productId);
+    }
+
+    // ==========================================
+    // REVIEWS COLLECTION (STOREFRONT & VERIFIED RATINGS)
+    // ==========================================
+    match /products/{productId}/reviews/{reviewId} {
+      allow read: if true;
+      allow create, update: if isValidId(reviewId);
+      allow delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create, update: if isValidId(reviewId);
+      allow delete: if isAdmin();
     }
 
     // ==========================================

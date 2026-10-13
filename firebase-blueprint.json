@@ -385,6 +385,91 @@
       },
       "required": ["id", "userId", "total", "status"]
     },
+    "Review": {
+      "title": "Review",
+      "description": "Customer verified review and rating for hardware products",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique review identifier"
+        },
+        "productId": {
+          "type": "string",
+          "description": "Target product SKU / ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reviewer UID"
+        },
+        "userEmail": {
+          "type": "string",
+          "description": "Reviewer email address"
+        },
+        "userName": {
+          "type": "string",
+          "description": "Reviewer display name"
+        },
+        "rating": {
+          "type": "number",
+          "description": "Star rating out of 5"
+        },
+        "comment": {
+          "type": "string",
+          "description": "Review commentary text",
+          "maxLength": 2000
+        },
+        "date": {
+          "type": "string",
+          "description": "Formatted review date"
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Whether purchaser is verified by fulfilled order"
+        },
+        "helpfulCount": {
+          "type": "number",
+          "description": "Number of helpful upvotes"
+        },
+        "orderId": {
+          "type": "string",
+          "description": "Associated delivered order ID"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Review creation timestamp"
+        }
+      },
+      "required": ["id", "productId", "rating", "comment", "userName"]
+    },
+    "CartItem": {
+      "title": "CartItem",
+      "description": "Product added to customer cart with quantity and customizations",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Product ID"
+        },
+        "name": {
+          "type": "string",
+          "description": "Product name"
+        },
+        "price": {
+          "type": "number",
+          "description": "Unit price"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Item count in cart"
+        },
+        "image": {
+          "type": "string",
+          "description": "Product thumbnail"
+        }
+      },
+      "required": ["id", "name", "price", "quantity"]
+    },
     "CarouselBanner": {
       "title": "CarouselBanner",
       "description": "Storefront carousel slide banner with direct product link support",
@@ -455,9 +540,21 @@
       "schema": "Address",
       "description": "User saved shipping addresses"
     },
+    "/users/{userId}/cart/{cartItemId}": {
+      "schema": "CartItem",
+      "description": "User shopping cart items synchronized across login methods"
+    },
     "/products/{productId}": {
       "schema": "Product",
       "description": "Storefront equipment products managed via admin panel"
+    },
+    "/products/{productId}/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Product verified reviews and ratings in real time"
+    },
+    "/reviews/{reviewId}": {
+      "schema": "Review",
+      "description": "Universal product reviews collection"
     },
     "/banners/{bannerId}": {
       "schema": "CarouselBanner",

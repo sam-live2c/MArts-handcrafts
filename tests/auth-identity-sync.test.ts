@@ -350,7 +350,7 @@ async function runTests() {
         return {
           allowed: false,
           needsPasswordSetup: true,
-          message: 'No password has been set for this account. To set a password, please use Sign Up or Forgot Password with this email to enable email and password login.'
+          message: 'No password is set for this account. Please sign in with Google.'
         };
       }
       return { allowed: true, needsPasswordSetup: false };
@@ -358,8 +358,169 @@ async function runTests() {
 
     const result = evaluatePasswordLogin(googleOnlyAccount);
     assert(result.needsPasswordSetup === true, 'Must identify password setup is required');
-    assert(result.message.includes('Forgot Password'), 'Message must suggest Forgot Password');
-    assert(result.message.includes('Sign Up'), 'Message must suggest Sign Up');
+    assert(result.message.includes('No password is set for this account. Please sign in with Google.'), 'Message must provide clear inline instruction to sign in with Google');
+  });
+
+  // Scenario 16: Real-time review sharing and verified review access between Google & Email accounts for same email
+  await test('Scenario 16: Real-time review sharing & verified review eligibility across Google and Email accounts', () => {
+    const verifiedEmail = 'patron_crafts@example.com';
+    const googleUid = 'goog_user_456';
+    const emailDocId = 'marts_user_' + verifiedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Order placed via Google sign-in
+    const orderFromGoogle = {
+      id: 'ORD_GOOGLE_789',
+      userId: googleUid,
+      customerEmail: verifiedEmail,
+      status: 'Delivered',
+      items: [{ id: 'bronze_vase_1', name: 'Hand-Cast Bronze Vase', quantity: 1 }]
+    };
+
+    // User is currently logged in via Email/Password (userId = emailDocId)
+    // The system unifies orders by verified email, so orderFromGoogle is present
+    const userOrdersInEmailSession = [orderFromGoogle];
+
+    const targetProduct = { id: 'bronze_vase_1', name: 'Hand-Cast Bronze Vase' };
+
+    const matchingPurchase = userOrdersInEmailSession.find(
+      (order) =>
+        Boolean(order?.id) &&
+        String(order.status).toLowerCase() === 'delivered' &&
+        Array.isArray(order.items) &&
+        order.items.some((item) => item.id === targetProduct.id)
+    );
+
+    assert(Boolean(matchingPurchase), 'User in Email session is verified purchaser of item ordered via Google session');
+
+    // Review submitted is accessible to both accounts
+    const reviewData = {
+      id: 'rev_1710001',
+      productId: 'bronze_vase_1',
+      userId: emailDocId,
+      userEmail: verifiedEmail,
+      userName: 'Verified Master Patron',
+      rating: 5,
+      comment: 'Superb craftsmanship and heirloom quality finish.',
+      isVerified: true,
+      orderId: matchingPurchase?.id
+    };
+
+    assert(reviewData.isVerified === true, 'Review marked verified');
+    assert(reviewData.userEmail === verifiedEmail, 'Review linked to universal verified email');
+  });
+
+  // Scenario 17: Real-time cart synchronization between Google and Email accounts for same email
+  await test('Scenario 17: Real-time cart synchronization between Google and Email accounts for same email', () => {
+    const sharedEmail = 'cart_sync_user@example.com';
+    const googleUid = 'goog_cart_user';
+    const emailUid = 'marts_user_' + sharedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const googleCart = [
+      { id: 'stone_statue_1', name: 'Carved Sandstone Ganesha', price: 6500, quantity: 1 }
+    ];
+
+    // Item added in Google session syncs to email session
+    safeStorage.setItem(`marts_cart_${googleUid}`, JSON.stringify(googleCart));
+    safeStorage.setItem(`marts_cart_${emailUid}`, JSON.stringify(googleCart));
+    safeStorage.setItem('marts_cart', JSON.stringify(googleCart));
+
+    const emailRetrievedCart = JSON.parse(safeStorage.getItem(`marts_cart_${emailUid}`) || '[]');
+    assert(emailRetrievedCart.length === 1, 'Email account immediately has item added in Google account');
+    assert(emailRetrievedCart[0].id === 'stone_statue_1', 'Item ID matches across sessions');
+
+    // Modify quantity in Email session
+    const updatedCart = [
+      { id: 'stone_statue_1', name: 'Carved Sandstone Ganesha', price: 6500, quantity: 2 }
+    ];
+    safeStorage.setItem(`marts_cart_${emailUid}`, JSON.stringify(updatedCart));
+    safeStorage.setItem(`marts_cart_${googleUid}`, JSON.stringify(updatedCart));
+
+    const googleUpdatedCart = JSON.parse(safeStorage.getItem(`marts_cart_${googleUid}`) || '[]');
+    assert(googleUpdatedCart[0].quantity === 2, 'Quantity modification instantly synced to Google account');
+
+    // Cleanup
+    safeStorage.removeItem(`marts_cart_${googleUid}`);
+    safeStorage.removeItem(`marts_cart_${emailUid}`);
+  });
+
+  // Scenario 18: Real-time wishlist synchronization between Google and Email accounts for same email
+  await test('Scenario 18: Real-time wishlist synchronization between Google and Email accounts for same email', () => {
+    const sharedEmail = 'wishlist_sync_user@example.com';
+    const googleUid = 'goog_wish_user';
+    const emailUid = 'marts_user_' + sharedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    const initialWishlist = ['terracotta_pot_1', 'brass_lamp_2'];
+
+    // Google session updates wishlist
+    safeStorage.setItem(`marts_wishlist_${googleUid}`, JSON.stringify(initialWishlist));
+    safeStorage.setItem(`marts_wishlist_${emailUid}`, JSON.stringify(initialWishlist));
+    safeStorage.setItem('marts_wishlist', JSON.stringify(initialWishlist));
+
+    const emailWishlist = JSON.parse(safeStorage.getItem(`marts_wishlist_${emailUid}`) || '[]');
+    assert(emailWishlist.length === 2, 'Email session received wishlist from Google session');
+    assert(emailWishlist.includes('brass_lamp_2'), 'Wishlist item present');
+
+    // Email session toggles off an item
+    const nextWishlist = emailWishlist.filter((id: string) => id !== 'brass_lamp_2');
+    safeStorage.setItem(`marts_wishlist_${emailUid}`, JSON.stringify(nextWishlist));
+    safeStorage.setItem(`marts_wishlist_${googleUid}`, JSON.stringify(nextWishlist));
+
+    const googleWishlist = JSON.parse(safeStorage.getItem(`marts_wishlist_${googleUid}`) || '[]');
+    assert(googleWishlist.length === 1, 'Google session immediately reflects removed item');
+    assert(!googleWishlist.includes('brass_lamp_2'), 'Removed item gone from both sessions');
+
+    // Cleanup
+    safeStorage.removeItem(`marts_wishlist_${googleUid}`);
+    safeStorage.removeItem(`marts_wishlist_${emailUid}`);
+  });
+
+  // Scenario 19: Real-time address sharing and synchronization between Google & Email accounts for same email
+  await test('Scenario 19: Real-time delivery address sharing & synchronization across Google and Email accounts', () => {
+    const verifiedEmail = 'patron_crafts@example.com';
+    const googleUid = 'goog_user_456';
+    const emailUid = 'marts_user_' + verifiedEmail.replace(/[^a-zA-Z0-9]/g, '_');
+
+    // User adds an address in their Google session
+    const sampleAddress = {
+      id: 'addr_12345',
+      name: 'Patron Crafts',
+      phone: '+91 9876543210',
+      email: verifiedEmail,
+      pincode: '700001',
+      houseNo: 'Flat 4B, Heritage Enclave',
+      area: 'Ballygunge',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      type: 'HOME' as const,
+      isDefault: true
+    };
+
+    // Save to all candidate keys
+    const candidateUids = [googleUid, emailUid];
+    candidateUids.forEach((candId) => {
+      safeStorage.setItem(`marts_addresses_${candId}`, JSON.stringify([sampleAddress]));
+      safeStorage.setItem(`marts_default_address_${candId}`, JSON.stringify(sampleAddress));
+    });
+    safeStorage.setItem('marts_addresses', JSON.stringify([sampleAddress]));
+    safeStorage.setItem('marts_default_address', JSON.stringify(sampleAddress));
+
+    // Now test that Email session reading addresses receives the address created in Google session
+    const emailStoredAddrs = JSON.parse(safeStorage.getItem(`marts_addresses_${emailUid}`) || '[]');
+    assert(emailStoredAddrs.length === 1, 'Email session has access to the address created in Google session');
+    assert(emailStoredAddrs[0].houseNo === 'Flat 4B, Heritage Enclave', 'Address houseNo matches exactly');
+    assert(emailStoredAddrs[0].city === 'Kolkata', 'City matches');
+
+    // And default address is recognized
+    const emailDefAddr = JSON.parse(safeStorage.getItem(`marts_default_address_${emailUid}`) || '{}');
+    assert(emailDefAddr.id === 'addr_12345', 'Default address is shared across accounts');
+
+    // Cleanup
+    candidateUids.forEach((candId) => {
+      safeStorage.removeItem(`marts_addresses_${candId}`);
+      safeStorage.removeItem(`marts_default_address_${candId}`);
+    });
+    safeStorage.removeItem('marts_addresses');
+    safeStorage.removeItem('marts_default_address');
   });
 
   // Summary

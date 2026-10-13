@@ -6,9 +6,7 @@ import {
   signInWithEmailAndPassword, 
   signInWithPopup, 
   GoogleAuthProvider,
-  sendPasswordResetEmail,
   createUserWithEmailAndPassword,
-  updatePassword,
   linkWithCredential,
   signOut,
   type AuthCredential
@@ -16,7 +14,7 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { 
   Loader2, ArrowRight, ArrowLeft, Mail, AlertCircle, 
-  CheckCircle2, RefreshCw, Eye, EyeOff, X, ShieldAlert, Info
+  CheckCircle2, RefreshCw, Eye, EyeOff, X, ShieldAlert
 } from 'lucide-react';
 import Logo from '../components/Logo';
 import { 
@@ -25,8 +23,7 @@ import {
   findUserAccountByEmail, 
   restoreUserAccountByEmail,
   reconcileCanonicalUserData,
-  checkUserBlockedStatus,
-  setUserPassword
+  checkUserBlockedStatus
 } from '../services/dbService';
 import { getPendingGoogleCredential, setPendingGoogleCredential } from '../services/authLinkingService';
 import { resendService } from '../services/resendService';
@@ -38,7 +35,7 @@ interface LoginProps {
   onLogin: (user: User) => void;
 }
 
-type AuthView = 'password' | 'otp_request' | 'otp_verify' | 'forgot_email' | 'forgot_otp_verify' | 'forgot_new_password' | 'forgot_reset';
+type AuthView = 'password' | 'otp_request' | 'otp_verify';
 
 const GoogleIcon = () => (
   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" aria-hidden="true">
@@ -72,11 +69,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const mode = searchParams.get('mode') || searchParams.get('view');
       if (mode === 'otp') return 'otp_request';
       const saved = sessionStorage.getItem('marts_pending_login_view');
-      if (saved === 'otp_verify' || saved === 'forgot_otp_verify' || saved === 'forgot_new_password') {
-        return saved as AuthView;
-      }
-      if (saved === 'forgot_reset') {
-        return 'forgot_otp_verify';
+      if (saved === 'otp_verify') {
+        return 'otp_verify';
       }
     } catch (_) {}
     return 'password';
@@ -99,11 +93,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   });
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  
-  // Forgot Password Fields
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmNewPassword, setConfirmNewPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Single OTP Input Code
   const [otpCode, setOtpCode] = useState('');
@@ -120,7 +109,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     return getPendingGoogleCredential();
   });
   const [isGoogleSuggested, setIsGoogleSuggested] = useState<boolean>(false);
-  const [noPasswordState, setNoPasswordState] = useState<{ active: boolean; email: string }>({ active: false, email: '' });
 
   // Loading States
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -164,7 +152,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
   // Timer countdown for resending codes
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if ((view === 'otp_verify' || view === 'forgot_otp_verify' || view === 'forgot_reset') && resendCountdown > 0) {
+    if (view === 'otp_verify' && resendCountdown > 0) {
       timer = setTimeout(() => {
         setResendCountdown((prev) => prev - 1);
       }, 1000);
@@ -178,7 +166,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setView(newView);
     setErrorMessage(null);
     setOtpCode('');
-    if (newView === 'password' || newView === 'otp_request' || newView === 'forgot_email') {
+    if (newView === 'password' || newView === 'otp_request') {
       clearPendingStorage();
     }
   };
@@ -362,23 +350,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             } else if (failure.remainingAttempts !== undefined && failure.remainingAttempts <= 3) {
               setErrorMessage(`Incorrect password. ${failure.remainingAttempts} attempt(s) remaining before temporary lockout.`);
             } else {
-              setErrorMessage('Incorrect password. Please try again or click "Forgot password?" to reset.');
+              setErrorMessage('Incorrect password. Please try again.');
             }
             return;
           }
         } else {
           // Account exists (e.g. registered via Google), but NO password has been set yet!
           setIsGoogleSuggested(true);
-          setNoPasswordState({
-            active: true,
-            email: cleanEmail
-          });
-          const noPwdMsg = 'No password has been set for this account. Please sign in with Google, or set a password using Forgot Password or Sign Up to enable email & password login.';
-          setErrorMessage(noPwdMsg);
-          showToast('No password set for this account. Use Forgot Password or Sign Up to set one.', 'error');
-          window.dispatchEvent(new CustomEvent('marts_show_toast', {
-            detail: { message: 'No password set. Use Forgot Password or Sign Up to set a password.', type: 'error' }
-          }));
+          setErrorMessage('No password is set for this account. Please sign in with Google.');
           return;
         }
       }
@@ -390,16 +369,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         setErrorMessage(msg);
         showToast(msg, 'error');
       } else {
-        const noAccMsg = 'No password has been set for this account or account not found. Please sign in with Google or set a password via Sign Up or Forgot Password.';
-        setErrorMessage(noAccMsg);
-        setNoPasswordState({
-          active: true,
-          email: cleanEmail
-        });
-        showToast('No password has been set. Set a password via Sign Up or Forgot Password.', 'error');
-        window.dispatchEvent(new CustomEvent('marts_show_toast', {
-          detail: { message: 'No password set. Sign Up or use Forgot Password to enable password login.', type: 'error' }
-        }));
+        setErrorMessage('No password is set for this account. Please sign in with Google.');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to sign in. Please try again.');
@@ -529,167 +499,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     }
   };
 
-  // ================= 3. FORGOT PASSWORD FLOW (POWERED BY RESEND) =================
-  const handleRequestPasswordResetOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail) {
-      setErrorMessage('Please enter your registered email address');
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-      setErrorMessage('Please enter a valid email address');
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      // Check if user is blocked by admin from admin panel
-      const blockCheck = await checkUserBlockedStatus(null, cleanEmail);
-      if (blockCheck.isBlocked) {
-        const blockMsg = blockCheck.reason || 'Your account has been blocked by the admin. Please contact support.';
-        setErrorMessage(blockMsg);
-        showToast(blockMsg, 'error');
-        window.dispatchEvent(new CustomEvent('marts_show_toast', {
-          detail: { message: blockMsg, type: 'blocked' }
-        }));
-        setIsLoading(false);
-        return;
-      }
-
-      // Send Firebase reset link in parallel
-      sendPasswordResetEmail(auth, cleanEmail).catch(() => {});
-
-      const res = await resendService.sendOtp(cleanEmail, 'reset');
-
-      if (res.success) {
-        setOtpCode('');
-        setNewPassword('');
-        setConfirmNewPassword('');
-        setResendCountdown(30);
-        setView('forgot_otp_verify');
-
-        try {
-          sessionStorage.setItem('marts_pending_login_view', 'forgot_otp_verify');
-          sessionStorage.setItem('marts_pending_login_email', cleanEmail);
-        } catch (_) {}
-
-        showToast(`Reset code sent to ${cleanEmail}`);
-      } else {
-        setErrorMessage(res.error || 'Failed to send password reset code. Please try again.');
-      }
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Error sending reset code. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyResetOtp = async (codeToVerify?: string) => {
-    const code = (codeToVerify || otpCode).trim();
-    if (code.length < 6) {
-      setErrorMessage('Please enter the 6-digit verification code');
-      return;
-    }
-
-    setIsLoading(true);
-    setErrorMessage(null);
-    const cleanEmail = email.trim().toLowerCase();
-
-    try {
-      const verifyRes = await resendService.verifyOtp(cleanEmail, code);
-
-      if (!verifyRes.success) {
-        setErrorMessage(verifyRes.error || 'Invalid or expired code. Please check and try again.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Step 1 verified! Move to Step 2: New password section
-      setView('forgot_new_password');
-      setOtpCode('');
-      setErrorMessage(null);
-
-      try {
-        sessionStorage.setItem('marts_pending_login_view', 'forgot_new_password');
-        sessionStorage.setItem('marts_pending_login_email', cleanEmail);
-      } catch (_) {}
-
-      showToast('Code verified! Please create your new password.');
-    } catch {
-      setErrorMessage('An error occurred during verification. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCompletePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-
-    if (!newPassword) {
-      setErrorMessage('Please enter a new password');
-      return;
-    }
-    if (newPassword.length < 6) {
-      setErrorMessage('Password must be at least 6 characters long');
-      return;
-    }
-    if (newPassword !== confirmNewPassword) {
-      setErrorMessage('Passwords do not match');
-      return;
-    }
-
-    setIsLoading(true);
-    const cleanEmail = email.trim().toLowerCase();
-
-    try {
-      const newPwdHash = await hashPassword(newPassword);
-      const restored = await restoreUserAccountByEmail(cleanEmail, newPwdHash);
-      await setUserPassword(restored.docId || restored.user.uid || '', cleanEmail, newPwdHash);
-
-      // Attempt to update Firebase Auth if active, or register credential
-      if (auth.currentUser) {
-        updatePassword(auth.currentUser, newPassword)
-          .then(async () => {
-            if (pendingGoogleCred && auth.currentUser) {
-              await linkWithCredential(auth.currentUser, pendingGoogleCred).catch(() => {});
-              setPendingGoogleCred(null);
-            }
-          })
-          .catch(() => {});
-      } else {
-        createUserWithEmailAndPassword(auth, cleanEmail, newPassword)
-          .then(async (userCred) => {
-            if (pendingGoogleCred && userCred.user) {
-              await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
-              setPendingGoogleCred(null);
-            }
-          })
-          .catch(() => {
-            signInWithEmailAndPassword(auth, cleanEmail, newPassword)
-              .then(async (userCred) => {
-                if (pendingGoogleCred && userCred.user) {
-                  await linkWithCredential(userCred.user, pendingGoogleCred).catch(() => {});
-                  setPendingGoogleCred(null);
-                }
-              })
-              .catch(() => {});
-          });
-      }
-
-      showToast('Password reset successfully!');
-      await handlePostAuthRedirect(restored.docId, restored.user);
-    } catch {
-      setErrorMessage('Failed to update password. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Google Sign In with immediate button loading animation and smooth instant redirect
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
@@ -716,15 +525,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         return;
       }
 
-      // Clear any legacy un-scoped address keys from previous browser sessions
+      // Check if address already exists for this verified email across candidate accounts/caches
+      let existingAddressStr = '';
       try {
-        localStorage.removeItem('marts_default_address');
-        localStorage.removeItem('melody_default_address');
-        localStorage.removeItem('agronic_default_address');
-        localStorage.removeItem('marts_user_address');
-        localStorage.removeItem('melody_user_address');
-        localStorage.removeItem('agronic_user_address');
-        localStorage.removeItem('melody_addresses');
+        const cachedStr = safeStorage.getItem(`marts_user_address_${fbUser.uid}`) || safeStorage.getItem('marts_user_address');
+        if (cachedStr) existingAddressStr = cachedStr;
       } catch (_) {}
 
       // Fast initial profile strictly using Google authenticated details
@@ -735,7 +540,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         avatar: fbUser.photoURL || undefined,
         phone: String(fbUser.phoneNumber || ''),
         phoneNumber: String(fbUser.phoneNumber || ''),
-        address: '', // Clean blank address - no preset leakage
+        address: existingAddressStr || '',
         orders: []
       };
 
@@ -815,9 +620,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           {view === 'password' && 'Welcome Back'}
           {view === 'otp_request' && 'Sign In with OTP'}
           {view === 'otp_verify' && 'Verify Your Email'}
-          {view === 'forgot_email' && 'Reset Your Password'}
-          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && 'Verify Reset Code'}
-          {view === 'forgot_new_password' && 'Create New Password'}
         </h1>
         <p className="mt-2 text-center text-xs sm:text-sm text-[#735A4C]">
           {view === 'password' && (
@@ -833,9 +635,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           )}
           {view === 'otp_request' && 'Receive a one-time code on your registered email address.'}
           {view === 'otp_verify' && 'Enter the 6-digit code sent to your email.'}
-          {view === 'forgot_email' && 'Enter your email to receive password reset instructions.'}
-          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && 'Enter the 6-digit code sent to your registered email.'}
-          {view === 'forgot_new_password' && 'Enter and confirm your new password below.'}
         </p>
       </div>
 
@@ -863,13 +662,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <label className="block text-xs font-bold text-[#4E392D] uppercase tracking-wide">
                     Password *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => switchView('forgot_email')}
-                    className="text-xs text-[#C85A32] hover:underline font-semibold cursor-pointer"
-                  >
-                    Forgot password?
-                  </button>
                 </div>
                 <div className="relative">
                   <input
@@ -899,55 +691,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   </p>
                 )}
               </div>
-
-              {/* Account Migration / Set Password Box when no password exists */}
-              {noPasswordState.active && (
-                <div className="p-3.5 bg-[#FFF7F2] border border-[#F5D2C2] rounded-2xl space-y-2.5 animate-in fade-in duration-200">
-                  <div className="flex items-start gap-2">
-                    <Info size={16} className="text-[#C85A32] shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-bold text-[#4E392D]">No Password Set For This Account</p>
-                      <p className="text-[11px] text-[#735A4C] mt-0.5 leading-snug">
-                        This account was registered via Google Sign-In. You can set a password using <strong>Forgot Password</strong> or <strong>Sign Up</strong> to enable login with email and password:
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail(noPasswordState.email);
-                        switchView('forgot_email');
-                      }}
-                      className="w-full py-2 px-2.5 bg-[#C85A32] hover:bg-[#B04C27] text-white rounded-xl text-xs font-bold transition-colors text-center cursor-pointer shadow-2xs"
-                    >
-                      Forgot Password
-                    </button>
-                    <Link
-                      to={`/signup?email=${encodeURIComponent(noPasswordState.email)}`}
-                      className="w-full py-2 px-2.5 bg-white border border-[#EADBCC] hover:bg-[#FAF4EE] text-[#4E392D] rounded-xl text-xs font-bold transition-colors text-center cursor-pointer flex items-center justify-center"
-                    >
-                      Sign Up
-                    </Link>
-                  </div>
-                  <div className="pt-1 border-t border-[#F5D2C2]/60">
-                    <button
-                      type="button"
-                      onClick={handleGoogleSignIn}
-                      disabled={isGoogleLoading}
-                      className="w-full py-2 px-3 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 rounded-xl text-xs font-medium transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
-                    >
-                      <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                      </svg>
-                      <span>Continue with Google</span>
-                    </button>
-                  </div>
-                </div>
-              )}
 
               <button
                 type="submit"
@@ -1162,246 +905,6 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 </button>
               </div>
             </div>
-          )}
-
-          {/* VIEW 4: FORGOT PASSWORD EMAIL */}
-          {view === 'forgot_email' && (
-            <form onSubmit={handleRequestPasswordResetOtp} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
-                  Registered Email Address *
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your registered email"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
-                />
-              </div>
-
-              <div className="min-h-[22px] flex items-center">
-                {errorMessage && (
-                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
-                    <AlertCircle size={13} className="shrink-0 text-red-500" />
-                    <span>{errorMessage}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Sending Reset Code...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Send Password Reset Code</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => switchView('password')}
-                  className="text-xs font-semibold text-[#735A4C] hover:text-[#2B221B] cursor-pointer inline-flex items-center gap-1"
-                >
-                  <ArrowLeft size={13} />
-                  <span>Back to sign in</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* VIEW 5: FORGOT PASSWORD - STEP 1: SINGLE OTP VERIFICATION */}
-          {(view === 'forgot_otp_verify' || view === 'forgot_reset') && (
-            <div className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-3 bg-[#FAF3EA] rounded-2xl flex items-center justify-between">
-                <div className="truncate">
-                  <p className="text-[11px] font-bold text-[#8C6D58] uppercase">Reset Code Sent To</p>
-                  <p className="text-xs sm:text-sm font-bold text-[#2B221B] truncate">{email}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => switchView('forgot_email')}
-                  className="text-xs font-bold text-[#C85A32] hover:underline cursor-pointer shrink-0 ml-2"
-                >
-                  Change
-                </button>
-              </div>
-
-              {/* Single OTP Input */}
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1.5 uppercase tracking-wide text-center">
-                  6-Digit Verification Code *
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  pattern="[0-9]*"
-                  value={otpCode}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setOtpCode(digits);
-                    setErrorMessage(null);
-                    if (digits.length === 6) {
-                      handleVerifyResetOtp(digits);
-                    }
-                  }}
-                  placeholder="••••••"
-                  className="w-full h-12 text-center text-xl tracking-[0.4em] font-mono font-bold text-[#2B221B] bg-[#FAF8F5] focus:bg-white border border-[#E5D7CA] focus:border-[#C85A32] rounded-xl outline-none transition-all placeholder:text-[#9C8272]/30"
-                  autoFocus
-                />
-              </div>
-
-              {/* Stable inline error container */}
-              <div className="min-h-[22px] flex items-center justify-center">
-                {errorMessage && (
-                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
-                    <AlertCircle size={13} className="shrink-0 text-red-500" />
-                    <span>{errorMessage}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="button"
-                disabled={isLoading || otpCode.length < 6}
-                onClick={() => handleVerifyResetOtp()}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Verifying Code...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Verify Code</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-
-              <div className="flex items-center justify-between pt-2 text-xs text-[#735A4C]">
-                <button
-                  type="button"
-                  onClick={() => switchView('password')}
-                  className="hover:text-[#2B221B] cursor-pointer"
-                >
-                  Back to Sign In
-                </button>
-                <button
-                  type="button"
-                  disabled={resendCountdown > 0 || isLoading}
-                  onClick={handleRequestPasswordResetOtp}
-                  className="font-bold text-[#C85A32] hover:underline disabled:text-gray-400 disabled:no-underline cursor-pointer flex items-center gap-1"
-                >
-                  <RefreshCw size={13} />
-                  <span>
-                    {resendCountdown > 0 ? `Resend code in ${resendCountdown}s` : 'Resend code'}
-                  </span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* VIEW 6: FORGOT PASSWORD - STEP 2: NEW PASSWORD SECTION */}
-          {view === 'forgot_new_password' && (
-            <form onSubmit={handleCompletePasswordReset} className="space-y-4 animate-in fade-in duration-200">
-              <div className="p-3 bg-[#F0FDF4] rounded-2xl border border-[#BBF7D0] flex items-center gap-2.5">
-                <CheckCircle2 size={18} className="text-[#16A34A] shrink-0" />
-                <div className="truncate">
-                  <p className="text-[11px] font-bold text-[#15803D] uppercase">Identity Verified</p>
-                  <p className="text-xs font-semibold text-[#166534] truncate">{email}</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
-                  New Password *
-                </label>
-                <div className="relative">
-                  <input
-                    type={showNewPassword ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    className="w-full px-3.5 py-2.5 pr-10 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
-                  >
-                    {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-[#4E392D] mb-1 uppercase tracking-wide">
-                  Confirm New Password *
-                </label>
-                <input
-                  type="password"
-                  value={confirmNewPassword}
-                  onChange={(e) => setConfirmNewPassword(e.target.value)}
-                  placeholder="Re-enter new password"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5D7CA] text-sm text-[#2B221B] bg-[#FAF8F5] focus:bg-white focus:border-[#C85A32] placeholder:text-[#9C8272]/70 outline-none transition-[border-color,background-color]"
-                />
-              </div>
-
-              {/* Stable inline error container */}
-              <div className="min-h-[22px] flex items-center">
-                {errorMessage && (
-                  <p className="text-xs text-red-600 flex items-center gap-1.5 animate-in fade-in duration-100">
-                    <AlertCircle size={13} className="shrink-0 text-red-500" />
-                    <span>{errorMessage}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-[#C85A32] hover:bg-[#A04724] text-white font-bold py-3 px-4 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer text-sm disabled:opacity-75"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin text-white" />
-                    <span>Saving New Password...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Save Password &amp; Sign In</span>
-                    <ArrowRight size={16} />
-                  </>
-                )}
-              </button>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => switchView('password')}
-                  className="text-xs font-semibold text-[#735A4C] hover:text-[#2B221B] cursor-pointer inline-flex items-center gap-1"
-                >
-                  <ArrowLeft size={13} />
-                  <span>Back to Sign In</span>
-                </button>
-              </div>
-            </form>
           )}
 
         </div>

@@ -9,6 +9,7 @@ import {
   fetchUserAddresses,
   saveUserAddress,
   deleteUserAddress,
+  subscribeToUserAddresses,
   deduplicateAddresses
 } from '../services/dbService';
 import { safeStorage, sanitizeUserForCache, broadcastUserUpdate } from '../utils/storage';
@@ -179,50 +180,57 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     }
   }, [user, editingId]);
 
-  // Load user's addresses from Firestore or local storage on mount
+  // Load and subscribe to user's addresses across Google & Email accounts
   useEffect(() => {
     let isMounted = true;
     if (isSavingRef.current) return;
-    const loadAddresses = async () => {
-      setIsLoading(true);
-      const currentUser = auth.currentUser;
-      let fetched: AddressItem[] = [];
-      if (currentUser) {
-        fetched = await fetchUserAddresses(currentUser.uid, loggedInEmail);
-      } else {
-        // Unauthenticated guest check user-scoped cache only
-        const localUid = user?.id || (user as any)?.uid;
-        if (localUid) {
-          const localSaved = safeStorage.getItem(`marts_addresses_${localUid}`);
-          if (localSaved) {
-            try {
-              const parsed = JSON.parse(localSaved);
-              if (Array.isArray(parsed)) fetched = parsed;
-            } catch (e) {}
-          }
-        }
-      }
+    const currentUser = auth.currentUser;
+    const cleanEmail = (loggedInEmail || user?.email || currentUser?.email || '').trim().toLowerCase();
+    const activeUid = currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
 
-      const uniqueFetched = deduplicateAddresses(fetched);
-
+    const applyAddresses = (fetched: AddressItem[]) => {
       if (!isMounted || isSavingRef.current) return;
-
+      const uniqueFetched = deduplicateAddresses(fetched);
       if (uniqueFetched.length > 0) {
         setAddresses(uniqueFetched);
         const defaultAddr = uniqueFetched.find(a => a.isDefault) || uniqueFetched[0];
-        setSelectedId(defaultAddr.id);
+        setSelectedId(prev => (prev && uniqueFetched.some(a => a.id === prev)) ? prev : defaultAddr.id);
         setShowForm(false);
       } else {
         setAddresses([]);
-        setShowForm(true); // Open clean form automatically for users without an address
+        setShowForm(true);
       }
       setIsLoading(false);
     };
-    loadAddresses();
+
+    setIsLoading(true);
+
+    let unsub: (() => void) | null = null;
+    if (activeUid && activeUid !== 'guest') {
+      unsub = subscribeToUserAddresses(activeUid, cleanEmail, (liveAddrs) => {
+        applyAddresses(liveAddrs);
+      });
+    } else {
+      // Unauthenticated guest check user-scoped cache only
+      const localUid = user?.id || (user as any)?.uid;
+      let localFetched: AddressItem[] = [];
+      if (localUid) {
+        const localSaved = safeStorage.getItem(`marts_addresses_${localUid}`);
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            if (Array.isArray(parsed)) localFetched = parsed;
+          } catch (e) {}
+        }
+      }
+      applyAddresses(localFetched);
+    }
+
     return () => {
       isMounted = false;
+      if (unsub) unsub();
     };
-  }, [user?.phone, user?.email, auth.currentUser?.uid]);
+  }, [user?.phone, user?.email, user?.uid, auth.currentUser?.uid, loggedInEmail]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -240,7 +248,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
       safeStorage.setItem('marts_user_address', formattedStr);
       const currentUser = auth.currentUser;
       if (currentUser) {
-        const updatedUser = await saveUserAddress(currentUser.uid, selected);
+        const updatedUser = await saveUserAddress(currentUser.uid, selected, loggedInEmail);
         if (onUpdateUser) {
           onUpdateUser(updatedUser);
         }
@@ -313,7 +321,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     }
     const currentUser = auth.currentUser;
     if (currentUser) {
-      await deleteUserAddress(currentUser.uid, id);
+      await deleteUserAddress(currentUser.uid, id, loggedInEmail);
     }
     showToast('Address deleted');
   };
@@ -358,8 +366,8 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
     let canonicalAddresses: AddressItem[] = [];
 
     if (currentUser) {
-      updatedProfile = await saveUserAddress(currentUser.uid, addrToSave);
-      canonicalAddresses = await fetchUserAddresses(currentUser.uid);
+      updatedProfile = await saveUserAddress(currentUser.uid, addrToSave, loggedInEmail);
+      canonicalAddresses = await fetchUserAddresses(currentUser.uid, loggedInEmail);
     } else {
       const cached = safeStorage.getItem('marts_user_profile');
       let current: User = cached ? JSON.parse(cached) : { name: '', phone: '', email: '', address: '', orders: [] };
@@ -424,7 +432,7 @@ const AddressPage: React.FC<AddressPageProps> = ({ cart = [], user, onSelectAddr
 
       const currentUser = auth.currentUser;
       if (currentUser) {
-        const updatedUser = await saveUserAddress(currentUser.uid, { ...activeAddress, isDefault: true });
+        const updatedUser = await saveUserAddress(currentUser.uid, { ...activeAddress, isDefault: true }, loggedInEmail);
         if (onUpdateUser) {
           onUpdateUser(updatedUser);
         }

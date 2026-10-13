@@ -36,6 +36,10 @@ import {
   fetchUserWishlist,
   syncUserWishlistToFirestore,
   fetchUserOrders,
+  subscribeToUserOrders,
+  subscribeToUserCart,
+  subscribeToUserWishlist,
+  subscribeToUserAddresses,
   fetchProductsFromFirestore,
   subscribeToLiveProducts,
   subscribeToCarouselBanners,
@@ -532,6 +536,24 @@ const App: React.FC = () => {
     }
   }, [cart, user?.email]);
 
+  // Real-time synchronization for Cart across Google & Email accounts with same email
+  useEffect(() => {
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
+    if (!currentUid || currentUid === 'guest') return;
+
+    const unsub = subscribeToUserCart(currentUid, cleanEmail, (liveCart) => {
+      setCart((prev) => {
+        const prevJson = JSON.stringify(prev || []);
+        const liveJson = JSON.stringify(liveCart || []);
+        if (prevJson === liveJson) return prev;
+        return liveCart;
+      });
+    });
+
+    return () => unsub();
+  }, [user?.email, user?.uid, auth.currentUser?.uid]);
+
   // Sync Wishlist with local cache & Firestore when updated
   useEffect(() => {
     try {
@@ -543,6 +565,89 @@ const App: React.FC = () => {
       syncUserWishlistToFirestore(currentUid, wishlist, cleanEmail).catch(e => console.warn('Wishlist sync notice:', e));
     }
   }, [wishlist, user?.email]);
+
+  // Real-time synchronization for Wishlist across Google & Email accounts with same email
+  useEffect(() => {
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
+    if (!currentUid || currentUid === 'guest') return;
+
+    const unsub = subscribeToUserWishlist(currentUid, cleanEmail, (liveWishlist) => {
+      setWishlist((prev) => {
+        const prevSorted = [...prev].sort().join(',');
+        const liveSorted = [...liveWishlist].sort().join(',');
+        if (prevSorted === liveSorted) return prev;
+        return liveWishlist;
+      });
+    });
+
+    return () => unsub();
+  }, [user?.email, user?.uid, auth.currentUser?.uid]);
+
+  // Real-time synchronization for Orders across Google & Email accounts with same email
+  useEffect(() => {
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
+    if (!currentUid || currentUid === 'guest') return;
+
+    const unsub = subscribeToUserOrders(currentUid, cleanEmail, (liveOrders) => {
+      setUser((prev) => {
+        if (!prev) return prev;
+        const ordMap = new Map<string, Order>();
+        (prev.orders || []).forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+        liveOrders.forEach(o => { if (o && o.id) ordMap.set(o.id, o); });
+        const merged = Array.from(ordMap.values()).sort((a, b) => {
+          const timeA = Number(a?.createdAt) || (a?.date ? new Date(a.date).getTime() : 0) || 0;
+          const timeB = Number(b?.createdAt) || (b?.date ? new Date(b.date).getTime() : 0) || 0;
+          if (timeA && timeB && timeA !== timeB) return timeB - timeA;
+          return String(b?.id || '').localeCompare(String(a?.id || ''));
+        });
+        return { ...prev, orders: merged };
+      });
+    });
+
+    return () => unsub();
+  }, [user?.email, user?.uid, auth.currentUser?.uid]);
+
+  // Real-time synchronization for Addresses across Google & Email accounts with same email
+  useEffect(() => {
+    const cleanEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const currentUid = auth.currentUser?.uid || user?.uid || (cleanEmail ? 'marts_user_' + cleanEmail.replace(/[^a-zA-Z0-9]/g, '_') : null);
+    if (!currentUid || currentUid === 'guest') return;
+
+    const unsub = subscribeToUserAddresses(currentUid, cleanEmail, (liveAddresses) => {
+      if (!Array.isArray(liveAddresses) || liveAddresses.length === 0) return;
+      const def = liveAddresses.find(a => a.isDefault) || liveAddresses[0];
+      const formatted = `${def.houseNo}, ${def.area ? def.area + ', ' : ''}${def.city}, ${def.state} ${def.pincode}`.trim();
+
+      setUser((prev) => {
+        if (!prev) return prev;
+        if (prev.address === formatted && prev.deliveryAddress) return prev;
+        const updated: User = {
+          ...prev,
+          address: formatted,
+          deliveryAddress: {
+            recipientName: def.name,
+            phone: def.phone,
+            street: def.houseNo,
+            apartment: def.area,
+            city: def.city,
+            state: def.state,
+            postalCode: def.pincode,
+            pin: def.pincode
+          }
+        };
+        try {
+          safeStorage.setItem('marts_user_profile', JSON.stringify(sanitizeUserForCache(updated)));
+          safeStorage.setItem('marts_user_address', formatted);
+          safeStorage.setItem('marts_default_address', JSON.stringify(def));
+        } catch (_) {}
+        return updated;
+      });
+    });
+
+    return () => unsub();
+  }, [user?.email, user?.uid, auth.currentUser?.uid]);
 
   const showToast = (message: string, type: 'cart' | 'wishlist' | 'success' | 'error' | 'blocked' = 'cart', item?: CartItem | Product | null) => {
     setNotification({ show: true, message, type, item });

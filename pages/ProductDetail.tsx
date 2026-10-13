@@ -27,7 +27,7 @@ import {
 import { CartItem, User, Review, Order, Product } from "../types";
 import { db, auth } from "../firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { fetchUserOrders } from "../services/dbService";
+import { fetchUserOrders, subscribeToProductReviews, submitProductReview, voteHelpfulReview } from "../services/dbService";
 import Logo from "../components/Logo";
 import { RunningTruckIcon } from "../components/RunningTruckIcon";
 import { ProductDetailSkeleton } from "../components/Skeleton";
@@ -139,23 +139,18 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     return [];
   });
 
-  // Keep reviews updated when viewing different products
+  // Real-time listener for product reviews from Firestore, fallback to cache
   useEffect(() => {
     if (!id) {
       setReviews([]);
       return;
     }
-    try {
-      const saved = localStorage.getItem(`marts_reviews_${id}`) || localStorage.getItem(`melody_reviews_${id}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setReviews(parsed.filter((r: Review) => r.id && !['rev-1', 'rev-2', 'rev-3'].includes(r.id)));
-          return;
-        }
+    const unsub = subscribeToProductReviews(id, (liveReviews) => {
+      if (Array.isArray(liveReviews)) {
+        setReviews(liveReviews.filter((r: Review) => r.id && !['rev-1', 'rev-2', 'rev-3'].includes(r.id)));
       }
-    } catch {}
-    setReviews([]);
+    });
+    return () => unsub();
   }, [id]);
 
   const [authorName, setAuthorName] = useState("");
@@ -315,61 +310,60 @@ const ProductDetail: React.FC<ProductDetailProps> = ({
     return list;
   }, [reviews, ratingFilter, sortBy]);
 
-  const handleSubmitReview = (e?: React.FormEvent) => {
+  const handleSubmitReview = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newComment.trim()) return;
+    if (!newComment.trim() || !product?.id) return;
 
     setSubmittingReview(true);
-    setTimeout(() => {
-      const displayName = (authorName.trim() || user?.name || "Verified Customer").trim();
-      const newRev: Review = {
-        id: `rev-${Date.now()}`,
-        productId: product.id,
-        userName: displayName,
-        rating: newRating,
-        comment: newComment.trim(),
-        date: "Just now",
-        isVerified: true,
-        orderId: matchingPurchase?.id,
-        helpfulCount: 0,
-      };
-      const updatedReviews = [newRev, ...reviews];
-      setReviews(updatedReviews);
+    const displayName = (authorName.trim() || user?.name || user?.displayName || "Verified Customer").trim();
+    const effectiveEmail = (user?.email || auth.currentUser?.email || '').trim().toLowerCase();
+    const effectiveUid = user?.id || (user as any)?.uid || auth.currentUser?.uid;
 
-      const calculatedAvg = Number((updatedReviews.reduce((acc, r) => acc + r.rating, 0) / updatedReviews.length).toFixed(1));
-      try {
-        updateDoc(doc(db, 'products', product.id), {
-          rating: calculatedAvg,
-          reviewsCount: updatedReviews.length,
-          updatedAt: Date.now()
-        }).catch(err => console.warn('Product rating update notice:', err));
-      } catch (_) {}
+    const newRev: Review = {
+      id: `rev-${Date.now()}`,
+      productId: product.id,
+      userId: effectiveUid,
+      userEmail: effectiveEmail,
+      userName: displayName,
+      rating: newRating,
+      comment: newComment.trim(),
+      date: "Just now",
+      isVerified: true,
+      orderId: matchingPurchase?.id,
+      helpfulCount: 0,
+      createdAt: Date.now()
+    };
 
-      try {
-        window.dispatchEvent(new Event('marts_reviews_updated'));
-      } catch (_) {}
+    // Optimistically update local state immediately
+    const updatedReviews = [newRev, ...reviews.filter(r => r.id !== newRev.id)];
+    setReviews(updatedReviews);
 
+    try {
+      await submitProductReview(newRev);
       setNewComment("");
       setAuthorName("");
-      setSubmittingReview(false);
-      setShowReviewModal(false);
       setReviewSuccessMsg("Thank you! Your verified purchaser review has been added.");
       setTimeout(() => setReviewSuccessMsg(""), 5000);
-    }, 250);
+    } catch (err) {
+      console.warn('Error submitting review:', err);
+    } finally {
+      setSubmittingReview(false);
+      setShowReviewModal(false);
+    }
   };
 
-  const handleToggleHelpful = (reviewId: string) => {
-    setHelpfulVotes((prev) => {
-      const wasHelpful = prev[reviewId];
-      setReviews((currentReviews) =>
-        currentReviews.map((r) =>
-          r.id === reviewId
-            ? { ...r, helpfulCount: r.helpfulCount + (wasHelpful ? -1 : 1) }
-            : r
-        )
-      );
-      return { ...prev, [reviewId]: !wasHelpful };
-    });
+  const handleToggleHelpful = async (reviewId: string) => {
+    if (!product?.id) return;
+    const wasHelpful = helpfulVotes[reviewId];
+    setHelpfulVotes((prev) => ({ ...prev, [reviewId]: !wasHelpful }));
+    setReviews((currentReviews) =>
+      currentReviews.map((r) =>
+        r.id === reviewId
+          ? { ...r, helpfulCount: Math.max(0, (r.helpfulCount || 0) + (wasHelpful ? -1 : 1)) }
+          : r
+      )
+    );
+    await voteHelpfulReview(product.id, reviewId, !wasHelpful);
   };
 
   const faqs = [

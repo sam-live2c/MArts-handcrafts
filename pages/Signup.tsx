@@ -415,15 +415,11 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
         return;
       }
 
-      // Clear any legacy un-scoped address keys from previous browser sessions
+      // Check if address already exists for this verified email across candidate accounts/caches
+      let existingAddressStr = '';
       try {
-        localStorage.removeItem('marts_default_address');
-        localStorage.removeItem('melody_default_address');
-        localStorage.removeItem('agronic_default_address');
-        localStorage.removeItem('marts_user_address');
-        localStorage.removeItem('melody_user_address');
-        localStorage.removeItem('agronic_user_address');
-        localStorage.removeItem('melody_addresses');
+        const cachedStr = safeStorage.getItem(`marts_user_address_${fbUser.uid}`) || safeStorage.getItem('marts_user_address');
+        if (cachedStr) existingAddressStr = cachedStr;
       } catch (_) {}
 
       // Fast initial profile strictly using Google authenticated details
@@ -434,7 +430,7 @@ const Signup: React.FC<SignupProps> = ({ onSignup }) => {
         avatar: fbUser.photoURL || undefined,
         phone: String(fbUser.phoneNumber || ''),
         phoneNumber: String(fbUser.phoneNumber || ''),
-        address: '', // Clean blank address - no preset leakage
+        address: existingAddressStr || '',
         orders: []
       };
 
